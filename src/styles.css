@@ -1,0 +1,94 @@
+:root {
+  --ink: #3d3548;
+  --ink-soft: #7d7189;
+  --paper: #fdf7fa;
+  --panel: #ffffff;
+  --line: #ecdfe8;
+
+  --rosa: #d4779e;
+  --rosa-fuerte: #c05f89;
+  --rosa-suave: #fce8f1;
+  --cian: #4fa8b8;
+  --cian-fuerte: #3d8b9a;
+  --cian-suave: #e0f4f7;
+
+  --danger: #c9718a;
+  --danger-soft: #fbe9ee;
+  --ok: #5aa89a;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; }
+
+.loading {
+  height: 100vh; display: flex; align-items: center; justify-content: center;
+  color: var(--ink-soft); font-size: 15px;
+}
+
+/* ---------- Gate / login ---------- */
+.gate {
+  position: fixed; inset: 0;
+  background: linear-gradient(160deg, #fce8f1 0%, #e0f4f7 100%);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.gate-box { max-width: 380px; width: 100%; }
+.gate h1 { font-size: 24px; margin: 0 0 4px; color: var(--rosa-fuerte); }
+.gate p { color: var(--ink-soft); font-size: 14px; margin: 0 0 22px; }
+.gate-user {
+  width: 100%; text-align: left; padding: 16px; margin-bottom: 9px; font-size: 17px; font-weight: 700;
+  background: var(--panel); border: 2px solid var(--line); border-radius: 12px; color: var(--ink);
+}
+.gate-user:hover { border-color: var(--rosa); background: var(--rosa-suave); }
+.gate-user .r { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 3px; font-weight: 500; }
+.gate-admin-link {
+  width: 100%; text-align: center; padding: 12px; margin-top: 14px; background: none;
+  border: none; color: var(--ink-soft); font-size: 13px; text-decoration: underline;
+}
+.gate-admin-link:hover { color: var(--rosa-fuerte); }
+
+/* ---------- PIN pad ---------- */
+.pin-dots { display: flex; gap: 10px; justify-content: center; margin: 18px 0 22px; }
+.pin-dot {
+  width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--rosa);
+  background: transparent; display: inline-block;
+}
+.pin-dot.on { background: var(--rosa); }
+.pin-pad {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
+}
+.pin-key {
+  padding: 18px 0; font-size: 22px; font-weight: 800; border-radius: 12px;
+  border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.pin-key:active { background: var(--rosa-suave); border-color: var(--rosa); }
+
+.btn {
+  width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 17px; font-weight: 800;
+  background: var(--rosa); color: #fff; margin-bottom: 9px;
+  box-shadow: 0 2px 6px rgba(212, 119, 158, .28);
+}
+.btn:disabled { opacity: .6; }
+.btn.ghost { background: none; border: 2px solid var(--line); color: var(--ink); box-shadow: none; }
+
+.msg { font-size: 14px; text-align: center; margin: 6px 0 14px; }
+.msg.bad { color: var(--danger); font-weight: 700; }
+
+/* ---------- Barra superior (app ya adentro) ---------- */
+.topbar {
+  background: linear-gradient(100deg, var(--rosa) 0%, var(--cian) 100%); color: #fff;
+  padding: 11px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.brand { font-weight: 800; font-size: 16px; }
+.brand span { color: rgba(255,255,255,.75); font-weight: 400; }
+.spacer { flex: 1; }
+.who { font-size: 14px; color: rgba(255,255,255,.9); }
+.who b { color: #fff; }
+.link-btn { background: none; border: none; color: #fff; font-size: 13px; text-decoration: underline; font-weight: 600; }
