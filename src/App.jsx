@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { escucharSesion, salir, idDesdeEmail } from './lib/auth';
 import { USUARIOS_BASE } from './lib/usuarios';
 import Gate from './pages/Gate';
+import Vender from './pages/Vender';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -29,8 +30,6 @@ export default function App() {
     return <Gate />;
   }
 
-  // Fase 1: por ahora solo confirmamos que el login real funciona.
-  // Aquí es donde en el siguiente paso entra la pantalla de Vender.
   return (
     <div>
       <div className="topbar">
@@ -45,10 +44,9 @@ export default function App() {
           Cambiar de turno
         </button>
       </div>
-      <div style={{ padding: 24 }}>
-        <p>Sesión real de Firebase funcionando para <b>{usuario.nombreDefault}</b> ({usuario.id}).</p>
-        <p>Siguiente paso: pantalla de Vender con Firestore en tiempo real.</p>
-      </div>
+      <main>
+        <Vender usuario={usuario} />
+      </main>
     </div>
   );
 }

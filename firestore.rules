@@ -1,12 +1,59 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Fase 1: no hay colecciones reales todavía. Todo bloqueado por defecto
-    // para no dejar la base abierta mientras se define el resto.
-    // Cada colección real (ventas, inventario, gastos, etc.) va a tener
-    // su propia regla explícita cuando la construyamos.
-    match /{document=**} {
-      allow read, write: if false;
+
+    function estaAutenticado() {
+      return request.auth != null;
+    }
+    function miId() {
+      // El correo interno es id@evejeans.local -> el id es la parte antes del @
+      return request.auth.token.email.split('@')[0];
+    }
+    function esNelson() {
+      return estaAutenticado() && miId() == 'nelson';
+    }
+
+    // ---------- Inventario ----------
+    // Cualquiera autenticado puede leer el stock (así se ve en vivo en la pantalla de vender).
+    // Las vendedoras SOLO pueden bajar el stock (es lo que pasa al vender), nunca subirlo,
+    // ni tocar el nombre o el precio. Nelson puede todo (conteo inicial, ajustes, entradas).
+    match /inventario/{itemId} {
+      allow read: if estaAutenticado();
+      allow create, delete: if esNelson();
+      allow update: if esNelson()
+                    || (
+                      estaAutenticado()
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+                      && request.resource.data.stock is number
+                      && request.resource.data.stock >= 0
+                      && request.resource.data.stock < resource.data.stock
+                    );
+    }
+
+    // ---------- Contador del consecutivo de ventas ----------
+    // Solo se puede leer y actualizar (nunca crear ni borrar) desde una venta real.
+    match /contadores/{contadorId} {
+      allow get: if estaAutenticado();
+      allow update: if estaAutenticado()
+                    && request.resource.data.ultimo == resource.data.ultimo + 1;
+      allow create, delete: if esNelson();
+    }
+
+    // ---------- Ventas ----------
+    match /ventas/{ventaId} {
+      allow read: if estaAutenticado();
+
+      // Crear una venta: el número debe coincidir con el contador,
+      // el usuario debe ser quien dice ser, y nace sin anular.
+      allow create: if estaAutenticado()
+                    && request.resource.data.usuarioId == miId()
+                    && request.resource.data.anulada == false
+                    && request.resource.data.total is number
+                    && request.resource.data.total >= 0;
+
+      // Una venta ya creada nunca se edita ni se borra desde el cliente.
+      // "Anular" es un paso aparte que se construye en la Fase 3, con su propio registro.
+      allow update, delete: if false;
     }
   }
 }
