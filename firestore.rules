@@ -51,9 +51,10 @@ service cloud.firestore {
                     && request.resource.data.total is number
                     && request.resource.data.total >= 0;
 
-      // Una venta ya creada nunca se edita ni se borra desde el cliente.
-      // "Anular" es un paso aparte que se construye en la Fase 3, con su propio registro.
-      allow update, delete: if false;
+      // Una venta ya creada nunca la edita ni la borra una vendedora.
+      // Solo Nelson puede (por ejemplo, para borrar ventas de prueba antes de arrancar en serio,
+      // o para el flujo de "anular" cuando lo construyamos en la Fase 3).
+      allow update, delete: if esNelson();
     }
   }
 }

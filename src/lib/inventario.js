@@ -10,12 +10,19 @@ import { db } from './firebase';
 import { CATALOGO_BASE } from './catalogoBase';
 
 // Escucha el inventario en tiempo real. Devuelve la función para dejar de escuchar.
-export function suscribirInventario(callback) {
+export function suscribirInventario(callback, onError) {
   const ref = collection(db, 'inventario');
-  return onSnapshot(ref, (snap) => {
-    const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    callback(items);
-  });
+  return onSnapshot(
+    ref,
+    (snap) => {
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      callback(items);
+    },
+    (err) => {
+      console.error('Error leyendo inventario:', err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 // Se usa una sola vez, desde Administración, para cargar el catálogo con stock en 0.

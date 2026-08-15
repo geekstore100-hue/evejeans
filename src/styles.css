@@ -167,3 +167,5 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .msg { font-size: 15px; font-weight: 600; text-align: center; margin-top: 9px; min-height: 19px; color: var(--ink-soft); }
 .msg.bad { color: var(--danger); }
 .msg.good { color: var(--ok); }
+
+.modo-prueba { background: var(--amber-soft, #fdf2e3); border-color: #e6c894; }

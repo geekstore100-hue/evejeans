@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario, sembrarCatalogoInicial } from '../lib/inventario';
 import { registrarVenta } from '../lib/ventas';
+import { reiniciarParaProduccion } from '../lib/reset';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -10,6 +11,7 @@ function fmt(n) {
 
 export default function Vender({ usuario }) {
   const [inventario, setInventario] = useState(null); // null = cargando
+  const [errorCarga, setErrorCarga] = useState('');
   const [carrito, setCarrito] = useState({}); // {itemId: qty}
   const [descuento, setDescuento] = useState('');
   const [motivo, setMotivo] = useState('');
@@ -18,9 +20,18 @@ export default function Vender({ usuario }) {
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [sembrando, setSembrando] = useState(false);
+  const [reiniciando, setReiniciando] = useState(false);
+  const [confirmandoReinicio, setConfirmandoReinicio] = useState(false);
+  const [textoConfirma, setTextoConfirma] = useState('');
 
   useEffect(() => {
-    const quitar = suscribirInventario(setInventario);
+    const quitar = suscribirInventario(setInventario, (err) => {
+      setErrorCarga(
+        err.code === 'permission-denied'
+          ? 'No se pudo leer el inventario (permiso denegado). Revisa que las reglas de Firestore estén publicadas.'
+          : 'No se pudo leer el inventario: ' + err.message
+      );
+    });
     return quitar;
   }, []);
 
@@ -143,6 +154,23 @@ export default function Vender({ usuario }) {
     }
   }
 
+  async function ejecutarReinicio() {
+    if (textoConfirma.trim().toUpperCase() !== 'REINICIAR') return;
+    setReiniciando(true);
+    try {
+      const { nVentasBorradas } = await reiniciarParaProduccion();
+      alert(
+        `Listo. Se borraron ${nVentasBorradas} ventas de prueba, el stock quedó en 0 en todas las referencias, y la próxima venta real será la N.º 1.\n\nAhora carga el conteo físico real, referencia por referencia, en Firestore.`
+      );
+      setConfirmandoReinicio(false);
+      setTextoConfirma('');
+    } catch (e) {
+      alert('No se pudo reiniciar: ' + e.message);
+    } finally {
+      setReiniciando(false);
+    }
+  }
+
   // Inventario vacío: solo Nelson ve el botón para sembrar el catálogo la primera vez.
   if (inventario && inventario.length === 0) {
     return (
@@ -167,12 +195,78 @@ export default function Vender({ usuario }) {
     );
   }
 
+  if (errorCarga) {
+    return (
+      <div style={{ padding: 24 }}>
+        <div className="card" style={{ maxWidth: 460 }}>
+          <h2>No se pudo cargar</h2>
+          <p style={{ fontSize: 14, color: 'var(--danger)' }}>{errorCarga}</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!inventario) {
     return <div className="loading">Cargando inventario…</div>;
   }
 
   return (
     <div className="sale-grid">
+      {usuario.id === 'nelson' && (
+        <div className="card modo-prueba" style={{ gridColumn: '1 / -1' }}>
+          {!confirmandoReinicio ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ flex: 1, fontSize: 13 }}>
+                <b>Modo prueba.</b> Cuando Blanca y Sofía terminen de probar y vayan a
+                empezar a usarlo de verdad, borra los datos de prueba y arranca en 0.
+              </span>
+              <button
+                className="btn ghost sm"
+                style={{ width: 'auto' }}
+                onClick={() => setConfirmandoReinicio(true)}
+              >
+                Reiniciar para producción
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p style={{ fontSize: 13, margin: '0 0 8px' }}>
+                Esto <b>borra todas las ventas</b> que haya hasta ahora, pone el{' '}
+                <b>stock de todo en 0</b> y reinicia el consecutivo. No se puede deshacer.
+                Escribe <b>REINICIAR</b> para confirmar.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={textoConfirma}
+                  onChange={(e) => setTextoConfirma(e.target.value)}
+                  placeholder="REINICIAR"
+                  style={{ maxWidth: 220 }}
+                />
+                <button
+                  className="btn ghost sm"
+                  style={{ width: 'auto' }}
+                  onClick={() => {
+                    setConfirmandoReinicio(false);
+                    setTextoConfirma('');
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn sm"
+                  style={{ width: 'auto', background: 'var(--danger)' }}
+                  disabled={textoConfirma.trim().toUpperCase() !== 'REINICIAR' || reiniciando}
+                  onClick={ejecutarReinicio}
+                >
+                  {reiniciando ? 'Reiniciando…' : 'Sí, borrar todo y reiniciar'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <h2>
           Prendas
