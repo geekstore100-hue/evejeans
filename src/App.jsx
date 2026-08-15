@@ -3,10 +3,12 @@ import { escucharSesion, salir, idDesdeEmail } from './lib/auth';
 import { USUARIOS_BASE } from './lib/usuarios';
 import Gate from './pages/Gate';
 import Vender from './pages/Vender';
+import Inventario from './pages/Inventario';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
   const [usuario, setUsuario] = useState(null); // {id, nombreDefault, rol}
+  const [vista, setVista] = useState('vender');
 
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
@@ -44,8 +46,24 @@ export default function App() {
           Cambiar de turno
         </button>
       </div>
+
+      {usuario.id === 'nelson' && (
+        <nav className="tabs">
+          <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
+            Vender
+          </button>
+          <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>
+            Inventario
+          </button>
+        </nav>
+      )}
+
       <main>
-        <Vender usuario={usuario} />
+        {vista === 'inventario' && usuario.id === 'nelson' ? (
+          <Inventario />
+        ) : (
+          <Vender usuario={usuario} />
+        )}
       </main>
     </div>
   );

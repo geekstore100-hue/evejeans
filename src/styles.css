@@ -169,3 +169,21 @@ input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner
 .msg.good { color: var(--ok); }
 
 .modo-prueba { background: var(--amber-soft, #fdf2e3); border-color: #e6c894; }
+
+/* ---------- Pestañas ---------- */
+nav.tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+nav.tabs button {
+  padding: 14px 20px; background: none; border: none; font-size: 16px; font-weight: 700;
+  color: var(--ink-soft); border-bottom: 3px solid transparent; white-space: nowrap;
+}
+nav.tabs button.on { color: var(--rosa-fuerte); border-bottom-color: var(--rosa-fuerte); }
+
+/* ---------- Tabla de inventario ---------- */
+.inv-tabla { display: flex; flex-direction: column; gap: 4px; }
+.inv-fila {
+  display: grid; grid-template-columns: 1fr 130px 110px; gap: 10px; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid var(--line);
+}
+.inv-fila.inv-header { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+.inv-nombre { font-weight: 700; font-size: 15px; }
+.inv-fila input { padding: 8px 9px; font-size: 15px; }
