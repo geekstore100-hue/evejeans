@@ -30,7 +30,7 @@ export default function Gate() {
   }
 
   function tocarDigito(d) {
-    if (pin.length >= 6) return;
+    if (pin.length >= 8) return;
     setError('');
     setPin(pin + d);
   }
@@ -46,7 +46,7 @@ export default function Gate() {
           <p>Escribe tu PIN.</p>
 
           <div className="pin-dots">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
+            {Array.from({ length: Math.max(pin.length, 4) }).map((_, i) => (
               <span key={i} className={`pin-dot ${i < pin.length ? 'on' : ''}`} />
             ))}
           </div>
