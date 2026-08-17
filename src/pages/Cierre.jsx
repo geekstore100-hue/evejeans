@@ -15,8 +15,15 @@ export default function Cierre({ usuario }) {
   const [cerrando, setCerrando] = useState(false);
   const [resultado, setResultado] = useState(null); // {esperado, contado, diferencia}
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
+  const [errorCarga, setErrorCarga] = useState('');
 
-  useEffect(() => suscribirConfig(setConfig), []);
+  useEffect(
+    () =>
+      suscribirConfig(setConfig, (err) =>
+        setErrorCarga('No se pudo leer la configuración: ' + err.message)
+      ),
+    []
+  );
 
   useEffect(() => {
     cargar();
@@ -25,10 +32,14 @@ export default function Cierre({ usuario }) {
 
   async function cargar() {
     if (!config) return;
-    const fecha = hoyStr();
-    const [r, c] = await Promise.all([resumenDia(fecha, config), yaCerrado(fecha)]);
-    setResumen(r);
-    setCerrado(c);
+    try {
+      const fecha = hoyStr();
+      const [r, c] = await Promise.all([resumenDia(fecha, config), yaCerrado(fecha)]);
+      setResumen(r);
+      setCerrado(c);
+    } catch (e) {
+      setErrorCarga('No se pudo cargar el resumen del día: ' + e.message);
+    }
   }
 
   async function cerrar() {
@@ -50,6 +61,17 @@ export default function Cierre({ usuario }) {
     } finally {
       setCerrando(false);
     }
+  }
+
+  if (errorCarga) {
+    return (
+      <div style={{ padding: 24 }}>
+        <div className="card" style={{ maxWidth: 460 }}>
+          <h2>No se pudo cargar</h2>
+          <p style={{ fontSize: 14, color: 'var(--danger)' }}>{errorCarga}</p>
+        </div>
+      </div>
+    );
   }
 
   if (!resumen || cerrado === undefined) {

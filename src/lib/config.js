@@ -7,10 +7,17 @@ export const CONFIG_DEFAULT = {
   comisionPorRef: {}, // {itemId: valorDistinto}
 };
 
-export function suscribirConfig(callback) {
-  return onSnapshot(doc(db, 'config', 'general'), (snap) => {
-    callback(snap.exists() ? { ...CONFIG_DEFAULT, ...snap.data() } : CONFIG_DEFAULT);
-  });
+export function suscribirConfig(callback, onError) {
+  return onSnapshot(
+    doc(db, 'config', 'general'),
+    (snap) => {
+      callback(snap.exists() ? { ...CONFIG_DEFAULT, ...snap.data() } : CONFIG_DEFAULT);
+    },
+    (err) => {
+      console.error('Error leyendo configuración:', err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 export async function guardarConfig(nueva) {
