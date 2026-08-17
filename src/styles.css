@@ -124,7 +124,7 @@ main { padding: 8px; max-width: 1500px; margin: 0 auto; }
   .con-panel-fijo > main {
     margin-right: 400px;
   }
-  .ticket-fijo-venta {
+  .ticket.ticket-fijo-venta {
     position: fixed;
     top: 0;
     right: 0;
