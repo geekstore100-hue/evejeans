@@ -141,133 +141,133 @@ export default function Gastos({ usuario }) {
   return (
     <div className="sale-grid">
       <div className="card">
-        <h2>
-          Gastos de hoy <span className="side">{totalHoy > 0 ? fmt(totalHoy) : ''}</span>
-        </h2>
-        {!lista ? (
-          <div className="empty-lines">Cargando…</div>
-        ) : lista.length === 0 ? (
-          <div className="empty-lines">Todavía no hay gastos hoy.</div>
-        ) : (
+        <h2>Nuevo gasto</h2>
+
+        <div className="field">
+          <label>Cuánto y de qué es</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="number"
+              inputMode="numeric"
+              placeholder="0"
+              className="monto-grande"
+              style={{ flex: 1 }}
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+            />
+            <select
+              value={cat}
+              onChange={(e) => { setCat(e.target.value); setMsg({ tipo: '', texto: '' }); }}
+              style={{ width: 150, fontSize: 15, fontWeight: 700 }}
+            >
+              <option value="">Elegir…</option>
+              {CATEGORIAS.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {cat && (
           <>
-            {lista.map((g) => (
-              <div className="gasto-item" key={g.id} style={g.anulado ? { opacity: 0.45 } : {}}>
-                <div>
-                  <div className="gasto-nombre">
-                    {g.quien ? `${g.categoria} · ${g.quien}` : g.categoria}
-                    {g.anulado && <span style={{ color: 'var(--danger)', fontSize: 12, marginLeft: 6 }}>ANULADO</span>}
-                  </div>
-                  <div className="gasto-sub">
-                    {g.hora} · {g.origen}
-                    {g.desc ? ` · ${g.desc}` : ''}
-                  </div>
+            {nomina && (
+              <>
+                <div className="paso">
+                  <span className="paso-n">·</span> ¿A quién se le paga?
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span className="gasto-monto">{fmt(g.monto)}</span>
-                  {!g.anulado && (
-                    <button className="gasto-x" title="Anular" onClick={() => onAnular(g)}>
-                      ✕
+                <div className="chips">
+                  {vendedoras.map((u) => (
+                    <button key={u.id} className={`chip ${quien?.id === u.id ? 'on' : ''}`} onClick={() => setQuien(u)}>
+                      {u.nombreDefault}
                     </button>
-                  )}
+                  ))}
                 </div>
-              </div>
-            ))}
-            <div className="gasto-item" style={{ borderBottom: 'none', paddingTop: 12 }}>
-              <div className="gasto-nombre">Total del día</div>
-              <span className="gasto-monto" style={{ fontSize: 22 }}>{fmt(totalHoy)}</span>
+                {cat === 'Comisión' && comision && (
+                  <div className={`msg ${comision.aplica ? 'good' : ''}`} style={{ textAlign: 'left', marginTop: 10 }}>
+                    Hoy se vendieron <b>{comision.prendas}</b> prenda{comision.prendas === 1 ? '' : 's'} en total.{' '}
+                    {comision.aplica ? (
+                      <>Comisión del día: <b>{fmt(comision.total)}</b>.</>
+                    ) : (
+                      <>Se paga comisión desde {config?.comisionMinimo ?? 6} prendas.</>
+                    )}
+                    {yaPagadoComision > 0 && (
+                      <>
+                        <br />Ya se pagaron {fmt(yaPagadoComision)} · queda por repartir{' '}
+                        <b>{fmt(Math.max(0, comision.total - yaPagadoComision))}</b>.
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="paso">
+              <span className="paso-n">·</span> ¿De dónde sale?
             </div>
+            <div className="chips">
+              {ORIGENES.map((o) => (
+                <button key={o} className={`chip ${origen === o ? 'on' : ''}`} onClick={() => setOrigen(o)}>
+                  {o}
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              placeholder="Nota (opcional)"
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              style={{ marginTop: 12 }}
+            />
+
+            <button className="btn" disabled={guardando} onClick={guardar} style={{ marginTop: 12 }}>
+              {guardando ? 'Guardando…' : 'Registrar gasto'}
+            </button>
           </>
         )}
+
+        {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
       </div>
 
       <div className="ticket">
         <div className="card">
-          <h2>Nuevo gasto</h2>
-
-          <div className="field">
-            <label>Cuánto y de qué es</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                className="monto-grande"
-                style={{ flex: 1 }}
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-              />
-              <select
-                value={cat}
-                onChange={(e) => { setCat(e.target.value); setMsg({ tipo: '', texto: '' }); }}
-                style={{ width: 150, fontSize: 15, fontWeight: 700 }}
-              >
-                <option value="">Elegir…</option>
-                {CATEGORIAS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {cat && (
+          <h2>
+            Gastos de hoy <span className="side">{totalHoy > 0 ? fmt(totalHoy) : ''}</span>
+          </h2>
+          {!lista ? (
+            <div className="empty-lines">Cargando…</div>
+          ) : lista.length === 0 ? (
+            <div className="empty-lines">Todavía no hay gastos hoy.</div>
+          ) : (
             <>
-              {nomina && (
-                <>
-                  <div className="paso">
-                    <span className="paso-n">·</span> ¿A quién se le paga?
-                  </div>
-                  <div className="chips">
-                    {vendedoras.map((u) => (
-                      <button key={u.id} className={`chip ${quien?.id === u.id ? 'on' : ''}`} onClick={() => setQuien(u)}>
-                        {u.nombreDefault}
-                      </button>
-                    ))}
-                  </div>
-                  {cat === 'Comisión' && comision && (
-                    <div className={`msg ${comision.aplica ? 'good' : ''}`} style={{ textAlign: 'left', marginTop: 10 }}>
-                      Hoy se vendieron <b>{comision.prendas}</b> prenda{comision.prendas === 1 ? '' : 's'} en total.{' '}
-                      {comision.aplica ? (
-                        <>Comisión del día: <b>{fmt(comision.total)}</b>.</>
-                      ) : (
-                        <>Se paga comisión desde {config?.comisionMinimo ?? 6} prendas.</>
-                      )}
-                      {yaPagadoComision > 0 && (
-                        <>
-                          <br />Ya se pagaron {fmt(yaPagadoComision)} · queda por repartir{' '}
-                          <b>{fmt(Math.max(0, comision.total - yaPagadoComision))}</b>.
-                        </>
-                      )}
+              {lista.map((g) => (
+                <div className="gasto-item" key={g.id} style={g.anulado ? { opacity: 0.45 } : {}}>
+                  <div>
+                    <div className="gasto-nombre">
+                      {g.quien ? `${g.categoria} · ${g.quien}` : g.categoria}
+                      {g.anulado && <span style={{ color: 'var(--danger)', fontSize: 12, marginLeft: 6 }}>ANULADO</span>}
                     </div>
-                  )}
-                </>
-              )}
-
-              <div className="paso">
-                <span className="paso-n">·</span> ¿De dónde sale?
+                    <div className="gasto-sub">
+                      {g.hora} · {g.origen}
+                      {g.desc ? ` · ${g.desc}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="gasto-monto">{fmt(g.monto)}</span>
+                    {!g.anulado && (
+                      <button className="gasto-x" title="Anular" onClick={() => onAnular(g)}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="gasto-item" style={{ borderBottom: 'none', paddingTop: 12 }}>
+                <div className="gasto-nombre">Total del día</div>
+                <span className="gasto-monto" style={{ fontSize: 22 }}>{fmt(totalHoy)}</span>
               </div>
-              <div className="chips">
-                {ORIGENES.map((o) => (
-                  <button key={o} className={`chip ${origen === o ? 'on' : ''}`} onClick={() => setOrigen(o)}>
-                    {o}
-                  </button>
-                ))}
-              </div>
-
-              <input
-                type="text"
-                placeholder="Nota (opcional)"
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                style={{ marginTop: 12 }}
-              />
-
-              <button className="btn" disabled={guardando} onClick={guardar} style={{ marginTop: 12 }}>
-                {guardando ? 'Guardando…' : 'Registrar gasto'}
-              </button>
             </>
           )}
-
-          {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
         </div>
       </div>
     </div>

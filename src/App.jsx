@@ -98,7 +98,7 @@ export default function App() {
         {vista === 'vender' && <Vender usuario={usuario} />}
         {vista === 'cambios' && <Cambios usuario={usuario} />}
         {vista === 'gastos' && <Gastos usuario={usuario} />}
-        {vista === 'cierre' && <Cierre usuario={usuario} />}
+        {vista === 'cierre' && <Cierre />}
         {vista === 'sobres' && <Sobres usuario={usuario} />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
       </main>

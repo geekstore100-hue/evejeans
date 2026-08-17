@@ -50,12 +50,6 @@ export async function resumenDia(fecha, config) {
       });
     } else if (v.tipo === 'cambio') {
       cambiosLista.push({ id: d.id, ...v });
-      (v.lleva || []).forEach((i) => {
-        prendasPorNombre[i.name] = (prendasPorNombre[i.name] || 0) + i.qty;
-      });
-      (v.devuelve || []).forEach((i) => {
-        prendasPorNombre[i.name] = (prendasPorNombre[i.name] || 0) - i.qty;
-      });
       if (v.diferencia > 0 && v.pago) {
         porPago[v.pago] = (porPago[v.pago] || 0) + v.diferencia;
       }

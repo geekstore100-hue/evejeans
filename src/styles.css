@@ -173,6 +173,10 @@ select {
 .kv { display: flex; justify-content: space-between; font-size: 15px; padding: 6px 0; border-bottom: 1px solid var(--paper); }
 .kv .v { font-family: monospace; font-weight: 700; }
 .hint { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-top: 8px; }
+.link-toggle {
+  background: none; border: none; padding: 0; font-size: 12px; font-weight: 600;
+  color: var(--rosa-fuerte); text-decoration: underline; cursor: pointer;
+}
 
 .modo-prueba { background: #fdf2e3; border-color: #e6c894; }
 

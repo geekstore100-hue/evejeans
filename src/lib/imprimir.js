@@ -49,7 +49,6 @@ export function imprimirComprobantePago(gasto) {
 function encabezadoTicket(num, fecha, hora, usuarioNombre) {
   return `
     <div class="pt-center pt-big">EVE JEANS</div>
-    <div class="pt-center pt-small">Comprobante interno · no es factura</div>
     <div class="pt-rule"></div>
     <div class="pt-line"><span>N.º</span><span><b>${num}</b></span></div>
     <div class="pt-line"><span>Fecha</span><span>${fecha} ${hora}</span></div>
@@ -82,7 +81,6 @@ export function imprimirTicketVenta(venta) {
     ${pagosHTML}
     <div class="pt-rule"></div>
     <div class="pt-center pt-small">Cambios hasta 8 días<br>presentando este comprobante</div>
-    <div class="pt-center pt-small" style="margin-top:6px">Si no le entregan este comprobante,<br>reclámelo.</div>
     <div class="pt-center pt-small" style="margin-top:8px">.</div>`;
   window.print();
 }
