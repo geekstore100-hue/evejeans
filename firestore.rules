@@ -15,8 +15,13 @@ service cloud.firestore {
 
     // ---------- Inventario ----------
     // Cualquiera autenticado puede leer el stock (así se ve en vivo en la pantalla de vender).
-    // Las vendedoras SOLO pueden bajar el stock (es lo que pasa al vender), nunca subirlo,
-    // ni tocar el nombre o el precio. Nelson puede todo (conteo inicial, ajustes, entradas).
+    // Las vendedoras SOLO pueden mover el número de stock (sube al devolver en un cambio,
+    // baja al vender), nunca tocar el nombre o el precio. Nelson puede todo.
+    //
+    // OJO: como los cambios todavía no están vinculados a la venta original (se decidió así
+    // a propósito por ahora), esta regla no puede verificar que una subida de stock corresponda
+    // a un cambio real —  solo evita que se toquen nombre/precio o que el stock quede negativo.
+    // Cerrar ese hueco del todo requiere Cloud Functions (plan Blaze), pendiente para más adelante.
     match /inventario/{itemId} {
       allow read: if estaAutenticado();
       allow create, delete: if esNelson();
@@ -26,7 +31,6 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
                       && request.resource.data.stock is number
                       && request.resource.data.stock >= 0
-                      && request.resource.data.stock < resource.data.stock
                     );
     }
 
@@ -55,6 +59,33 @@ service cloud.firestore {
       // Solo Nelson puede (por ejemplo, para borrar ventas de prueba antes de arrancar en serio,
       // o para el flujo de "anular" cuando lo construyamos en la Fase 3).
       allow update, delete: if esNelson();
+    }
+    // ---------- Configuración general (comisiones, etc.) ----------
+    // Cualquiera autenticado puede leerla (la necesita el formulario de gastos
+    // para calcular la comisión en vivo). Solo Nelson la edita.
+    match /config/{configId} {
+      allow read: if estaAutenticado();
+      allow write: if esNelson();
+    }
+
+    // ---------- Gastos ----------
+    match /gastos/{gastoId} {
+      allow read: if estaAutenticado();
+
+      allow create: if estaAutenticado()
+                    && request.resource.data.usuarioId == miId()
+                    && request.resource.data.anulado == false
+                    && request.resource.data.monto is number
+                    && request.resource.data.monto >= 0;
+
+      // "Anular" es el único cambio permitido después de creado: de vivo a anulado,
+      // con motivo y quién lo hizo. Nunca se reactiva, nunca se borra, nunca se edita el monto.
+      allow update: if estaAutenticado()
+                    && resource.data.anulado == false
+                    && request.resource.data.anulado == true
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['anulado', 'motivoAnulacion', 'anuladoPor']);
+      allow delete: if false;
     }
   }
 }

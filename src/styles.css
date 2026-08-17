@@ -187,3 +187,52 @@ nav.tabs button.on { color: var(--rosa-fuerte); border-bottom-color: var(--rosa-
 .inv-fila.inv-header { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
 .inv-nombre { font-weight: 700; font-size: 15px; }
 .inv-fila input { padding: 8px 9px; font-size: 15px; }
+
+/* ---------- Impresión ---------- */
+#print-area { display: none; }
+@media print {
+  body > *:not(#print-area) { display: none !important; }
+  #print-area {
+    display: block !important; width: 72mm; margin: 0; padding: 0;
+    font-family: monospace; font-size: 11px; color: #000; line-height: 1.35;
+  }
+  @page { size: 80mm auto; margin: 3mm; }
+}
+.pt-center { text-align: center; }
+.pt-big { font-size: 15px; font-weight: 700; }
+.pt-rule { border-top: 1px dashed #000; margin: 5px 0; }
+.pt-line { display: flex; justify-content: space-between; gap: 8px; }
+.pt-total { font-size: 14px; font-weight: 700; }
+.pt-small { font-size: 9.5px; }
+
+/* ---------- Gastos: pasos y chips ---------- */
+.paso {
+  display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800;
+  margin: 16px 0 8px; color: var(--ink);
+}
+.paso:first-child { margin-top: 0; }
+.paso-n {
+  background: var(--cian); color: #fff; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+  padding: 11px 15px; border-radius: 10px; font-size: 16px; font-weight: 700;
+}
+.chip:hover { border-color: var(--rosa); background: var(--rosa-suave); }
+.chip.on { background: var(--rosa); border-color: var(--rosa); color: #fff; }
+.monto-grande { font-size: 28px !important; font-weight: 800 !important; text-align: center; padding: 14px !important; }
+
+.gasto-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 13px 0; border-bottom: 1px solid var(--line);
+}
+.gasto-nombre { font-size: 18px; font-weight: 800; }
+.gasto-sub { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+.gasto-monto { font-family: monospace; font-size: 19px; font-weight: 800; }
+.gasto-x {
+  border: 2px solid var(--line); background: none; color: var(--ink-soft);
+  width: 36px; height: 36px; border-radius: 8px; font-size: 15px; flex-shrink: 0;
+}
+.gasto-x:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }

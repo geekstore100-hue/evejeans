@@ -3,6 +3,8 @@ import { escucharSesion, salir, idDesdeEmail } from './lib/auth';
 import { USUARIOS_BASE } from './lib/usuarios';
 import Gate from './pages/Gate';
 import Vender from './pages/Vender';
+import Cambios from './pages/Cambios';
+import Gastos from './pages/Gastos';
 import Inventario from './pages/Inventario';
 
 export default function App() {
@@ -47,23 +49,28 @@ export default function App() {
         </button>
       </div>
 
-      {usuario.id === 'nelson' && (
-        <nav className="tabs">
-          <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
-            Vender
-          </button>
+      <nav className="tabs">
+        <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
+          Vender
+        </button>
+        <button className={vista === 'cambios' ? 'on' : ''} onClick={() => setVista('cambios')}>
+          Cambios
+        </button>
+        <button className={vista === 'gastos' ? 'on' : ''} onClick={() => setVista('gastos')}>
+          Gastos
+        </button>
+        {usuario.id === 'nelson' && (
           <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>
             Inventario
           </button>
-        </nav>
-      )}
+        )}
+      </nav>
 
       <main>
-        {vista === 'inventario' && usuario.id === 'nelson' ? (
-          <Inventario />
-        ) : (
-          <Vender usuario={usuario} />
-        )}
+        {vista === 'cambios' && <Cambios usuario={usuario} />}
+        {vista === 'gastos' && <Gastos usuario={usuario} />}
+        {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
+        {vista === 'vender' && <Vender usuario={usuario} />}
       </main>
     </div>
   );

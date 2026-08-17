@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { collection, doc, writeBatch, getDocs } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { suscribirInventario } from '../lib/inventario';
+import { suscribirConfig, guardarConfig } from '../lib/config';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -12,6 +13,35 @@ export default function Inventario() {
   const [cambios, setCambios] = useState({}); // {id: {stock?, price?}}
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
+  const [config, setConfig] = useState(null);
+  const [cfgMin, setCfgMin] = useState('');
+  const [cfgVal, setCfgVal] = useState('');
+  const [guardandoCfg, setGuardandoCfg] = useState(false);
+
+  useEffect(() => {
+    const quitar = suscribirConfig((c) => {
+      setConfig(c);
+      setCfgMin(String(c.comisionMinimo));
+      setCfgVal(String(c.comisionValor));
+    });
+    return quitar;
+  }, []);
+
+  async function guardarComision() {
+    setGuardandoCfg(true);
+    try {
+      await guardarConfig({
+        ...config,
+        comisionMinimo: parseInt(cfgMin) || 6,
+        comisionValor: parseInt(cfgVal) || 1000,
+      });
+      setMsg({ tipo: 'good', texto: 'Comisión actualizada.' });
+    } catch (e) {
+      setMsg({ tipo: 'bad', texto: 'No se pudo guardar: ' + e.message });
+    } finally {
+      setGuardandoCfg(false);
+    }
+  }
 
   useEffect(() => {
     const quitar = suscribirInventario(setItems, (err) =>
@@ -74,6 +104,25 @@ export default function Inventario() {
 
   return (
     <div style={{ padding: '0 4px' }}>
+      <div className="card" style={{ maxWidth: 460, marginBottom: 12 }}>
+        <h2>Comisión</h2>
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+          Se paga cuando el local vende esta cantidad de prendas o más en el día, sumando a
+          todas las vendedoras. Ellas se reparten el total.
+        </p>
+        <div className="field">
+          <label>Desde cuántas prendas</label>
+          <input type="number" value={cfgMin} onChange={(e) => setCfgMin(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Valor por prenda</label>
+          <input type="number" value={cfgVal} onChange={(e) => setCfgVal(e.target.value)} />
+        </div>
+        <button className="btn ghost" disabled={guardandoCfg} onClick={guardarComision}>
+          {guardandoCfg ? 'Guardando…' : 'Guardar comisión'}
+        </button>
+      </div>
+
       <div className="card" style={{ maxWidth: 720 }}>
         <h2>
           Inventario <span className="side">{items.reduce((s, i) => s + (i.stock || 0), 0)} prendas</span>
