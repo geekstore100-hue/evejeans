@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { registrarCambio } from '../lib/cambios';
 import { suscribirInventario } from '../lib/inventario';
+import { imprimirTicketCambio } from '../lib/imprimir';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -54,10 +55,13 @@ export default function Cambios({ usuario }) {
   const valLlv = lineasLleva.reduce((s, l) => s + l.price * l.qty, 0);
   const diferencia = valLlv - valDev;
 
-  function vaciar() {
+  function limpiarCampos() {
     setDevuelve({});
     setLleva({});
     setPagoDif('Efectivo');
+  }
+  function vaciar() {
+    limpiarCampos();
     setMsg({ tipo: '', texto: '' });
   }
 
@@ -72,7 +76,19 @@ export default function Cambios({ usuario }) {
         pagoDif: diferencia > 0 ? pagoDif : null,
       });
       setMsg({ tipo: 'good', texto: `Cambio N.º ${res.num} registrado.` });
-      vaciar();
+      imprimirTicketCambio({
+        num: res.num,
+        fecha: new Date().toISOString().slice(0, 10),
+        hora: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+        usuarioNombre: usuario.nombreDefault,
+        devuelve: lineasDevuelve,
+        lleva: lineasLleva,
+        valDev: res.valDev,
+        valLlv: res.valLlv,
+        diferencia: res.diferencia,
+        pago: diferencia > 0 ? pagoDif : null,
+      });
+      limpiarCampos();
     } catch (e) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el cambio.' });
     } finally {

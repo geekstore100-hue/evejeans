@@ -27,16 +27,17 @@ export default function Sobres({ usuario }) {
     <div className="sale-grid">
       <div className="card">
         <h2>
-          En custodia <span className="side">{pendientes && pendientes.length ? `${pendientes.length} · ${fmt(totalPendiente)}` : ''}</span>
+          Dinero por entregar <span className="side">{pendientes && pendientes.length ? `${pendientes.length} · ${fmt(totalPendiente)}` : ''}</span>
         </h2>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-          Cada sobre queda sellado y firmado por quien cerró ese día. Quien lo custodia no lo abre.
+          El efectivo de cada día que cerraste queda guardado en un sobre marcado con la fecha,
+          hasta que Nelson lo recoja y lo cuente contigo.
         </p>
 
         {!pendientes ? (
           <div className="empty-lines">Cargando…</div>
         ) : pendientes.length === 0 ? (
-          <div className="empty-lines">No hay sobres pendientes de entregar.</div>
+          <div className="empty-lines">No hay dinero pendiente de entregar.</div>
         ) : (
           pendientes.map((c) =>
             abierto === c.id ? (
@@ -71,7 +72,7 @@ export default function Sobres({ usuario }) {
 
       <div className="ticket">
         <div className="card">
-          <h2>Entregados</h2>
+          <h2>Ya entregado</h2>
           {!entregados ? (
             <div className="empty-lines">Cargando…</div>
           ) : entregados.length === 0 ? (
@@ -130,7 +131,7 @@ function FormularioEntrega({ cierre, onCancelar, onListo }) {
       const res = await entregarSobre(cierre.id, { recibido: monto, entregadoPor: quien.nombreDefault, nota }, cierre);
       if (res.difCustodia !== 0) {
         alert(
-          `El sobre no cuadró.\n\nDeclarado al cerrar: ${fmt(cierre.contado)}\nContado ahora: ${fmt(monto)}\nDiferencia: ${
+          `El dinero no cuadró.\n\nDeclarado al cerrar: ${fmt(cierre.contado)}\nContado ahora: ${fmt(monto)}\nDiferencia: ${
             res.difCustodia > 0 ? 'sobró' : 'faltó'
           } ${fmt(Math.abs(res.difCustodia))}\n\nQueda a cargo de ${cierre.usuarioNombre}, que fue quien cerró ese día.`
         );
@@ -146,7 +147,7 @@ function FormularioEntrega({ cierre, onCancelar, onListo }) {
   return (
     <div className="card modo-prueba" style={{ marginBottom: 10 }}>
       <div style={{ fontWeight: 800, marginBottom: 6 }}>
-        Entregar sobre del {cierre.fecha} (lo cerró {cierre.usuarioNombre})
+        Entregar el dinero del {cierre.fecha} (lo cerró {cierre.usuarioNombre})
       </div>
       <div className="kv" style={{ borderBottom: 'none', marginBottom: 8 }}>
         <span>Declarado al cerrar</span>

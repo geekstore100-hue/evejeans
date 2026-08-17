@@ -14,10 +14,9 @@ function fmt(n) {
 export default function Gastos({ usuario }) {
   const [config, setConfig] = useState(null);
   const [lista, setLista] = useState(null);
-  const [cat, setCat] = useState(null);
-  const [quien, setQuien] = useState(null);
-  const [periodo, setPeriodo] = useState('');
   const [monto, setMonto] = useState('');
+  const [cat, setCat] = useState('');
+  const [quien, setQuien] = useState(null);
   const [desc, setDesc] = useState('');
   const [origen, setOrigen] = useState(null);
   const [comision, setComision] = useState(null);
@@ -61,10 +60,9 @@ export default function Gastos({ usuario }) {
   }, [comision]);
 
   function limpiar() {
-    setCat(null);
-    setQuien(null);
-    setPeriodo('');
     setMonto('');
+    setCat('');
+    setQuien(null);
     setDesc('');
     setOrigen(null);
     setComision(null);
@@ -73,16 +71,16 @@ export default function Gastos({ usuario }) {
   async function guardar() {
     setMsg({ tipo: '', texto: '' });
     const montoNum = parseInt(monto) || 0;
-    if (nomina && !quien) {
-      setMsg({ tipo: 'bad', texto: 'Falta decir a quién se le paga.' });
-      return;
-    }
-    if (nomina && !periodo.trim()) {
-      setMsg({ tipo: 'bad', texto: 'Falta el período que se está pagando.' });
-      return;
-    }
     if (montoNum <= 0) {
       setMsg({ tipo: 'bad', texto: 'Falta escribir cuánto fue.' });
+      return;
+    }
+    if (!cat) {
+      setMsg({ tipo: 'bad', texto: 'Falta elegir de qué es el gasto.' });
+      return;
+    }
+    if (nomina && !quien) {
+      setMsg({ tipo: 'bad', texto: 'Falta decir a quién se le paga.' });
       return;
     }
     if (!origen) {
@@ -95,7 +93,7 @@ export default function Gastos({ usuario }) {
         usuario,
         categoria: cat,
         quien: quien ? quien.nombreDefault : null,
-        periodo: periodo.trim(),
+        periodo: null,
         monto: montoNum,
         desc: desc.trim(),
         origen,
@@ -109,7 +107,7 @@ export default function Gastos({ usuario }) {
           hora: res.hora,
           quien: quien.nombreDefault,
           categoria: cat,
-          periodo: periodo.trim(),
+          periodo: null,
           origen,
           desc: desc.trim(),
           monto: montoNum,
@@ -161,7 +159,6 @@ export default function Gastos({ usuario }) {
                   </div>
                   <div className="gasto-sub">
                     {g.hora} · {g.origen}
-                    {g.periodo ? ` · ${g.periodo}` : ''}
                     {g.desc ? ` · ${g.desc}` : ''}
                   </div>
                 </div>
@@ -187,15 +184,29 @@ export default function Gastos({ usuario }) {
         <div className="card">
           <h2>Nuevo gasto</h2>
 
-          <div className="paso">
-            <span className="paso-n">1</span> ¿De qué es?
-          </div>
-          <div className="chips">
-            {CATEGORIAS.map((c) => (
-              <button key={c} className={`chip ${cat === c ? 'on' : ''}`} onClick={() => { setCat(c); setMsg({ tipo: '', texto: '' }); }}>
-                {c}
-              </button>
-            ))}
+          <div className="field">
+            <label>Cuánto y de qué es</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                className="monto-grande"
+                style={{ flex: 1 }}
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+              />
+              <select
+                value={cat}
+                onChange={(e) => { setCat(e.target.value); setMsg({ tipo: '', texto: '' }); }}
+                style={{ width: 150, fontSize: 15, fontWeight: 700 }}
+              >
+                <option value="">Elegir…</option>
+                {CATEGORIAS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {cat && (
@@ -203,7 +214,7 @@ export default function Gastos({ usuario }) {
               {nomina && (
                 <>
                   <div className="paso">
-                    <span className="paso-n">2</span> ¿A quién y por qué período?
+                    <span className="paso-n">·</span> ¿A quién se le paga?
                   </div>
                   <div className="chips">
                     {vendedoras.map((u) => (
@@ -212,13 +223,6 @@ export default function Gastos({ usuario }) {
                       </button>
                     ))}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Período. Ej: 1 al 15 de agosto"
-                    value={periodo}
-                    onChange={(e) => setPeriodo(e.target.value)}
-                    style={{ marginTop: 8 }}
-                  />
                   {cat === 'Comisión' && comision && (
                     <div className={`msg ${comision.aplica ? 'good' : ''}`} style={{ textAlign: 'left', marginTop: 10 }}>
                       Hoy se vendieron <b>{comision.prendas}</b> prenda{comision.prendas === 1 ? '' : 's'} en total.{' '}
@@ -239,19 +243,7 @@ export default function Gastos({ usuario }) {
               )}
 
               <div className="paso">
-                <span className="paso-n">{nomina ? '3' : '2'}</span> ¿Cuánto?
-              </div>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                className="monto-grande"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-              />
-
-              <div className="paso">
-                <span className="paso-n">{nomina ? '4' : '3'}</span> ¿De dónde sale?
+                <span className="paso-n">·</span> ¿De dónde sale?
               </div>
               <div className="chips">
                 {ORIGENES.map((o) => (

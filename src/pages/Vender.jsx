@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario, sembrarCatalogoInicial } from '../lib/inventario';
 import { registrarVenta } from '../lib/ventas';
 import { reiniciarParaProduccion } from '../lib/reset';
+import { imprimirTicketVenta } from '../lib/imprimir';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -133,6 +134,17 @@ export default function Vender({ usuario }) {
       });
       setUltimaVenta({ ...res, lineas, subtotal, descuento: descNum, pagos });
       setMsg({ tipo: 'good', texto: `Venta N.º ${res.num} registrada · ${fmt(res.total)}` });
+      imprimirTicketVenta({
+        num: res.num,
+        fecha: res.fecha,
+        hora: res.hora,
+        usuarioNombre: usuario.nombreDefault,
+        lineas,
+        subtotal,
+        descuento: descNum,
+        total: res.total,
+        pagos,
+      });
       setCarrito({});
       setDescuento('');
       setMotivo('');

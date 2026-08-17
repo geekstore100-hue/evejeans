@@ -85,7 +85,7 @@ export default function App() {
           Cierre del día
         </button>
         <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
-          Sobres
+          Entrega de dinero
         </button>
         {usuario.id === 'nelson' && (
           <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>

@@ -34,38 +34,53 @@ export async function resumenDia(fecha, config) {
 
   const porPago = {};
   MEDIOS.forEach((m) => (porPago[m] = 0));
-  let nVentas = 0;
-  let nCambios = 0;
-  let unidades = 0;
   let descuentos = 0;
+  const prendasPorNombre = {}; // {nombre: cantidad neta}
+  const cambiosLista = [];
 
   snapVentas.docs.forEach((d) => {
     const v = d.data();
     if (v.tipo === 'venta') {
-      nVentas++;
-      unidades += (v.items || []).reduce((s, i) => s + i.qty, 0);
       descuentos += v.descuento || 0;
+      (v.items || []).forEach((i) => {
+        prendasPorNombre[i.name] = (prendasPorNombre[i.name] || 0) + i.qty;
+      });
       Object.entries(v.pagos || {}).forEach(([m, monto]) => {
         porPago[m] = (porPago[m] || 0) + monto;
       });
     } else if (v.tipo === 'cambio') {
-      nCambios++;
+      cambiosLista.push({ id: d.id, ...v });
+      (v.lleva || []).forEach((i) => {
+        prendasPorNombre[i.name] = (prendasPorNombre[i.name] || 0) + i.qty;
+      });
+      (v.devuelve || []).forEach((i) => {
+        prendasPorNombre[i.name] = (prendasPorNombre[i.name] || 0) - i.qty;
+      });
       if (v.diferencia > 0 && v.pago) {
         porPago[v.pago] = (porPago[v.pago] || 0) + v.diferencia;
       }
     }
   });
+  cambiosLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
+
+  const prendas = Object.entries(prendasPorNombre)
+    .filter(([, qty]) => qty !== 0)
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => b.qty - a.qty);
 
   const qGastos = query(collection(db, 'gastos'), where('fecha', '==', fecha), where('anulado', '==', false));
   const snapGastos = await getDocs(qGastos);
   const gastosMedio = {};
-  let gastosTot = 0;
+  const gastosLista = [];
+  let gastosTotReal = 0; // solo lo que ya quedó registrado como gasto real
   snapGastos.docs.forEach((d) => {
     const g = d.data();
-    gastosTot += g.monto;
+    gastosLista.push({ id: d.id, ...g });
+    gastosTotReal += g.monto;
     const medio = ORIGEN_A_MEDIO[g.origen];
     if (medio) gastosMedio[medio] = (gastosMedio[medio] || 0) + g.monto;
   });
+  gastosLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
 
   const netoPorMedio = {};
   MEDIOS.forEach((m) => {
@@ -73,10 +88,31 @@ export async function resumenDia(fecha, config) {
   });
 
   const comision = config ? await comisionDeHoy(config) : null;
+  const comisionYaPagada = gastosLista
+    .filter((g) => g.categoria === 'Comisión')
+    .reduce((s, g) => s + g.monto, 0);
+  const comisionPendiente = comision ? Math.max(0, comision.total - comisionYaPagada) : 0;
 
-  const totalGeneral = Object.values(netoPorMedio).reduce((a, b) => a + b, 0);
+  // Total que se muestra como "Gastos del día": lo ya registrado + la comisión causada
+  // que todavía no se ha pagado (para que la planilla refleje el gasto real del día).
+  const gastosTot = gastosTotReal + comisionPendiente;
 
-  return { porPago, gastosMedio, netoPorMedio, nVentas, nCambios, unidades, descuentos, gastosTot, comision, totalGeneral };
+  const efectivoAEntregar = netoPorMedio['Efectivo'] || 0;
+
+  return {
+    porPago,
+    gastosMedio,
+    netoPorMedio,
+    descuentos,
+    gastosTot,
+    gastosLista,
+    comision,
+    comisionYaPagada,
+    comisionPendiente,
+    prendas,
+    cambiosLista,
+    efectivoAEntregar,
+  };
 }
 
 export async function yaCerrado(fecha) {
