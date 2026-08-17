@@ -12,16 +12,15 @@ service cloud.firestore {
     function esNelson() {
       return estaAutenticado() && miId() == 'nelson';
     }
+    // Blanca y Sofía comparten una sola cuenta de acceso ("vendedoras"), así que el
+    // nombre que va en cada documento es una etiqueta elegida en la pantalla, no algo
+    // que se pueda verificar contra una identidad real distinta. Solo se valida que
+    // sea uno de los nombres válidos.
+    function usuarioIdValido(id) {
+      return id == 'blanca' || id == 'sofia' || id == 'nelson';
+    }
 
     // ---------- Inventario ----------
-    // Cualquiera autenticado puede leer el stock (así se ve en vivo en la pantalla de vender).
-    // Las vendedoras SOLO pueden mover el número de stock (sube al devolver en un cambio,
-    // baja al vender), nunca tocar el nombre o el precio. Nelson puede todo.
-    //
-    // OJO: como los cambios todavía no están vinculados a la venta original (se decidió así
-    // a propósito por ahora), esta regla no puede verificar que una subida de stock corresponda
-    // a un cambio real —  solo evita que se toquen nombre/precio o que el stock quede negativo.
-    // Cerrar ese hueco del todo requiere Cloud Functions (plan Blaze), pendiente para más adelante.
     match /inventario/{itemId} {
       allow read: if estaAutenticado();
       allow create, delete: if esNelson();
@@ -35,7 +34,6 @@ service cloud.firestore {
     }
 
     // ---------- Contador del consecutivo de ventas ----------
-    // Solo se puede leer y actualizar (nunca crear ni borrar) desde una venta real.
     match /contadores/{contadorId} {
       allow get: if estaAutenticado();
       allow update: if estaAutenticado()
@@ -46,13 +44,11 @@ service cloud.firestore {
     // ---------- Ventas ----------
     match /ventas/{ventaId} {
       allow read: if estaAutenticado();
-
       allow create: if estaAutenticado()
-                    && request.resource.data.usuarioId == miId()
+                    && usuarioIdValido(request.resource.data.usuarioId)
                     && request.resource.data.anulada == false
                     && request.resource.data.total is number
                     && request.resource.data.total >= 0;
-
       allow update, delete: if esNelson();
     }
 
@@ -65,13 +61,11 @@ service cloud.firestore {
     // ---------- Gastos ----------
     match /gastos/{gastoId} {
       allow read: if estaAutenticado();
-
       allow create: if estaAutenticado()
-                    && request.resource.data.usuarioId == miId()
+                    && usuarioIdValido(request.resource.data.usuarioId)
                     && request.resource.data.anulado == false
                     && request.resource.data.monto is number
                     && request.resource.data.monto >= 0;
-
       allow update: if estaAutenticado()
                     && resource.data.anulado == false
                     && request.resource.data.anulado == true
@@ -84,7 +78,7 @@ service cloud.firestore {
     match /cierres/{cierreId} {
       allow read: if estaAutenticado();
       allow create: if estaAutenticado()
-                    && request.resource.data.usuarioId == miId()
+                    && usuarioIdValido(request.resource.data.usuarioId)
                     && request.resource.data.contado is number
                     && request.resource.data.contado >= 0;
       allow update, delete: if esNelson();

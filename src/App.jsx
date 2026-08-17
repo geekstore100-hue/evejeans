@@ -9,31 +9,51 @@ import Cierre from './pages/Cierre';
 import Sobres from './pages/Sobres';
 import Inventario from './pages/Inventario';
 
+const CLAVE_LOCAL = 'evejeans_vendedora';
+
 export default function App() {
   const [cargando, setCargando] = useState(true);
-  const [usuario, setUsuario] = useState(null);
+  const [authId, setAuthId] = useState(null); // 'nelson' | 'vendedoras' | null
+  const [vendedoraElegida, setVendedoraElegida] = useState(() => {
+    const guardada = localStorage.getItem(CLAVE_LOCAL);
+    return guardada ? USUARIOS_BASE.find((u) => u.id === guardada) || null : null;
+  });
   const [vista, setVista] = useState('vender');
 
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
-      if (firebaseUser) {
-        const id = idDesdeEmail(firebaseUser.email);
-        const base = USUARIOS_BASE.find((u) => u.id === id) || null;
-        setUsuario(base);
-      } else {
-        setUsuario(null);
-      }
+      setAuthId(firebaseUser ? idDesdeEmail(firebaseUser.email) : null);
       setCargando(false);
     });
     return quitar;
   }, []);
 
+  function elegirVendedora(u) {
+    localStorage.setItem(CLAVE_LOCAL, u.id);
+    setVendedoraElegida(u);
+  }
+
+  async function cambiarDeTurno() {
+    if (authId === 'nelson') {
+      // Nelson sí cierra sesión de verdad: vuelve a la cuenta compartida.
+      await salir();
+    }
+    localStorage.removeItem(CLAVE_LOCAL);
+    setVendedoraElegida(null);
+  }
+
   if (cargando) {
     return <div className="loading">Cargando…</div>;
   }
 
+  // Nelson tiene su propia cuenta real: entra directo, sin elegir nombre.
+  const usuario =
+    authId === 'nelson'
+      ? USUARIOS_BASE.find((u) => u.id === 'nelson')
+      : vendedoraElegida;
+
   if (!usuario) {
-    return <Gate />;
+    return <Gate onElegirVendedora={elegirVendedora} />;
   }
 
   return (
@@ -46,7 +66,7 @@ export default function App() {
         <div className="who">
           Turno de <b>{usuario.nombreDefault}</b>
         </div>
-        <button className="link-btn" onClick={salir}>
+        <button className="link-btn" onClick={cambiarDeTurno}>
           Cambiar de turno
         </button>
       </div>

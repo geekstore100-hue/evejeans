@@ -1,85 +1,76 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { USUARIOS_BASE } from '../lib/usuarios';
-import { entrarConPin } from '../lib/auth';
+import { entrarComoVendedoraCompartida, entrarComoNelson } from '../lib/auth';
 
-export default function Gate() {
-  const [elegido, setElegido] = useState(null);
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [entrando, setEntrando] = useState(false);
+// Se muestra cuando todavía no hay nadie identificado. Si Firebase ya nos autenticó
+// como la cuenta compartida (o lo hace ahora mismo, en silencio), solo falta
+// preguntar el nombre — sin clave. Si alguien quiere entrar como Nelson, ahí sí pide PIN.
+export default function Gate({ onElegirVendedora }) {
+  const [modo, setModo] = useState('entrando'); // entrando | elegir | nelson
+  const [errorEntrada, setErrorEntrada] = useState('');
+  const [pinNelson, setPinNelson] = useState('');
+  const [errorNelson, setErrorNelson] = useState('');
+  const [entrandoNelson, setEntrandoNelson] = useState(false);
 
   const vendedoras = USUARIOS_BASE.filter((u) => u.id !== 'nelson');
-  const nelson = USUARIOS_BASE.find((u) => u.id === 'nelson');
 
-  async function confirmar() {
-    if (pin.length < 4) {
-      setError('El PIN es muy corto.');
-      return;
-    }
-    setError('');
-    setEntrando(true);
+  useEffect(() => {
+    entrarComoVendedoraCompartida()
+      .then(() => setModo('elegir'))
+      .catch((e) => setErrorEntrada('No se pudo entrar: ' + e.message));
+  }, []);
+
+  async function confirmarNelson() {
+    if (!pinNelson) return;
+    setErrorNelson('');
+    setEntrandoNelson(true);
     try {
-      await entrarConPin(elegido.id, pin);
+      await entrarComoNelson(pinNelson);
+      // El listener de sesión en App.jsx reconoce a Nelson solo, no hace falta nada más aquí.
     } catch (e) {
-      setError('PIN incorrecto.');
-      setPin('');
+      setErrorNelson('PIN incorrecto.');
+      setPinNelson('');
     } finally {
-      setEntrando(false);
+      setEntrandoNelson(false);
     }
   }
 
-  function tocarDigito(d) {
-    if (pin.length >= 8) return;
-    setError('');
-    setPin(pin + d);
-  }
-  function borrar() {
-    setPin(pin.slice(0, -1));
-  }
-
-  if (elegido) {
+  if (modo === 'entrando') {
     return (
       <div className="gate">
         <div className="gate-box">
-          <h1>Hola, {elegido.nombreDefault}</h1>
+          {errorEntrada ? (
+            <>
+              <h1>No se pudo entrar</h1>
+              <p style={{ color: 'var(--danger)' }}>{errorEntrada}</p>
+            </>
+          ) : (
+            <p>Entrando…</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (modo === 'nelson') {
+    return (
+      <div className="gate">
+        <div className="gate-box">
+          <h1>Nelson</h1>
           <p>Escribe tu PIN.</p>
-
-          <div className="pin-dots">
-            {Array.from({ length: Math.max(pin.length, 4) }).map((_, i) => (
-              <span key={i} className={`pin-dot ${i < pin.length ? 'on' : ''}`} />
-            ))}
-          </div>
-
-          <div className="pin-pad">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '←'].map((d, i) =>
-              d === '' ? (
-                <span key={i} />
-              ) : (
-                <button
-                  key={i}
-                  className="pin-key"
-                  onClick={() => (d === '←' ? borrar() : tocarDigito(d))}
-                >
-                  {d}
-                </button>
-              )
-            )}
-          </div>
-
-          {error && <div className="msg bad">{error}</div>}
-
-          <button className="btn" disabled={entrando} onClick={confirmar}>
-            {entrando ? 'Entrando…' : 'Entrar'}
+          <input
+            type="password"
+            value={pinNelson}
+            onChange={(e) => setPinNelson(e.target.value)}
+            style={{ marginBottom: 12 }}
+            autoFocus
+          />
+          {errorNelson && <div className="msg bad">{errorNelson}</div>}
+          <button className="btn" disabled={entrandoNelson} onClick={confirmarNelson}>
+            {entrandoNelson ? 'Entrando…' : 'Entrar'}
           </button>
-          <button
-            className="btn ghost"
-            onClick={() => {
-              setElegido(null);
-              setPin('');
-              setError('');
-            }}
-          >
-            Cambiar de persona
+          <button className="btn ghost" onClick={() => setModo('elegir')}>
+            Volver
           </button>
         </div>
       </div>
@@ -90,14 +81,14 @@ export default function Gate() {
     <div className="gate">
       <div className="gate-box">
         <h1>Eve Jeans</h1>
-        <p>Elige quién va a trabajar en este turno.</p>
+        <p>¿Quién eres?</p>
         {vendedoras.map((u) => (
-          <button key={u.id} className="gate-user" onClick={() => setElegido(u)}>
+          <button key={u.id} className="gate-user" onClick={() => onElegirVendedora(u)}>
             {u.nombreDefault}
             <span className="r">{u.rol}</span>
           </button>
         ))}
-        <button className="gate-admin-link" onClick={() => setElegido(nelson)}>
+        <button className="gate-admin-link" onClick={() => setModo('nelson')}>
           Entrar como Nelson (Administración)
         </button>
       </div>
