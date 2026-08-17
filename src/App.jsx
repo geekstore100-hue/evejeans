@@ -62,7 +62,8 @@ export default function App() {
     <div>
       <div className="topbar">
         <div className="brand">
-          Eve Jeans <span>· punto de venta</span>
+          <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
+          <span>· punto de venta</span>
         </div>
         <div className="spacer" />
         <div className="who">

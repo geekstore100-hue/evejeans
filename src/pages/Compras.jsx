@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
 import { crearPedidoCompra, comprasRecientes, ajustarPedido } from '../lib/compras';
+import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria', 'Lo puso Nelson'];
 
@@ -45,10 +46,10 @@ export default function Compras() {
     return m;
   }, [inventario]);
 
-  const nombreItems = (inventario || [])
+  const nombreItemsTodos = (inventario || [])
     .filter((i) => i.tipo === 'nombre' && !i.oculto)
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  const precioItems = (inventario || [])
+  const precioItemsTodos = (inventario || [])
     .filter((i) => i.tipo === 'precio' && !i.oculto)
     .sort((a, b) => a.price - b.price);
 
@@ -60,21 +61,7 @@ export default function Compras() {
     }));
   }
 
-  const [busqueda, setBusqueda] = useState('');
-  const [busquedaMsg, setBusquedaMsg] = useState('');
-  function agregarPorBusqueda() {
-    const texto = busqueda.trim().toLowerCase();
-    if (!texto) return;
-    const disponibles = (inventario || []).filter((i) => !i.oculto);
-    const match =
-      disponibles.find((i) => i.name.toLowerCase() === texto) ||
-      disponibles.find((i) => i.name.toLowerCase().startsWith(texto)) ||
-      disponibles.find((i) => i.name.toLowerCase().includes(texto));
-    if (!match) { setBusquedaMsg('No se encontró esa referencia.'); return; }
-    agregar(match.id);
-    setBusqueda('');
-    setBusquedaMsg('');
-  }
+  const busc = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
   function quitarLinea(id) {
     setCarrito((c) => {
       const copia = { ...c };
@@ -158,30 +145,40 @@ export default function Compras() {
     <div className="sale-grid">
       <div className="card">
         <h2>Qué se pidió</h2>
-        <input
-          type="text"
-          placeholder="Escribe el nombre y Enter para agregar"
-          value={busqueda}
-          onChange={(e) => { setBusqueda(e.target.value); setBusquedaMsg(''); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') agregarPorBusqueda(); }}
-          style={{ marginBottom: 8 }}
+        <CuadroBusqueda
+          busqueda={busc.busqueda}
+          setBusqueda={busc.setBusqueda}
+          busquedaMsg={busc.busquedaMsg}
+          setBusquedaMsg={busc.setBusquedaMsg}
+          onKeyDown={(e) => busc.manejarTecla(e, (item) => agregar(item.id))}
           autoFocus
         />
-        {busquedaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{busquedaMsg}</div>}
         <div className="cat-split">
           <div>
             <div className="split-label">Con nombre</div>
             <div className="tiles">
-              {nombreItems.map((it) => (
-                <TileCompra key={it.id} item={it} enCarrito={carrito[it.id]?.qty || 0} onClick={() => agregar(it.id)} />
+              {busc.nombreItems.map((it) => (
+                <TileCompra
+                  key={it.id}
+                  item={it}
+                  enCarrito={carrito[it.id]?.qty || 0}
+                  onClick={() => agregar(it.id)}
+                  seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
+                />
               ))}
             </div>
           </div>
           <div>
             <div className="split-label">Por precio</div>
             <div className="tiles">
-              {precioItems.map((it) => (
-                <TileCompra key={it.id} item={it} enCarrito={carrito[it.id]?.qty || 0} onClick={() => agregar(it.id)} />
+              {busc.precioItems.map((it) => (
+                <TileCompra
+                  key={it.id}
+                  item={it}
+                  enCarrito={carrito[it.id]?.qty || 0}
+                  onClick={() => agregar(it.id)}
+                  seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
+                />
               ))}
             </div>
           </div>
@@ -206,7 +203,7 @@ export default function Compras() {
                     <span style={{ fontWeight: 700 }}>
                       {l.name} <span className="qty">×{l.qty}</span>
                     </span>
-                    <button onClick={() => quitarLinea(l.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 18 }}>✕</button>
+                    <button tabIndex={-1} onClick={() => quitarLinea(l.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 18 }}>✕</button>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
                     <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Costo c/u</label>
@@ -369,9 +366,9 @@ function FormularioAjuste({ pedido, onCancelar, onListo }) {
   );
 }
 
-function TileCompra({ item, enCarrito, onClick }) {
+function TileCompra({ item, enCarrito, onClick, seleccionado }) {
   return (
-    <button className="tile" onClick={onClick}>
+    <button className={`tile ${seleccionado ? 'tile-sel' : ''}`} onClick={onClick} tabIndex={-1}>
       <div>
         <div className="tile-name">{item.name}</div>
         <div className="tile-price">

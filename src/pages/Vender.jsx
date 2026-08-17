@@ -3,6 +3,7 @@ import { suscribirInventario, sembrarCatalogoInicial } from '../lib/inventario';
 import { registrarVenta } from '../lib/ventas';
 import { reiniciarParaProduccion } from '../lib/reset';
 import { imprimirTicketVenta } from '../lib/imprimir';
+import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -21,8 +22,6 @@ export default function Vender({ usuario }) {
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [sembrando, setSembrando] = useState(false);
-  const [busqueda, setBusqueda] = useState('');
-  const [busquedaMsg, setBusquedaMsg] = useState('');
   const [reiniciando, setReiniciando] = useState(false);
   const [confirmandoReinicio, setConfirmandoReinicio] = useState(false);
   const [textoConfirma, setTextoConfirma] = useState('');
@@ -44,10 +43,10 @@ export default function Vender({ usuario }) {
     return m;
   }, [inventario]);
 
-  const nombreItems = (inventario || [])
+  const nombreItemsTodos = (inventario || [])
     .filter((i) => i.tipo === 'nombre' && !i.oculto)
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  const precioItems = (inventario || [])
+  const precioItemsTodos = (inventario || [])
     .filter((i) => i.tipo === 'precio' && !i.oculto)
     .sort((a, b) => a.price - b.price);
 
@@ -58,31 +57,19 @@ export default function Vender({ usuario }) {
   }
 
   function agregar(id) {
-    if (stockDisponible(id) <= 0) return;
+    if (stockDisponible(id) <= 0) return false;
     setCarrito((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
   }
 
-  function agregarPorBusqueda() {
-    const texto = busqueda.trim().toLowerCase();
-    if (!texto) return;
-    const disponibles = (inventario || []).filter((i) => !i.oculto);
-    // Primero busca coincidencia exacta, si no, la primera que empiece igual, si no, la primera que contenga el texto.
-    const match =
-      disponibles.find((i) => i.name.toLowerCase() === texto) ||
-      disponibles.find((i) => i.name.toLowerCase().startsWith(texto)) ||
-      disponibles.find((i) => i.name.toLowerCase().includes(texto));
-    if (!match) {
-      setBusquedaMsg('No se encontró ninguna prenda con ese nombre.');
-      return;
+  const busc = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
+  function elegirDeBusqueda(item) {
+    if (stockDisponible(item.id) <= 0) {
+      busc.setBusquedaMsg(`"${item.name}" no tiene disponible.`);
+      return false;
     }
-    if (stockDisponible(match.id) <= 0) {
-      setBusquedaMsg(`"${match.name}" no tiene disponible.`);
-      return;
-    }
-    agregar(match.id);
-    setBusqueda('');
-    setBusquedaMsg('');
+    agregar(item.id);
   }
+
   function quitarLinea(id) {
     setCarrito((c) => {
       const copia = { ...c };
@@ -253,7 +240,7 @@ export default function Vender({ usuario }) {
   return (
     <div className="sale-grid">
       {usuario.id === 'nelson' && (
-        <div className="card modo-prueba" style={{ gridColumn: '1 / -1' }}>
+        <div className="card modo-prueba" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
           {!confirmandoReinicio ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ flex: 1, fontSize: 13 }}>
@@ -314,29 +301,29 @@ export default function Vender({ usuario }) {
             {inventario.reduce((s, i) => s + (i.stock || 0), 0)} en total
           </span>
         </h2>
-        <input
-          type="text"
-          placeholder="Escribe el nombre y Enter para agregar, sin usar el touchpad"
-          value={busqueda}
-          onChange={(e) => { setBusqueda(e.target.value); setBusquedaMsg(''); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') agregarPorBusqueda(); }}
-          style={{ marginBottom: 8 }}
+        <CuadroBusqueda
+          placeholder="Escribe para filtrar · Tab para elegir entre varias · Enter para agregar"
+          busqueda={busc.busqueda}
+          setBusqueda={busc.setBusqueda}
+          busquedaMsg={busc.busquedaMsg}
+          setBusquedaMsg={busc.setBusquedaMsg}
+          onKeyDown={(e) => busc.manejarTecla(e, elegirDeBusqueda)}
           tabIndex={1}
           autoFocus
         />
-        {busquedaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{busquedaMsg}</div>}
         <div className="cat-split">
           <div>
             <div className="split-label">Con nombre</div>
             <div className="tiles-scroll">
               <div className="tiles">
-                {nombreItems.map((it) => (
+                {busc.nombreItems.map((it) => (
                   <Tile
                     key={it.id}
                     item={it}
                     disponible={stockDisponible(it.id)}
                     enCarrito={carrito[it.id] || 0}
                     onClick={() => agregar(it.id)}
+                    seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
                   />
                 ))}
               </div>
@@ -346,13 +333,14 @@ export default function Vender({ usuario }) {
             <div className="split-label">Por precio</div>
             <div className="tiles-scroll">
               <div className="tiles">
-                {precioItems.map((it) => (
+                {busc.precioItems.map((it) => (
                   <Tile
                     key={it.id}
                     item={it}
                     disponible={stockDisponible(it.id)}
                     enCarrito={carrito[it.id] || 0}
                     onClick={() => agregar(it.id)}
+                    seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
                   />
                 ))}
               </div>
@@ -487,10 +475,15 @@ export default function Vender({ usuario }) {
   );
 }
 
-function Tile({ item, disponible, enCarrito, onClick }) {
+function Tile({ item, disponible, enCarrito, onClick, seleccionado }) {
   const clase = disponible <= 0 ? 'stock-zero' : disponible <= 5 ? 'stock-low' : 'stock-ok';
   return (
-    <button className="tile" disabled={disponible <= 0} onClick={onClick} tabIndex={-1}>
+    <button
+      className={`tile ${seleccionado ? 'tile-sel' : ''}`}
+      disabled={disponible <= 0}
+      onClick={onClick}
+      tabIndex={-1}
+    >
       <div>
         <div className="tile-name">{item.name}</div>
         {item.tipo === 'nombre' && <div className="tile-price">{fmt(item.price)}</div>}

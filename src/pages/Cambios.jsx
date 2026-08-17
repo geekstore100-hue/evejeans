@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { registrarCambio } from '../lib/cambios';
 import { suscribirInventario } from '../lib/inventario';
 import { imprimirTicketCambio } from '../lib/imprimir';
+import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -31,10 +32,10 @@ export default function Cambios({ usuario }) {
     return m;
   }, [inventario]);
 
-  const nombreItems = (inventario || [])
+  const nombreItemsTodos = (inventario || [])
     .filter((i) => i.tipo === 'nombre' && !i.oculto)
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  const precioItems = (inventario || [])
+  const precioItemsTodos = (inventario || [])
     .filter((i) => i.tipo === 'precio' && !i.oculto)
     .sort((a, b) => a.price - b.price);
 
@@ -44,42 +45,12 @@ export default function Cambios({ usuario }) {
   function agregarLleva(id) {
     const it = porId[id];
     const yaEnLleva = lleva[id] || 0;
-    if (!it || (it.stock || 0) - yaEnLleva <= 0) return;
+    if (!it || (it.stock || 0) - yaEnLleva <= 0) return false;
     setLleva((l) => ({ ...l, [id]: (l[id] || 0) + 1 }));
   }
 
-  const [buscaDevuelve, setBuscaDevuelve] = useState('');
-  const [buscaDevuelveMsg, setBuscaDevuelveMsg] = useState('');
-  const [buscaLleva, setBuscaLleva] = useState('');
-  const [buscaLlevaMsg, setBuscaLlevaMsg] = useState('');
-
-  function buscarItem(texto) {
-    const disponibles = (inventario || []).filter((i) => !i.oculto);
-    const t = texto.trim().toLowerCase();
-    if (!t) return null;
-    return (
-      disponibles.find((i) => i.name.toLowerCase() === t) ||
-      disponibles.find((i) => i.name.toLowerCase().startsWith(t)) ||
-      disponibles.find((i) => i.name.toLowerCase().includes(t)) ||
-      null
-    );
-  }
-  function agregarDevueltePorBusqueda() {
-    const m = buscarItem(buscaDevuelve);
-    if (!m) { setBuscaDevuelveMsg('No se encontró esa prenda.'); return; }
-    agregarDevuelve(m.id);
-    setBuscaDevuelve('');
-    setBuscaDevuelveMsg('');
-  }
-  function agregarLlevaPorBusqueda() {
-    const m = buscarItem(buscaLleva);
-    if (!m) { setBuscaLlevaMsg('No se encontró esa prenda.'); return; }
-    const disp = (m.stock || 0) - (lleva[m.id] || 0);
-    if (disp <= 0) { setBuscaLlevaMsg(`"${m.name}" no tiene disponible.`); return; }
-    agregarLleva(m.id);
-    setBuscaLleva('');
-    setBuscaLlevaMsg('');
-  }
+  const buscDev = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
+  const buscLlv = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
 
   const lineasDevuelve = Object.entries(devuelve)
     .filter(([, q]) => q > 0)
@@ -146,50 +117,69 @@ export default function Cambios({ usuario }) {
         <>
           <div className="card">
             <h2>1 · Qué devuelve el cliente</h2>
-            <input
-              type="text"
-              placeholder="Escribe el nombre y Enter para agregar"
-              value={buscaDevuelve}
-              onChange={(e) => { setBuscaDevuelve(e.target.value); setBuscaDevuelveMsg(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') agregarDevueltePorBusqueda(); }}
-              style={{ marginBottom: 8 }}
+            <CuadroBusqueda
+              busqueda={buscDev.busqueda}
+              setBusqueda={buscDev.setBusqueda}
+              busquedaMsg={buscDev.busquedaMsg}
+              setBusquedaMsg={buscDev.setBusquedaMsg}
+              onKeyDown={(e) => buscDev.manejarTecla(e, (item) => agregarDevuelve(item.id))}
+              tabIndex={1}
               autoFocus
             />
-            {buscaDevuelveMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{buscaDevuelveMsg}</div>}
             <div className="cat-split">
               <div>
                 <div className="split-label">Con nombre</div>
                 <div className="tiles">
-                  {nombreItems.map((it) => (
-                    <TileSimple key={it.id} item={it} cantidad={devuelve[it.id] || 0} onClick={() => agregarDevuelve(it.id)} />
+                  {buscDev.nombreItems.map((it) => (
+                    <TileSimple
+                      key={it.id}
+                      item={it}
+                      cantidad={devuelve[it.id] || 0}
+                      onClick={() => agregarDevuelve(it.id)}
+                      seleccionado={buscDev.combinados[buscDev.selIndex]?.id === it.id}
+                    />
                   ))}
                 </div>
               </div>
               <div>
                 <div className="split-label">Por precio</div>
                 <div className="tiles">
-                  {precioItems.map((it) => (
-                    <TileSimple key={it.id} item={it} cantidad={devuelve[it.id] || 0} onClick={() => agregarDevuelve(it.id)} />
+                  {buscDev.precioItems.map((it) => (
+                    <TileSimple
+                      key={it.id}
+                      item={it}
+                      cantidad={devuelve[it.id] || 0}
+                      onClick={() => agregarDevuelve(it.id)}
+                      seleccionado={buscDev.combinados[buscDev.selIndex]?.id === it.id}
+                    />
                   ))}
                 </div>
               </div>
             </div>
 
             <h2 style={{ marginTop: 20 }}>2 · Qué se lleva</h2>
-            <input
-              type="text"
-              placeholder="Escribe el nombre y Enter para agregar"
-              value={buscaLleva}
-              onChange={(e) => { setBuscaLleva(e.target.value); setBuscaLlevaMsg(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') agregarLlevaPorBusqueda(); }}
-              style={{ marginBottom: 8 }}
+            <CuadroBusqueda
+              busqueda={buscLlv.busqueda}
+              setBusqueda={buscLlv.setBusqueda}
+              busquedaMsg={buscLlv.busquedaMsg}
+              setBusquedaMsg={buscLlv.setBusquedaMsg}
+              onKeyDown={(e) =>
+                buscLlv.manejarTecla(e, (item) => {
+                  const disp = (item.stock || 0) - (lleva[item.id] || 0);
+                  if (disp <= 0) {
+                    buscLlv.setBusquedaMsg(`"${item.name}" no tiene disponible.`);
+                    return false;
+                  }
+                  agregarLleva(item.id);
+                })
+              }
+              tabIndex={2}
             />
-            {buscaLlevaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{buscaLlevaMsg}</div>}
             <div className="cat-split">
               <div>
                 <div className="split-label">Con nombre</div>
                 <div className="tiles">
-                  {nombreItems.map((it) => {
+                  {buscLlv.nombreItems.map((it) => {
                     const disp = (it.stock || 0) - (lleva[it.id] || 0);
                     return (
                       <TileSimple
@@ -198,6 +188,7 @@ export default function Cambios({ usuario }) {
                         disponible={disp}
                         cantidad={lleva[it.id] || 0}
                         onClick={() => agregarLleva(it.id)}
+                        seleccionado={buscLlv.combinados[buscLlv.selIndex]?.id === it.id}
                       />
                     );
                   })}
@@ -206,7 +197,7 @@ export default function Cambios({ usuario }) {
               <div>
                 <div className="split-label">Por precio</div>
                 <div className="tiles">
-                  {precioItems.map((it) => {
+                  {buscLlv.precioItems.map((it) => {
                     const disp = (it.stock || 0) - (lleva[it.id] || 0);
                     return (
                       <TileSimple
@@ -215,6 +206,7 @@ export default function Cambios({ usuario }) {
                         disponible={disp}
                         cantidad={lleva[it.id] || 0}
                         onClick={() => agregarLleva(it.id)}
+                        seleccionado={buscLlv.combinados[buscLlv.selIndex]?.id === it.id}
                       />
                     );
                   })}
@@ -239,7 +231,7 @@ export default function Cambios({ usuario }) {
                           {l.name} <span className="qty">×{l.qty}</span>
                         </span>
                         <span className="amt">{fmt(l.price * l.qty)}</span>
-                        <button onClick={() => setDevuelve((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
+                        <button tabIndex={-1} onClick={() => setDevuelve((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
                       </div>
                     ))}
                   </div>
@@ -254,7 +246,7 @@ export default function Cambios({ usuario }) {
                           {l.name} <span className="qty">×{l.qty}</span>
                         </span>
                         <span className="amt">{fmt(l.price * l.qty)}</span>
-                        <button onClick={() => setLleva((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
+                        <button tabIndex={-1} onClick={() => setLleva((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
                       </div>
                     ))}
                   </div>
@@ -283,7 +275,7 @@ export default function Cambios({ usuario }) {
                       <label>El cliente paga la diferencia con</label>
                       <div className="chips">
                         {MEDIOS.map((m) => (
-                          <button key={m} className={`chip ${pagoDif === m ? 'on' : ''}`} onClick={() => setPagoDif(m)}>
+                          <button key={m} tabIndex={-1} className={`chip ${pagoDif === m ? 'on' : ''}`} onClick={() => setPagoDif(m)}>
                             {m}
                           </button>
                         ))}
@@ -297,11 +289,11 @@ export default function Cambios({ usuario }) {
                   )}
 
                   {valDev > 0 && valLlv > 0 && diferencia >= 0 && (
-                    <button className="btn" disabled={procesando} onClick={confirmar}>
+                    <button className="btn" tabIndex={3} disabled={procesando} onClick={confirmar}>
                       {procesando ? 'Registrando…' : 'Registrar cambio'}
                     </button>
                   )}
-                  <button className="btn ghost" onClick={vaciar}>
+                  <button className="btn ghost" tabIndex={4} onClick={vaciar}>
                     Cancelar
                   </button>
                 </>
@@ -315,10 +307,10 @@ export default function Cambios({ usuario }) {
   );
 }
 
-function TileSimple({ item, disponible, cantidad, onClick }) {
+function TileSimple({ item, disponible, cantidad, onClick, seleccionado }) {
   const bloqueado = disponible !== undefined && disponible <= 0;
   return (
-    <button className="tile" disabled={bloqueado} onClick={onClick}>
+    <button className={`tile ${seleccionado ? 'tile-sel' : ''}`} disabled={bloqueado} onClick={onClick} tabIndex={-1}>
       <div>
         <div className="tile-name">{item.name}</div>
         {item.tipo === 'nombre' && <div className="tile-price">{fmt(item.price)}</div>}

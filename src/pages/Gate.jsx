@@ -80,7 +80,7 @@ export default function Gate({ onElegirVendedora }) {
   return (
     <div className="gate">
       <div className="gate-box">
-        <h1>Eve Jeans</h1>
+        <img src="/logo.png" alt="Eve Jeans" className="gate-logo" />
         <p>¿Quién eres?</p>
         {vendedoras.map((u) => (
           <button key={u.id} className="gate-user" onClick={() => onElegirVendedora(u)}>
