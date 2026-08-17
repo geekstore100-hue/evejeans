@@ -116,7 +116,7 @@ main { padding: 8px; max-width: 1500px; margin: 0 auto; }
 
 /* ---------- Vender: panel de venta fijo a la derecha, ignorando la barra superior ---------- */
 .vender-shell { display: block; }
-@media (min-width: 1001px) {
+@media (min-width: 641px) {
   /* La barra superior, las pestañas y el contenido de la izquierda dejan libres
      los 400px de la derecha, donde vive el panel de venta fijo. */
   .con-panel-fijo .topbar,
@@ -137,8 +137,8 @@ main { padding: 8px; max-width: 1500px; margin: 0 auto; }
     z-index: 40;
   }
 }
-@media (max-width: 1000px) {
-  /* En pantallas angostas no hay espacio para un panel fijo: vuelve al flujo normal. */
+@media (max-width: 640px) {
+  /* En pantallas angostas (celular) no hay espacio para un panel fijo: flujo normal. */
   .vender-shell { display: flex; flex-direction: column; gap: 8px; }
 }
 @media (max-width: 1000px) { .sale-grid { grid-template-columns: 1fr; } }
