@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 
 // Cuadro de búsqueda que filtra la lista en vivo, resalta una coincidencia con
 // flechas izquierda/derecha, y agrega con Enter. Nunca hace falta el touchpad.
@@ -53,10 +53,14 @@ export function useBuscadorFiltro(nombreItemsTodos, precioItemsTodos) {
   return { busqueda, setBusqueda, busquedaMsg, setBusquedaMsg, nombreItems, precioItems, combinados, selIndex, manejarTecla };
 }
 
-export function CuadroBusqueda({ placeholder, busqueda, setBusqueda, busquedaMsg, setBusquedaMsg, onKeyDown, autoFocus, tabIndex }) {
+export const CuadroBusqueda = forwardRef(function CuadroBusqueda(
+  { placeholder, busqueda, setBusqueda, busquedaMsg, setBusquedaMsg, onKeyDown, autoFocus, tabIndex },
+  ref
+) {
   return (
     <>
       <input
+        ref={ref}
         type="text"
         placeholder={placeholder || 'Escribe para filtrar · flechas para elegir · Enter para agregar'}
         value={busqueda}
@@ -69,4 +73,4 @@ export function CuadroBusqueda({ placeholder, busqueda, setBusqueda, busquedaMsg
       {busquedaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{busquedaMsg}</div>}
     </>
   );
-}
+});

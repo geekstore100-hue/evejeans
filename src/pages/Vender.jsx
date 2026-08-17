@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario, sembrarCatalogoInicial } from '../lib/inventario';
 import { registrarVenta } from '../lib/ventas';
 import { reiniciarParaProduccion } from '../lib/reset';
@@ -62,6 +62,7 @@ export default function Vender({ usuario }) {
   }
 
   const busc = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
+  const buscadorRef = useRef(null);
   function elegirDeBusqueda(item) {
     if (stockDisponible(item.id) <= 0) {
       busc.setBusquedaMsg(`"${item.name}" no tiene disponible.`);
@@ -98,6 +99,7 @@ export default function Vender({ usuario }) {
     setPagos({});
     setMsg({ tipo: '', texto: '' });
     setUltimaVenta(null);
+    buscadorRef.current?.focus();
   }
 
   function pagarTodoCon(medio) {
@@ -117,6 +119,7 @@ export default function Vender({ usuario }) {
     setMsg({ tipo: '', texto: '' });
     if (lineas.length === 0) {
       setMsg({ tipo: 'bad', texto: 'Toca alguna prenda primero.' });
+      buscadorRef.current?.focus();
       return;
     }
     if (descNum > 0 && !motivo.trim()) {
@@ -168,6 +171,8 @@ export default function Vender({ usuario }) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar la venta.' });
     } finally {
       setCobrando(false);
+      // El foco vuelve al buscador siempre, para poder seguir escribiendo de una.
+      buscadorRef.current?.focus();
     }
   }
 
@@ -302,6 +307,7 @@ export default function Vender({ usuario }) {
           </span>
         </h2>
         <CuadroBusqueda
+          ref={buscadorRef}
           placeholder="Escribe para filtrar · Tab para elegir entre varias · Enter para agregar"
           busqueda={busc.busqueda}
           setBusqueda={busc.setBusqueda}
@@ -420,46 +426,48 @@ export default function Vender({ usuario }) {
                 </span>
               )}
             </label>
-            {MEDIOS.map((m, idx) => (
-              <div className="pay-row" key={m}>
-                <button
-                  className="pay-quick"
-                  tabIndex={-1}
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    pagarTodoCon(m);
-                  }}
-                >
-                  {m}
-                </button>
-                <input
-                  type="number"
-                  className="pay-amt"
-                  placeholder="0"
-                  inputMode="numeric"
-                  value={pagos[m] || ''}
-                  tabIndex={idx + 2}
-                  onFocus={(e) => {
-                    if (!pagos[m] && pagado > 0 && falta > 0) {
-                      cambiarPago(m, falta);
-                      e.target.select();
-                    }
-                  }}
-                  onChange={(e) => cambiarPago(m, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter') return;
-                    e.preventDefault();
-                    if (!pagos[m] && falta > 0) {
-                      // Rellena solo lo que falte, sin tocar lo que ya haya en otros medios.
-                      cambiarPago(m, falta);
-                    } else {
-                      const siguiente = document.querySelector(`[tabindex="${idx + 3}"]`);
-                      if (siguiente) siguiente.focus();
-                    }
-                  }}
-                />
-              </div>
-            ))}
+            <div className="pays-grid">
+              {MEDIOS.map((m, idx) => (
+                <div className="pay-row" key={m}>
+                  <button
+                    className="pay-quick"
+                    tabIndex={-1}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      pagarTodoCon(m);
+                    }}
+                  >
+                    {m}
+                  </button>
+                  <input
+                    type="number"
+                    className="pay-amt"
+                    placeholder="0"
+                    inputMode="numeric"
+                    value={pagos[m] || ''}
+                    tabIndex={idx + 2}
+                    onFocus={(e) => {
+                      if (!pagos[m] && pagado > 0 && falta > 0) {
+                        cambiarPago(m, falta);
+                        e.target.select();
+                      }
+                    }}
+                    onChange={(e) => cambiarPago(m, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return;
+                      e.preventDefault();
+                      if (!pagos[m] && falta > 0) {
+                        // Rellena solo lo que falte, sin tocar lo que ya haya en otros medios.
+                        cambiarPago(m, falta);
+                      } else {
+                        const siguiente = document.querySelector(`[tabindex="${idx + 3}"]`);
+                        if (siguiente) siguiente.focus();
+                      }
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           <button className="btn" disabled={cobrando} onClick={cobrar} tabIndex={MEDIOS.length + 2}>

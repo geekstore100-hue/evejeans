@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
 import { crearPedidoCompra, comprasRecientes, ajustarPedido } from '../lib/compras';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
@@ -62,6 +62,7 @@ export default function Compras() {
   }
 
   const busc = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
+  const buscadorRef = useRef(null);
   function quitarLinea(id) {
     setCarrito((c) => {
       const copia = { ...c };
@@ -88,6 +89,7 @@ export default function Compras() {
     setOrigen(null);
     setNota('');
     setMsg({ tipo: '', texto: '' });
+    buscadorRef.current?.focus();
   }
 
   async function confirmar() {
@@ -126,6 +128,7 @@ export default function Compras() {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
     } finally {
       setGuardando(false);
+      buscadorRef.current?.focus();
     }
   }
 
@@ -146,6 +149,7 @@ export default function Compras() {
       <div className="card">
         <h2>Qué se pidió</h2>
         <CuadroBusqueda
+          ref={buscadorRef}
           busqueda={busc.busqueda}
           setBusqueda={busc.setBusqueda}
           busquedaMsg={busc.busquedaMsg}

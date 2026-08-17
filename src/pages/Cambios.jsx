@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { registrarCambio } from '../lib/cambios';
 import { suscribirInventario } from '../lib/inventario';
 import { imprimirTicketCambio } from '../lib/imprimir';
@@ -51,6 +51,7 @@ export default function Cambios({ usuario }) {
 
   const buscDev = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
   const buscLlv = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
+  const buscDevRef = useRef(null);
 
   const lineasDevuelve = Object.entries(devuelve)
     .filter(([, q]) => q > 0)
@@ -71,6 +72,7 @@ export default function Cambios({ usuario }) {
   function vaciar() {
     limpiarCampos();
     setMsg({ tipo: '', texto: '' });
+    buscDevRef.current?.focus();
   }
 
   async function confirmar() {
@@ -101,6 +103,8 @@ export default function Cambios({ usuario }) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el cambio.' });
     } finally {
       setProcesando(false);
+      // El foco vuelve al primer buscador ("devuelve"), listo para el siguiente cambio.
+      buscDevRef.current?.focus();
     }
   }
 
@@ -118,6 +122,7 @@ export default function Cambios({ usuario }) {
           <div className="card">
             <h2>1 · Qué devuelve el cliente</h2>
             <CuadroBusqueda
+              ref={buscDevRef}
               busqueda={buscDev.busqueda}
               setBusqueda={buscDev.setBusqueda}
               busquedaMsg={buscDev.busquedaMsg}
