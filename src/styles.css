@@ -27,6 +27,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 button { font-family: inherit; cursor: pointer; }
+button:focus-visible, .tile:focus-visible, .chip:focus-visible {
+  outline: 3px solid var(--cian); outline-offset: 2px;
+}
 
 .loading {
   height: 100vh; display: flex; align-items: center; justify-content: center;

@@ -199,17 +199,18 @@ export default function Gastos({ usuario }) {
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
               />
-              <select
-                value={cat}
-                onChange={(e) => { setCat(e.target.value); setMsg({ tipo: '', texto: '' }); }}
-                style={{ width: 150, fontSize: 15, fontWeight: 700 }}
-              >
-                <option value="">Elegir…</option>
-                {CATEGORIAS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
             </div>
+          </div>
+          <div className="chips" style={{ marginBottom: 12 }}>
+            {CATEGORIAS.map((c) => (
+              <button
+                key={c}
+                className={`chip ${cat === c ? 'on' : ''}`}
+                onClick={() => { setCat(c); setMsg({ tipo: '', texto: '' }); }}
+              >
+                {c}
+              </button>
+            ))}
           </div>
 
           {cat && (

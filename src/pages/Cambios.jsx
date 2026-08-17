@@ -48,6 +48,39 @@ export default function Cambios({ usuario }) {
     setLleva((l) => ({ ...l, [id]: (l[id] || 0) + 1 }));
   }
 
+  const [buscaDevuelve, setBuscaDevuelve] = useState('');
+  const [buscaDevuelveMsg, setBuscaDevuelveMsg] = useState('');
+  const [buscaLleva, setBuscaLleva] = useState('');
+  const [buscaLlevaMsg, setBuscaLlevaMsg] = useState('');
+
+  function buscarItem(texto) {
+    const disponibles = (inventario || []).filter((i) => !i.oculto);
+    const t = texto.trim().toLowerCase();
+    if (!t) return null;
+    return (
+      disponibles.find((i) => i.name.toLowerCase() === t) ||
+      disponibles.find((i) => i.name.toLowerCase().startsWith(t)) ||
+      disponibles.find((i) => i.name.toLowerCase().includes(t)) ||
+      null
+    );
+  }
+  function agregarDevueltePorBusqueda() {
+    const m = buscarItem(buscaDevuelve);
+    if (!m) { setBuscaDevuelveMsg('No se encontró esa prenda.'); return; }
+    agregarDevuelve(m.id);
+    setBuscaDevuelve('');
+    setBuscaDevuelveMsg('');
+  }
+  function agregarLlevaPorBusqueda() {
+    const m = buscarItem(buscaLleva);
+    if (!m) { setBuscaLlevaMsg('No se encontró esa prenda.'); return; }
+    const disp = (m.stock || 0) - (lleva[m.id] || 0);
+    if (disp <= 0) { setBuscaLlevaMsg(`"${m.name}" no tiene disponible.`); return; }
+    agregarLleva(m.id);
+    setBuscaLleva('');
+    setBuscaLlevaMsg('');
+  }
+
   const lineasDevuelve = Object.entries(devuelve)
     .filter(([, q]) => q > 0)
     .map(([id, qty]) => ({ id, qty, name: porId[id]?.name || id, price: porId[id]?.price || 0 }));
@@ -113,6 +146,16 @@ export default function Cambios({ usuario }) {
         <>
           <div className="card">
             <h2>1 · Qué devuelve el cliente</h2>
+            <input
+              type="text"
+              placeholder="Escribe el nombre y Enter para agregar"
+              value={buscaDevuelve}
+              onChange={(e) => { setBuscaDevuelve(e.target.value); setBuscaDevuelveMsg(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') agregarDevueltePorBusqueda(); }}
+              style={{ marginBottom: 8 }}
+              autoFocus
+            />
+            {buscaDevuelveMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{buscaDevuelveMsg}</div>}
             <div className="cat-split">
               <div>
                 <div className="split-label">Con nombre</div>
@@ -133,6 +176,15 @@ export default function Cambios({ usuario }) {
             </div>
 
             <h2 style={{ marginTop: 20 }}>2 · Qué se lleva</h2>
+            <input
+              type="text"
+              placeholder="Escribe el nombre y Enter para agregar"
+              value={buscaLleva}
+              onChange={(e) => { setBuscaLleva(e.target.value); setBuscaLlevaMsg(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') agregarLlevaPorBusqueda(); }}
+              style={{ marginBottom: 8 }}
+            />
+            {buscaLlevaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{buscaLlevaMsg}</div>}
             <div className="cat-split">
               <div>
                 <div className="split-label">Con nombre</div>
@@ -229,15 +281,13 @@ export default function Cambios({ usuario }) {
                   ) : diferencia > 0 ? (
                     <div className="field">
                       <label>El cliente paga la diferencia con</label>
-                      <select
-                        value={pagoDif}
-                        onChange={(e) => setPagoDif(e.target.value)}
-                        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '2px solid var(--line)' }}
-                      >
+                      <div className="chips">
                         {MEDIOS.map((m) => (
-                          <option key={m}>{m}</option>
+                          <button key={m} className={`chip ${pagoDif === m ? 'on' : ''}`} onClick={() => setPagoDif(m)}>
+                            {m}
+                          </button>
                         ))}
-                      </select>
+                      </div>
                     </div>
                   ) : (
                     <div className="msg bad">

@@ -21,6 +21,8 @@ export default function Vender({ usuario }) {
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [sembrando, setSembrando] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [busquedaMsg, setBusquedaMsg] = useState('');
   const [reiniciando, setReiniciando] = useState(false);
   const [confirmandoReinicio, setConfirmandoReinicio] = useState(false);
   const [textoConfirma, setTextoConfirma] = useState('');
@@ -58,6 +60,28 @@ export default function Vender({ usuario }) {
   function agregar(id) {
     if (stockDisponible(id) <= 0) return;
     setCarrito((c) => ({ ...c, [id]: (c[id] || 0) + 1 }));
+  }
+
+  function agregarPorBusqueda() {
+    const texto = busqueda.trim().toLowerCase();
+    if (!texto) return;
+    const disponibles = (inventario || []).filter((i) => !i.oculto);
+    // Primero busca coincidencia exacta, si no, la primera que empiece igual, si no, la primera que contenga el texto.
+    const match =
+      disponibles.find((i) => i.name.toLowerCase() === texto) ||
+      disponibles.find((i) => i.name.toLowerCase().startsWith(texto)) ||
+      disponibles.find((i) => i.name.toLowerCase().includes(texto));
+    if (!match) {
+      setBusquedaMsg('No se encontró ninguna prenda con ese nombre.');
+      return;
+    }
+    if (stockDisponible(match.id) <= 0) {
+      setBusquedaMsg(`"${match.name}" no tiene disponible.`);
+      return;
+    }
+    agregar(match.id);
+    setBusqueda('');
+    setBusquedaMsg('');
   }
   function quitarLinea(id) {
     setCarrito((c) => {
@@ -290,6 +314,16 @@ export default function Vender({ usuario }) {
             {inventario.reduce((s, i) => s + (i.stock || 0), 0)} en total
           </span>
         </h2>
+        <input
+          type="text"
+          placeholder="Escribe el nombre y Enter para agregar, sin usar el touchpad"
+          value={busqueda}
+          onChange={(e) => { setBusqueda(e.target.value); setBusquedaMsg(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') agregarPorBusqueda(); }}
+          style={{ marginBottom: 8 }}
+          autoFocus
+        />
+        {busquedaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{busquedaMsg}</div>}
         <div className="cat-split">
           <div>
             <div className="split-label">Con nombre</div>
