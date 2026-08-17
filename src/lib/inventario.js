@@ -33,6 +33,7 @@ export async function sembrarCatalogoInicial() {
       price: item.price,
       tipo: item.tipo,
       stock: 0,
+      costoCompra: 0,
       oculto: false,
     });
   });

@@ -81,6 +81,24 @@ export async function resumenDia(fecha, config) {
     netoPorMedio[m] = (porPago[m] || 0) - (gastosMedio[m] || 0);
   });
 
+  // Compras de mercancía del día: también salen de algún medio, igual que los gastos.
+  const qCompras = query(collection(db, 'compras'), where('fecha', '==', fecha));
+  const snapCompras = await getDocs(qCompras);
+  const comprasLista = [];
+  const comprasMedio = {};
+  let comprasTot = 0;
+  snapCompras.docs.forEach((d) => {
+    const c = d.data();
+    comprasLista.push({ id: d.id, ...c });
+    comprasTot += c.totalGeneral;
+    const medio = ORIGEN_A_MEDIO[c.origen];
+    if (medio) {
+      comprasMedio[medio] = (comprasMedio[medio] || 0) + c.totalGeneral;
+      netoPorMedio[medio] = (netoPorMedio[medio] || 0) - c.totalGeneral;
+    }
+  });
+  comprasLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
+
   const comision = config ? await comisionDeHoy(config) : null;
   const comisionYaPagada = gastosLista
     .filter((g) => g.categoria === 'Comisión')
@@ -96,6 +114,9 @@ export async function resumenDia(fecha, config) {
   return {
     porPago,
     gastosMedio,
+    comprasMedio,
+    comprasLista,
+    comprasTot,
     netoPorMedio,
     descuentos,
     gastosTot,

@@ -4,7 +4,7 @@ import { suscribirConfig } from '../lib/config';
 import { registrarGasto, anularGasto, comisionDeHoy, gastosDeHoy, esNomina } from '../lib/gastos';
 import { imprimirComprobantePago } from '../lib/imprimir';
 
-const CATEGORIAS = ['Sueldo', 'Comisión', 'Recibos', 'Otro'];
+const CATEGORIAS = ['Sueldo', 'Comisión', 'Socios', 'Recibos', 'Otro'];
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria', 'Lo puso Nelson'];
 
 function fmt(n) {

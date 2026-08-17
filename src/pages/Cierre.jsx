@@ -12,6 +12,7 @@ export default function Cierre() {
   const [errorCarga, setErrorCarga] = useState('');
   const [verCambios, setVerCambios] = useState(false);
   const [verGastos, setVerGastos] = useState(false);
+  const [verCompras, setVerCompras] = useState(false);
 
   useEffect(
     () =>
@@ -152,19 +153,57 @@ export default function Cierre() {
         </div>
       )}
 
+      {/* Compras: un solo renglón, con el desplegable como texto sutil */}
+      <div className="kv">
+        <span>
+          Compras del día{' '}
+          <button className="link-toggle" onClick={() => setVerCompras((v) => !v)}>
+            {verCompras ? 'ocultar' : 'ver'}
+          </button>
+        </span>
+        <span className="v">{fmt(resumen.comprasTot)}</span>
+      </div>
+      {verCompras && (
+        <div style={{ marginTop: 6 }}>
+          {resumen.comprasLista.length === 0 ? (
+            <div className="empty-lines">Ninguna compra hoy.</div>
+          ) : (
+            resumen.comprasLista.map((c) => (
+              <div key={c.id} className="kv">
+                <span>
+                  {c.hora}{c.proveedor ? ` · ${c.proveedor}` : ''}
+                  <br />
+                  <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                    {c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')} · {c.origen}
+                  </span>
+                </span>
+                <span className="v">{fmt(c.totalGeneral)}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       <div className="split-label" style={{ marginTop: 16 }}>Por medio de pago</div>
       {['Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'].map((m) => {
         const entro = resumen.porPago[m] || 0;
-        const salio = resumen.gastosMedio[m] || 0;
-        if (entro === 0 && salio === 0) return null;
+        const salioGastos = resumen.gastosMedio[m] || 0;
+        const salioCompras = resumen.comprasMedio[m] || 0;
+        if (entro === 0 && salioGastos === 0 && salioCompras === 0) return null;
         return (
           <div className="kv" key={m}>
             <span>
               {m}
-              {salio > 0 && (
+              {salioGastos > 0 && (
                 <>
                   <br />
-                  <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salio)} en gastos</span>
+                  <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salioGastos)} en gastos</span>
+                </>
+              )}
+              {salioCompras > 0 && (
+                <>
+                  <br />
+                  <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salioCompras)} en compras</span>
                 </>
               )}
             </span>
@@ -177,7 +216,7 @@ export default function Cierre() {
         <span style={{ fontSize: 18, fontWeight: 800 }}>Efectivo a entregar</span>
         <span className="v" style={{ fontSize: 22 }}>{fmt(resumen.efectivoAEntregar)}</span>
       </div>
-      <div className="hint" style={{ fontSize: 12 }}>Ventas en efectivo menos los gastos que salieron de la caja.</div>
+      <div className="hint" style={{ fontSize: 12 }}>Ventas en efectivo menos los gastos y compras que salieron de la caja.</div>
     </div>
   );
 }

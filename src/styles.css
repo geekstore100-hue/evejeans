@@ -191,7 +191,7 @@ nav.tabs button.on { color: var(--rosa-fuerte); border-bottom-color: var(--rosa-
 /* ---------- Tabla de inventario ---------- */
 .inv-tabla { display: flex; flex-direction: column; gap: 4px; }
 .inv-fila {
-  display: grid; grid-template-columns: 1fr 130px 110px; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 1fr 120px 120px 100px; gap: 8px; align-items: center;
   padding: 6px 0; border-bottom: 1px solid var(--line);
 }
 .inv-fila.inv-header { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }

@@ -83,5 +83,21 @@ service cloud.firestore {
                     && request.resource.data.contado >= 0;
       allow update, delete: if esNelson();
     }
+
+    // ---------- Ajustes de inventario (el registro que reemplaza el Excel) ----------
+    // Solo Nelson los crea y los lee. Es un historial: nunca se edita ni se borra.
+    match /ajustesInventario/{ajusteId} {
+      allow read, create: if esNelson();
+      allow update, delete: if false;
+    }
+
+    // ---------- Compras de mercancía ----------
+    // Solo Nelson las registra (mueve inventario y define el costo de compra),
+    // pero cualquiera autenticado las puede leer porque el resumen del Cierre del día
+    // las necesita para calcular el efectivo a entregar.
+    match /compras/{compraId} {
+      allow read: if estaAutenticado();
+      allow create, update, delete: if esNelson();
+    }
   }
 }

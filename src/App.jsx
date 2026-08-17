@@ -7,6 +7,7 @@ import Cambios from './pages/Cambios';
 import Gastos from './pages/Gastos';
 import Cierre from './pages/Cierre';
 import Sobres from './pages/Sobres';
+import Compras from './pages/Compras';
 import Inventario from './pages/Inventario';
 
 const CLAVE_LOCAL = 'evejeans_vendedora';
@@ -88,6 +89,11 @@ export default function App() {
           Entrega de dinero
         </button>
         {usuario.id === 'nelson' && (
+          <button className={vista === 'compras' ? 'on' : ''} onClick={() => setVista('compras')}>
+            Compras
+          </button>
+        )}
+        {usuario.id === 'nelson' && (
           <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>
             Inventario
           </button>
@@ -100,6 +106,7 @@ export default function App() {
         {vista === 'gastos' && <Gastos usuario={usuario} />}
         {vista === 'cierre' && <Cierre />}
         {vista === 'sobres' && <Sobres usuario={usuario} />}
+        {vista === 'compras' && usuario.id === 'nelson' && <Compras />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
       </main>
     </div>
