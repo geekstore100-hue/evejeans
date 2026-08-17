@@ -110,7 +110,7 @@ main { padding: 8px; max-width: 1500px; margin: 0 auto; }
 }
 .card h2 .side { float: right; text-transform: none; letter-spacing: 0; font-weight: 800; color: var(--rosa-fuerte); font-size: 15px; }
 
-.sale-grid { display: grid; grid-template-columns: 1fr 400px; gap: 12px; align-items: start; }
+.sale-grid { display: grid; grid-template-columns: 1fr 400px; gap: 8px; align-items: start; }
 @media (max-width: 1000px) { .sale-grid { grid-template-columns: 1fr; } }
 
 .cat-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
@@ -123,6 +123,7 @@ main { padding: 8px; max-width: 1500px; margin: 0 auto; }
 }
 .split-label { font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 6px; }
+.tiles-scroll { max-height: 46vh; overflow-y: auto; padding-right: 2px; }
 
 .tile {
   border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
@@ -141,7 +142,7 @@ main { padding: 8px; max-width: 1500px; margin: 0 auto; }
 .stock-zero { color: var(--danger); }
 .tile-inbag { font-size: 13px; font-weight: 800; color: var(--cian-fuerte); background: var(--cian-suave); border-radius: 5px; padding: 3px 8px; align-self: flex-start; }
 
-.ticket { position: sticky; top: 12px; }
+.ticket { position: sticky; top: 0; }
 .lines { max-height: 320px; overflow-y: auto; margin-bottom: 10px; }
 .line { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 20px; font-weight: 700; }
 .line .qty { font-family: monospace; color: #fff; background: var(--cian); font-size: 18px; font-weight: 800; padding: 2px 9px; border-radius: 6px; margin-left: 6px; }

@@ -321,36 +321,41 @@ export default function Vender({ usuario }) {
           onChange={(e) => { setBusqueda(e.target.value); setBusquedaMsg(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter') agregarPorBusqueda(); }}
           style={{ marginBottom: 8 }}
+          tabIndex={1}
           autoFocus
         />
         {busquedaMsg && <div className="msg bad" style={{ textAlign: 'left', marginTop: -4, marginBottom: 8 }}>{busquedaMsg}</div>}
         <div className="cat-split">
           <div>
             <div className="split-label">Con nombre</div>
-            <div className="tiles">
-              {nombreItems.map((it) => (
-                <Tile
-                  key={it.id}
-                  item={it}
-                  disponible={stockDisponible(it.id)}
-                  enCarrito={carrito[it.id] || 0}
-                  onClick={() => agregar(it.id)}
-                />
-              ))}
+            <div className="tiles-scroll">
+              <div className="tiles">
+                {nombreItems.map((it) => (
+                  <Tile
+                    key={it.id}
+                    item={it}
+                    disponible={stockDisponible(it.id)}
+                    enCarrito={carrito[it.id] || 0}
+                    onClick={() => agregar(it.id)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
           <div>
             <div className="split-label">Por precio</div>
-            <div className="tiles">
-              {precioItems.map((it) => (
-                <Tile
-                  key={it.id}
-                  item={it}
-                  disponible={stockDisponible(it.id)}
-                  enCarrito={carrito[it.id] || 0}
-                  onClick={() => agregar(it.id)}
-                />
-              ))}
+            <div className="tiles-scroll">
+              <div className="tiles">
+                {precioItems.map((it) => (
+                  <Tile
+                    key={it.id}
+                    item={it}
+                    disponible={stockDisponible(it.id)}
+                    enCarrito={carrito[it.id] || 0}
+                    onClick={() => agregar(it.id)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -369,17 +374,13 @@ export default function Vender({ usuario }) {
                     {l.name} <span className="qty">×{l.qty}</span>
                   </span>
                   <span className="amt">{fmt(l.price * l.qty)}</span>
-                  <button onClick={() => quitarLinea(l.id)}>✕</button>
+                  <button tabIndex={-1} onClick={() => quitarLinea(l.id)}>✕</button>
                 </div>
               ))
             )}
           </div>
 
           <div className="totals">
-            <div className="trow">
-              <span>Subtotal</span>
-              <span className="v">{fmt(subtotal)}</span>
-            </div>
             {descNum > 0 && (
               <div className="trow disc">
                 <span>Descuento</span>
@@ -400,6 +401,7 @@ export default function Vender({ usuario }) {
               inputMode="numeric"
               value={descuento}
               onChange={(e) => setDescuento(e.target.value)}
+              tabIndex={-1}
             />
           </div>
           {descNum > 0 && (
@@ -410,6 +412,7 @@ export default function Vender({ usuario }) {
                 placeholder="Ej: cliente frecuente"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
+                tabIndex={-1}
               />
             </div>
           )}
@@ -429,10 +432,11 @@ export default function Vender({ usuario }) {
                 </span>
               )}
             </label>
-            {MEDIOS.map((m) => (
+            {MEDIOS.map((m, idx) => (
               <div className="pay-row" key={m}>
                 <button
                   className="pay-quick"
+                  tabIndex={-1}
                   onPointerDown={(e) => {
                     e.preventDefault();
                     pagarTodoCon(m);
@@ -446,6 +450,7 @@ export default function Vender({ usuario }) {
                   placeholder="0"
                   inputMode="numeric"
                   value={pagos[m] || ''}
+                  tabIndex={idx + 2}
                   onFocus={(e) => {
                     if (!pagos[m] && pagado > 0 && falta > 0) {
                       cambiarPago(m, falta);
@@ -453,15 +458,26 @@ export default function Vender({ usuario }) {
                     }
                   }}
                   onChange={(e) => cambiarPago(m, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    if (!pagos[m] && falta > 0) {
+                      // Rellena solo lo que falte, sin tocar lo que ya haya en otros medios.
+                      cambiarPago(m, falta);
+                    } else {
+                      const siguiente = document.querySelector(`[tabindex="${idx + 3}"]`);
+                      if (siguiente) siguiente.focus();
+                    }
+                  }}
                 />
               </div>
             ))}
           </div>
 
-          <button className="btn" disabled={cobrando} onClick={cobrar}>
+          <button className="btn" disabled={cobrando} onClick={cobrar} tabIndex={MEDIOS.length + 2}>
             {cobrando ? 'Cobrando…' : 'Cobrar'}
           </button>
-          <button className="btn ghost" onClick={vaciar}>
+          <button className="btn ghost" onClick={vaciar} tabIndex={MEDIOS.length + 3}>
             Vaciar venta
           </button>
           {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
@@ -474,7 +490,7 @@ export default function Vender({ usuario }) {
 function Tile({ item, disponible, enCarrito, onClick }) {
   const clase = disponible <= 0 ? 'stock-zero' : disponible <= 5 ? 'stock-low' : 'stock-ok';
   return (
-    <button className="tile" disabled={disponible <= 0} onClick={onClick}>
+    <button className="tile" disabled={disponible <= 0} onClick={onClick} tabIndex={-1}>
       <div>
         <div className="tile-name">{item.name}</div>
         {item.tipo === 'nombre' && <div className="tile-price">{fmt(item.price)}</div>}
