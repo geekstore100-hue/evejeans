@@ -10,7 +10,7 @@ function fmt(n) {
 
 export default function Inventario() {
   const [items, setItems] = useState(null);
-  const [cambios, setCambios] = useState({}); // {id: {stock?, price?}}
+  const [cambios, setCambios] = useState({});
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [config, setConfig] = useState(null);

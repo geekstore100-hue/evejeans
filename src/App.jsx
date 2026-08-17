@@ -6,11 +6,12 @@ import Vender from './pages/Vender';
 import Cambios from './pages/Cambios';
 import Gastos from './pages/Gastos';
 import Cierre from './pages/Cierre';
+import Sobres from './pages/Sobres';
 import Inventario from './pages/Inventario';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
-  const [usuario, setUsuario] = useState(null); // {id, nombreDefault, rol}
+  const [usuario, setUsuario] = useState(null);
   const [vista, setVista] = useState('vender');
 
   useEffect(() => {
@@ -63,6 +64,9 @@ export default function App() {
         <button className={vista === 'cierre' ? 'on' : ''} onClick={() => setVista('cierre')}>
           Cierre del día
         </button>
+        <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
+          Sobres
+        </button>
         {usuario.id === 'nelson' && (
           <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>
             Inventario
@@ -71,11 +75,12 @@ export default function App() {
       </nav>
 
       <main>
+        {vista === 'vender' && <Vender usuario={usuario} />}
         {vista === 'cambios' && <Cambios usuario={usuario} />}
         {vista === 'gastos' && <Gastos usuario={usuario} />}
         {vista === 'cierre' && <Cierre usuario={usuario} />}
+        {vista === 'sobres' && <Sobres usuario={usuario} />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
-        {vista === 'vender' && <Vender usuario={usuario} />}
       </main>
     </div>
   );

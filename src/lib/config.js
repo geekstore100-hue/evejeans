@@ -4,7 +4,7 @@ import { db } from './firebase';
 export const CONFIG_DEFAULT = {
   comisionMinimo: 6,
   comisionValor: 1000,
-  comisionPorRef: {}, // {itemId: valorDistinto}
+  comisionPorRef: {},
 };
 
 export function suscribirConfig(callback, onError) {

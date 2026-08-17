@@ -3,7 +3,7 @@ import { USUARIOS_BASE } from '../lib/usuarios';
 import { entrarConPin } from '../lib/auth';
 
 export default function Gate() {
-  const [elegido, setElegido] = useState(null); // {id, nombreDefault, rol}
+  const [elegido, setElegido] = useState(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [entrando, setEntrando] = useState(false);
@@ -20,7 +20,6 @@ export default function Gate() {
     setEntrando(true);
     try {
       await entrarConPin(elegido.id, pin);
-      // Si funciona, el listener de sesión en App.jsx se encarga de cambiar de pantalla.
     } catch (e) {
       setError('PIN incorrecto.');
       setPin('');

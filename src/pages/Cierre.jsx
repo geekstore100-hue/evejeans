@@ -9,11 +9,11 @@ function fmt(n) {
 export default function Cierre({ usuario }) {
   const [config, setConfig] = useState(null);
   const [resumen, setResumen] = useState(null);
-  const [cerrado, setCerrado] = useState(undefined); // undefined = revisando
+  const [cerrado, setCerrado] = useState(undefined);
   const [contado, setContado] = useState('');
   const [obs, setObs] = useState('');
   const [cerrando, setCerrando] = useState(false);
-  const [resultado, setResultado] = useState(null); // {esperado, contado, diferencia}
+  const [resultado, setResultado] = useState(null);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [errorCarga, setErrorCarga] = useState('');
 

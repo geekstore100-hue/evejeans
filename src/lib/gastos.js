@@ -25,7 +25,6 @@ export function esNomina(categoria) {
   return categoria === 'Sueldo' || categoria === 'Comisión';
 }
 
-// categoria: 'Sueldo' | 'Comisión' | 'Recibos' | 'Otro'
 export async function registrarGasto({ usuario, categoria, quien, periodo, monto, desc, origen }) {
   const nomina = esNomina(categoria);
   const fecha = hoyStr();
@@ -52,7 +51,6 @@ export async function registrarGasto({ usuario, categoria, quien, periodo, monto
     return { id: gastoRef.id, consecutivoPago: null, fecha, hora };
   }
 
-  // Con nómina, el comprobante lleva su propio consecutivo (aparte del de ventas).
   const contadorRef = doc(db, 'contadores', 'pagos');
   return runTransaction(db, async (tx) => {
     const snap = await tx.get(contadorRef);
@@ -73,7 +71,6 @@ export async function anularGasto(id, motivo, usuario) {
   });
 }
 
-// Prendas y comisión causada HOY, sumando todas las vendedoras (se reparten el total).
 export async function comisionDeHoy(config) {
   const fecha = hoyStr();
   const q = query(

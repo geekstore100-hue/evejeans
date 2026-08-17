@@ -10,12 +10,12 @@ function fmt(n) {
 }
 
 export default function Vender({ usuario }) {
-  const [inventario, setInventario] = useState(null); // null = cargando
+  const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [carrito, setCarrito] = useState({}); // {itemId: qty}
+  const [carrito, setCarrito] = useState({});
   const [descuento, setDescuento] = useState('');
   const [motivo, setMotivo] = useState('');
-  const [pagos, setPagos] = useState({}); // {medio: monto}
+  const [pagos, setPagos] = useState({});
   const [cobrando, setCobrando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [ultimaVenta, setUltimaVenta] = useState(null);
@@ -60,6 +60,7 @@ export default function Vender({ usuario }) {
       delete copia[id];
       return copia;
     });
+    if (Object.keys(carrito).length <= 1) setPagos({});
   }
 
   const lineas = Object.entries(carrito).map(([id, qty]) => ({
@@ -171,7 +172,6 @@ export default function Vender({ usuario }) {
     }
   }
 
-  // Inventario vacío: solo Nelson ve el botón para sembrar el catálogo la primera vez.
   if (inventario && inventario.length === 0) {
     return (
       <div style={{ padding: 24 }}>
@@ -372,7 +372,7 @@ export default function Vender({ usuario }) {
                   style={{
                     float: 'right',
                     fontWeight: 700,
-                    color: falta === 0 ? 'var(--ok)' : falta > 0 ? 'var(--amber, #b8874a)' : 'var(--danger)',
+                    color: falta === 0 ? 'var(--ok)' : falta > 0 ? '#b8874a' : 'var(--danger)',
                   }}
                 >
                   {falta === 0 ? 'completo' : falta > 0 ? `faltan ${fmt(falta)}` : `sobran ${fmt(-falta)}`}
@@ -381,7 +381,13 @@ export default function Vender({ usuario }) {
             </label>
             {MEDIOS.map((m) => (
               <div className="pay-row" key={m}>
-                <button className="pay-quick" onClick={() => pagarTodoCon(m)}>
+                <button
+                  className="pay-quick"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    pagarTodoCon(m);
+                  }}
+                >
                   {m}
                 </button>
                 <input

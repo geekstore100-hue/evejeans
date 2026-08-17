@@ -47,22 +47,16 @@ service cloud.firestore {
     match /ventas/{ventaId} {
       allow read: if estaAutenticado();
 
-      // Crear una venta: el número debe coincidir con el contador,
-      // el usuario debe ser quien dice ser, y nace sin anular.
       allow create: if estaAutenticado()
                     && request.resource.data.usuarioId == miId()
                     && request.resource.data.anulada == false
                     && request.resource.data.total is number
                     && request.resource.data.total >= 0;
 
-      // Una venta ya creada nunca la edita ni la borra una vendedora.
-      // Solo Nelson puede (por ejemplo, para borrar ventas de prueba antes de arrancar en serio,
-      // o para el flujo de "anular" cuando lo construyamos en la Fase 3).
       allow update, delete: if esNelson();
     }
+
     // ---------- Configuración general (comisiones, etc.) ----------
-    // Cualquiera autenticado puede leerla (la necesita el formulario de gastos
-    // para calcular la comisión en vivo). Solo Nelson la edita.
     match /config/{configId} {
       allow read: if estaAutenticado();
       allow write: if esNelson();
@@ -78,8 +72,6 @@ service cloud.firestore {
                     && request.resource.data.monto is number
                     && request.resource.data.monto >= 0;
 
-      // "Anular" es el único cambio permitido después de creado: de vivo a anulado,
-      // con motivo y quién lo hizo. Nunca se reactiva, nunca se borra, nunca se edita el monto.
       allow update: if estaAutenticado()
                     && resource.data.anulado == false
                     && request.resource.data.anulado == true
@@ -95,8 +87,6 @@ service cloud.firestore {
                     && request.resource.data.usuarioId == miId()
                     && request.resource.data.contado is number
                     && request.resource.data.contado >= 0;
-      // Solo Nelson puede tocar un cierre ya hecho (por ejemplo, para marcarlo "entregado"
-      // cuando construyamos los sobres, o para limpiar cierres de prueba).
       allow update, delete: if esNelson();
     }
   }

@@ -16,8 +16,6 @@ function ahoraStr() {
   return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
-// items: [{id, name, price, qty}]
-// pagos: {Efectivo: 50000, Datáfono: 70000, ...}
 export async function registrarVenta({ usuario, items, descuento, motivoDescuento, pagos }) {
   if (!items || items.length === 0) throw new Error('No hay prendas en la venta.');
 
@@ -29,7 +27,6 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
   const refsInventario = items.map((i) => doc(db, 'inventario', i.id));
 
   const resultado = await runTransaction(db, async (tx) => {
-    // -------- Lecturas primero (obligatorio en una transacción de Firestore) --------
     const contadorSnap = await tx.get(contadorRef);
     if (!contadorSnap.exists()) {
       throw new Error('El sistema no está inicializado todavía (falta el contador). Avisa a Nelson.');
@@ -39,7 +36,6 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
       snapsInventario.push(await tx.get(ref));
     }
 
-    // -------- Validaciones --------
     snapsInventario.forEach((snap, idx) => {
       if (!snap.exists()) {
         throw new Error(`La prenda "${items[idx].name}" ya no existe en el inventario.`);
@@ -52,7 +48,6 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
 
     const num = (contadorSnap.data().ultimo || 0) + 1;
 
-    // -------- Escrituras --------
     tx.update(contadorRef, { ultimo: num });
     snapsInventario.forEach((snap, idx) => {
       const nuevoStock = (snap.data().stock || 0) - items[idx].qty;

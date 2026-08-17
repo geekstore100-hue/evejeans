@@ -11,7 +11,6 @@ function ahoraStr() {
   return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
-// devuelve / lleva: [{id, name, price, qty}]
 export async function registrarCambio({ usuario, devuelve, lleva, pagoDif }) {
   if (!devuelve.length) throw new Error('Falta lo que el cliente devuelve.');
   if (!lleva.length) throw new Error('Falta lo que el cliente se lleva.');
@@ -20,7 +19,7 @@ export async function registrarCambio({ usuario, devuelve, lleva, pagoDif }) {
   const valLlv = lleva.reduce((s, i) => s + i.price * i.qty, 0);
   const diferencia = valLlv - valDev;
 
-  const contadorRef = doc(db, 'contadores', 'ventas'); // mismo consecutivo que las ventas
+  const contadorRef = doc(db, 'contadores', 'ventas');
   const cambioRef = doc(collection(db, 'ventas'));
   const refsDevuelve = devuelve.map((i) => doc(db, 'inventario', i.id));
   const refsLleva = lleva.map((i) => doc(db, 'inventario', i.id));

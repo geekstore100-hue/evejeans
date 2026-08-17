@@ -11,8 +11,8 @@ function fmt(n) {
 export default function Cambios({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [devuelve, setDevuelve] = useState({}); // {id: qty}
-  const [lleva, setLleva] = useState({}); // {id: qty}
+  const [devuelve, setDevuelve] = useState({});
+  const [lleva, setLleva] = useState({});
   const [pagoDif, setPagoDif] = useState('Efectivo');
   const [procesando, setProcesando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
@@ -91,153 +91,155 @@ export default function Cambios({ usuario }) {
         <div className="loading">Cargando inventario…</div>
       ) : (
         <>
-      <div className="card">
-        <h2>1 · Qué devuelve el cliente</h2>
-        <div className="cat-split">
-          <div>
-            <div className="split-label">Con nombre</div>
-            <div className="tiles">
-              {nombreItems.map((it) => (
-                <TileSimple key={it.id} item={it} cantidad={devuelve[it.id] || 0} onClick={() => agregarDevuelve(it.id)} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="split-label">Por precio</div>
-            <div className="tiles">
-              {precioItems.map((it) => (
-                <TileSimple key={it.id} item={it} cantidad={devuelve[it.id] || 0} onClick={() => agregarDevuelve(it.id)} />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <h2 style={{ marginTop: 20 }}>2 · Qué se lleva</h2>
-        <div className="cat-split">
-          <div>
-            <div className="split-label">Con nombre</div>
-            <div className="tiles">
-              {nombreItems.map((it) => {
-                const disp = (it.stock || 0) - (lleva[it.id] || 0);
-                return (
-                  <TileSimple
-                    key={it.id}
-                    item={it}
-                    disponible={disp}
-                    cantidad={lleva[it.id] || 0}
-                    onClick={() => agregarLleva(it.id)}
-                  />
-                );
-              })}
-            </div>
-          </div>
-          <div>
-            <div className="split-label">Por precio</div>
-            <div className="tiles">
-              {precioItems.map((it) => {
-                const disp = (it.stock || 0) - (lleva[it.id] || 0);
-                return (
-                  <TileSimple
-                    key={it.id}
-                    item={it}
-                    disponible={disp}
-                    cantidad={lleva[it.id] || 0}
-                    onClick={() => agregarLleva(it.id)}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="ticket">
-        <div className="card">
-          <h2>Resumen del cambio</h2>
-
-          {lineasDevuelve.length === 0 && lineasLleva.length === 0 ? (
-            <div className="empty-lines">Elige qué devuelve el cliente para empezar.</div>
-          ) : (
-            <>
-              <div className="split-label">Devuelve</div>
-              <div className="lines" style={{ maxHeight: 140 }}>
-                {lineasDevuelve.map((l) => (
-                  <div className="line" key={l.id}>
-                    <span>
-                      {l.name} <span className="qty">×{l.qty}</span>
-                    </span>
-                    <span className="amt">{fmt(l.price * l.qty)}</span>
-                    <button onClick={() => setDevuelve((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="split-label" style={{ marginTop: 12 }}>
-                Se lleva
-              </div>
-              <div className="lines" style={{ maxHeight: 140 }}>
-                {lineasLleva.map((l) => (
-                  <div className="line" key={l.id}>
-                    <span>
-                      {l.name} <span className="qty">×{l.qty}</span>
-                    </span>
-                    <span className="amt">{fmt(l.price * l.qty)}</span>
-                    <button onClick={() => setLleva((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="totals">
-                <div className="trow">
-                  <span>Devuelve</span>
-                  <span className="v">{fmt(valDev)}</span>
-                </div>
-                <div className="trow">
-                  <span>Se lleva</span>
-                  <span className="v">{fmt(valLlv)}</span>
-                </div>
-                <div className="trow big">
-                  <span>Diferencia</span>
-                  <span className="v">{diferencia === 0 ? fmt(0) : (diferencia > 0 ? '+' : '−') + fmt(Math.abs(diferencia))}</span>
+          <div className="card">
+            <h2>1 · Qué devuelve el cliente</h2>
+            <div className="cat-split">
+              <div>
+                <div className="split-label">Con nombre</div>
+                <div className="tiles">
+                  {nombreItems.map((it) => (
+                    <TileSimple key={it.id} item={it} cantidad={devuelve[it.id] || 0} onClick={() => agregarDevuelve(it.id)} />
+                  ))}
                 </div>
               </div>
+              <div>
+                <div className="split-label">Por precio</div>
+                <div className="tiles">
+                  {precioItems.map((it) => (
+                    <TileSimple key={it.id} item={it} cantidad={devuelve[it.id] || 0} onClick={() => agregarDevuelve(it.id)} />
+                  ))}
+                </div>
+              </div>
+            </div>
 
-              {valDev === 0 || valLlv === 0 ? (
-                <div className="msg">Falta completar ambos lados.</div>
-              ) : diferencia === 0 ? (
-                <div className="msg good">Cambio parejo. No hay plata de por medio.</div>
-              ) : diferencia > 0 ? (
-                <>
-                  <div className="field">
-                    <label>El cliente paga la diferencia con</label>
-                    <select value={pagoDif} onChange={(e) => setPagoDif(e.target.value)} style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '2px solid var(--line)' }}>
-                      {MEDIOS.map((m) => (
-                        <option key={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
+            <h2 style={{ marginTop: 20 }}>2 · Qué se lleva</h2>
+            <div className="cat-split">
+              <div>
+                <div className="split-label">Con nombre</div>
+                <div className="tiles">
+                  {nombreItems.map((it) => {
+                    const disp = (it.stock || 0) - (lleva[it.id] || 0);
+                    return (
+                      <TileSimple
+                        key={it.id}
+                        item={it}
+                        disponible={disp}
+                        cantidad={lleva[it.id] || 0}
+                        onClick={() => agregarLleva(it.id)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="split-label">Por precio</div>
+                <div className="tiles">
+                  {precioItems.map((it) => {
+                    const disp = (it.stock || 0) - (lleva[it.id] || 0);
+                    return (
+                      <TileSimple
+                        key={it.id}
+                        item={it}
+                        disponible={disp}
+                        cantidad={lleva[it.id] || 0}
+                        onClick={() => agregarLleva(it.id)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="ticket">
+            <div className="card">
+              <h2>Resumen del cambio</h2>
+
+              {lineasDevuelve.length === 0 && lineasLleva.length === 0 ? (
+                <div className="empty-lines">Elige qué devuelve el cliente para empezar.</div>
               ) : (
-                <div className="msg bad">
-                  Le quedan {fmt(-diferencia)} a favor. No se devuelve dinero: debe llevar otra
-                  prenda hasta completar.
-                </div>
-              )}
+                <>
+                  <div className="split-label">Devuelve</div>
+                  <div className="lines" style={{ maxHeight: 140 }}>
+                    {lineasDevuelve.map((l) => (
+                      <div className="line" key={l.id}>
+                        <span>
+                          {l.name} <span className="qty">×{l.qty}</span>
+                        </span>
+                        <span className="amt">{fmt(l.price * l.qty)}</span>
+                        <button onClick={() => setDevuelve((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
+                      </div>
+                    ))}
+                  </div>
 
-              {valDev > 0 && valLlv > 0 && diferencia >= 0 && (
-                <button className="btn" disabled={procesando} onClick={confirmar}>
-                  {procesando ? 'Registrando…' : 'Registrar cambio'}
-                </button>
+                  <div className="split-label" style={{ marginTop: 12 }}>
+                    Se lleva
+                  </div>
+                  <div className="lines" style={{ maxHeight: 140 }}>
+                    {lineasLleva.map((l) => (
+                      <div className="line" key={l.id}>
+                        <span>
+                          {l.name} <span className="qty">×{l.qty}</span>
+                        </span>
+                        <span className="amt">{fmt(l.price * l.qty)}</span>
+                        <button onClick={() => setLleva((d) => ({ ...d, [l.id]: 0 }))}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="totals">
+                    <div className="trow">
+                      <span>Devuelve</span>
+                      <span className="v">{fmt(valDev)}</span>
+                    </div>
+                    <div className="trow">
+                      <span>Se lleva</span>
+                      <span className="v">{fmt(valLlv)}</span>
+                    </div>
+                    <div className="trow big">
+                      <span>Diferencia</span>
+                      <span className="v">{diferencia === 0 ? fmt(0) : (diferencia > 0 ? '+' : '−') + fmt(Math.abs(diferencia))}</span>
+                    </div>
+                  </div>
+
+                  {valDev === 0 || valLlv === 0 ? (
+                    <div className="msg">Falta completar ambos lados.</div>
+                  ) : diferencia === 0 ? (
+                    <div className="msg good">Cambio parejo. No hay plata de por medio.</div>
+                  ) : diferencia > 0 ? (
+                    <div className="field">
+                      <label>El cliente paga la diferencia con</label>
+                      <select
+                        value={pagoDif}
+                        onChange={(e) => setPagoDif(e.target.value)}
+                        style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '2px solid var(--line)' }}
+                      >
+                        {MEDIOS.map((m) => (
+                          <option key={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="msg bad">
+                      Le quedan {fmt(-diferencia)} a favor. No se devuelve dinero: debe llevar otra
+                      prenda hasta completar.
+                    </div>
+                  )}
+
+                  {valDev > 0 && valLlv > 0 && diferencia >= 0 && (
+                    <button className="btn" disabled={procesando} onClick={confirmar}>
+                      {procesando ? 'Registrando…' : 'Registrar cambio'}
+                    </button>
+                  )}
+                  <button className="btn ghost" onClick={vaciar}>
+                    Cancelar
+                  </button>
+                </>
               )}
-              <button className="btn ghost" onClick={vaciar}>
-                Cancelar
-              </button>
-            </>
-          )}
-          {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
-        </div>
-      </div>
-      </>
+              {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
