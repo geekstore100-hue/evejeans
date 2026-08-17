@@ -87,5 +87,17 @@ service cloud.firestore {
                          .hasOnly(['anulado', 'motivoAnulacion', 'anuladoPor']);
       allow delete: if false;
     }
+
+    // ---------- Cierres del día ----------
+    match /cierres/{cierreId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && request.resource.data.usuarioId == miId()
+                    && request.resource.data.contado is number
+                    && request.resource.data.contado >= 0;
+      // Solo Nelson puede tocar un cierre ya hecho (por ejemplo, para marcarlo "entregado"
+      // cuando construyamos los sobres, o para limpiar cierres de prueba).
+      allow update, delete: if esNelson();
+    }
   }
 }
