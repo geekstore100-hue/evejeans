@@ -6,7 +6,7 @@ function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
-export default function Cierre() {
+export default function Cierre({ usuario }) {
   const [config, setConfig] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
@@ -115,10 +115,7 @@ export default function Cierre() {
       {/* Gastos: un solo renglón, con el desplegable como texto sutil */}
       <div className="kv">
         <span>
-          Gastos del día
-          {resumen.comisionMonto > 0 && (
-            <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> (incluyendo {fmt(resumen.comisionMonto)} de comisión)</span>
-          )}{' '}
+          Gastos del día{' '}
           <button className="link-toggle" onClick={() => setVerGastos((v) => !v)}>
             {verGastos ? 'ocultar' : 'ver'}
           </button>
@@ -153,35 +150,39 @@ export default function Cierre() {
         </div>
       )}
 
-      {/* Compras: un solo renglón, con el desplegable como texto sutil */}
-      <div className="kv">
-        <span>
-          Compras del día{' '}
-          <button className="link-toggle" onClick={() => setVerCompras((v) => !v)}>
-            {verCompras ? 'ocultar' : 'ver'}
-          </button>
-        </span>
-        <span className="v">{fmt(resumen.comprasTot)}</span>
-      </div>
-      {verCompras && (
-        <div style={{ marginTop: 6 }}>
-          {resumen.comprasLista.length === 0 ? (
-            <div className="empty-lines">Ninguna compra hoy.</div>
-          ) : (
-            resumen.comprasLista.map((c) => (
-              <div key={c.id} className="kv">
-                <span>
-                  {c.hora}{c.proveedor ? ` · ${c.proveedor}` : ''}
-                  <br />
-                  <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
-                    {c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')} · {c.origen}
-                  </span>
-                </span>
-                <span className="v">{fmt(c.totalGeneral)}</span>
-              </div>
-            ))
+      {usuario.id === 'nelson' && (
+        <>
+          {/* Compras: un solo renglón, con el desplegable como texto sutil */}
+          <div className="kv">
+            <span>
+              Compras del día{' '}
+              <button className="link-toggle" onClick={() => setVerCompras((v) => !v)}>
+                {verCompras ? 'ocultar' : 'ver'}
+              </button>
+            </span>
+            <span className="v">{fmt(resumen.comprasTot)}</span>
+          </div>
+          {verCompras && (
+            <div style={{ marginTop: 6 }}>
+              {resumen.comprasLista.length === 0 ? (
+                <div className="empty-lines">Ninguna compra hoy.</div>
+              ) : (
+                resumen.comprasLista.map((c) => (
+                  <div key={c.id} className="kv">
+                    <span>
+                      {c.hora}{c.proveedor ? ` · ${c.proveedor}` : ''}
+                      <br />
+                      <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                        {c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')} · {c.origen}
+                      </span>
+                    </span>
+                    <span className="v">{fmt(c.totalGeneral)}</span>
+                  </div>
+                ))
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
       <div className="split-label" style={{ marginTop: 16 }}>Por medio de pago</div>
@@ -200,7 +201,7 @@ export default function Cierre() {
                   <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salioGastos)} en gastos</span>
                 </>
               )}
-              {salioCompras > 0 && (
+              {usuario.id === 'nelson' && salioCompras > 0 && (
                 <>
                   <br />
                   <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salioCompras)} en compras</span>

@@ -59,7 +59,7 @@ export default function App() {
   }
 
   return (
-    <div>
+    <div className={vista === 'vender' ? 'con-panel-fijo' : ''}>
       <div className="topbar">
         <div className="brand">
           <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
@@ -109,7 +109,7 @@ export default function App() {
         {vista === 'vender' && <Vender usuario={usuario} />}
         {vista === 'cambios' && <Cambios usuario={usuario} />}
         {vista === 'gastos' && <Gastos usuario={usuario} />}
-        {vista === 'cierre' && <Cierre />}
+        {vista === 'cierre' && <Cierre usuario={usuario} />}
         {vista === 'sobres' && <Sobres usuario={usuario} />}
         {vista === 'recibir' && <RecibirMercancia usuario={usuario} />}
         {vista === 'compras' && usuario.id === 'nelson' && <Compras />}

@@ -243,9 +243,9 @@ export default function Vender({ usuario }) {
   }
 
   return (
-    <div className="sale-grid">
+    <div className="vender-shell">
       {usuario.id === 'nelson' && (
-        <div className="card modo-prueba" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
+        <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           {!confirmandoReinicio ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ flex: 1, fontSize: 13 }}>
@@ -355,7 +355,7 @@ export default function Vender({ usuario }) {
         </div>
       </div>
 
-      <div className="ticket">
+      <div className="ticket ticket-fijo-venta">
         <div className="card">
           <h2>Venta</h2>
           <div className="lines">
