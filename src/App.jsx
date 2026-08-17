@@ -8,6 +8,7 @@ import Gastos from './pages/Gastos';
 import Cierre from './pages/Cierre';
 import Sobres from './pages/Sobres';
 import Compras from './pages/Compras';
+import RecibirMercancia from './pages/RecibirMercancia';
 import Inventario from './pages/Inventario';
 
 const CLAVE_LOCAL = 'evejeans_vendedora';
@@ -88,6 +89,9 @@ export default function App() {
         <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
           Entrega de dinero
         </button>
+        <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
+          Recibir mercancía
+        </button>
         {usuario.id === 'nelson' && (
           <button className={vista === 'compras' ? 'on' : ''} onClick={() => setVista('compras')}>
             Compras
@@ -106,6 +110,7 @@ export default function App() {
         {vista === 'gastos' && <Gastos usuario={usuario} />}
         {vista === 'cierre' && <Cierre />}
         {vista === 'sobres' && <Sobres usuario={usuario} />}
+        {vista === 'recibir' && <RecibirMercancia usuario={usuario} />}
         {vista === 'compras' && usuario.id === 'nelson' && <Compras />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
       </main>

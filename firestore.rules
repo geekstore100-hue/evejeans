@@ -92,12 +92,21 @@ service cloud.firestore {
     }
 
     // ---------- Compras de mercancía ----------
-    // Solo Nelson las registra (mueve inventario y define el costo de compra),
-    // pero cualquiera autenticado las puede leer porque el resumen del Cierre del día
-    // las necesita para calcular el efectivo a entregar.
+    // Nelson hace el pedido (fija el costo, elige el proveedor). Cualquiera autenticado
+    // puede leer, y puede CONFIRMAR la recepción (pasar de "pendiente" a "confirmada"),
+    // pero solo tocando esos campos — nunca puede crear un pedido nuevo ni cambiar el costo.
     match /compras/{compraId} {
       allow read: if estaAutenticado();
-      allow create, update, delete: if esNelson();
+      allow create: if esNelson();
+      allow update: if esNelson()
+                    || (
+                      estaAutenticado()
+                      && resource.data.estado == 'pendiente'
+                      && request.resource.data.estado == 'confirmada'
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['items', 'estado', 'confirmadoPor', 'confirmadoFecha'])
+                    );
+      allow delete: if esNelson();
     }
   }
 }

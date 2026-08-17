@@ -100,14 +100,14 @@ export async function resumenDia(fecha, config) {
   comprasLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
 
   const comision = config ? await comisionDeHoy(config) : null;
-  const comisionYaPagada = gastosLista
-    .filter((g) => g.categoria === 'Comisión')
-    .reduce((s, g) => s + g.monto, 0);
-  const comisionPendiente = comision ? Math.max(0, comision.total - comisionYaPagada) : 0;
+  const comisionMonto = comision && comision.aplica ? comision.total : 0;
 
-  // Total que se muestra como "Gastos del día": lo ya registrado + la comisión causada
-  // que todavía no se ha pagado (para que la planilla refleje el gasto real del día).
-  const gastosTot = gastosTotReal + comisionPendiente;
+  // La comisión se toma sola, en efectivo, el mismo día — no depende de que nadie
+  // la registre a mano. Por eso se resta directo del efectivo, igual que un gasto real.
+  netoPorMedio['Efectivo'] = (netoPorMedio['Efectivo'] || 0) - comisionMonto;
+
+  // "Gastos del día" que se ve en pantalla: lo ya registrado + la comisión automática.
+  const gastosTot = gastosTotReal + comisionMonto;
 
   const efectivoAEntregar = netoPorMedio['Efectivo'] || 0;
 
@@ -122,8 +122,7 @@ export async function resumenDia(fecha, config) {
     gastosTot,
     gastosLista,
     comision,
-    comisionYaPagada,
-    comisionPendiente,
+    comisionMonto,
     prendas,
     cambiosLista,
     efectivoAEntregar,

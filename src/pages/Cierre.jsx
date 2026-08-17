@@ -54,7 +54,7 @@ export default function Cierre() {
 
   return (
     <div className="card" style={{ maxWidth: 620 }}>
-      <h2>Prendas vendidas hoy</h2>
+      <h2>Prendas vendidas hoy ({resumen.prendas.reduce((s, p) => s + p.qty, 0)})</h2>
       {resumen.prendas.length === 0 ? (
         <div className="empty-lines">Todavía no hay nada.</div>
       ) : (
@@ -116,8 +116,8 @@ export default function Cierre() {
       <div className="kv">
         <span>
           Gastos del día
-          {resumen.comisionPendiente > 0 && (
-            <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> (incluyendo {fmt(resumen.comisionPendiente)} de comisión)</span>
+          {resumen.comisionMonto > 0 && (
+            <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}> (incluyendo {fmt(resumen.comisionMonto)} de comisión)</span>
           )}{' '}
           <button className="link-toggle" onClick={() => setVerGastos((v) => !v)}>
             {verGastos ? 'ocultar' : 'ver'}
@@ -127,7 +127,7 @@ export default function Cierre() {
       </div>
       {verGastos && (
         <div style={{ marginTop: 6 }}>
-          {resumen.gastosLista.length === 0 && resumen.comisionPendiente === 0 ? (
+          {resumen.gastosLista.length === 0 && resumen.comisionMonto === 0 ? (
             <div className="empty-lines">Ningún gasto hoy.</div>
           ) : (
             <>
@@ -142,10 +142,10 @@ export default function Cierre() {
                   <span className="v">{fmt(g.monto)}</span>
                 </div>
               ))}
-              {resumen.comisionPendiente > 0 && (
+              {resumen.comisionMonto > 0 && (
                 <div className="kv">
-                  <span>Comisión causada, todavía sin pagar</span>
-                  <span className="v" style={{ color: '#b8874a' }}>{fmt(resumen.comisionPendiente)}</span>
+                  <span>Comisión ({resumen.comision.prendas} prendas) · automática</span>
+                  <span className="v">{fmt(resumen.comisionMonto)}</span>
                 </div>
               )}
             </>
@@ -212,7 +212,11 @@ export default function Cierre() {
         );
       })}
 
-      <div className="kv" style={{ marginTop: 10, borderTop: '2px solid var(--ink)', borderBottom: 'none', paddingTop: 10 }}>
+      <div className="kv" style={{ marginTop: 10, borderTop: '2px solid var(--ink)', paddingTop: 10 }}>
+        <span>Efectivo antes de gastos</span>
+        <span className="v">{fmt(resumen.porPago['Efectivo'] || 0)}</span>
+      </div>
+      <div className="kv" style={{ borderBottom: 'none' }}>
         <span style={{ fontSize: 18, fontWeight: 800 }}>Efectivo a entregar</span>
         <span className="v" style={{ fontSize: 22 }}>{fmt(resumen.efectivoAEntregar)}</span>
       </div>

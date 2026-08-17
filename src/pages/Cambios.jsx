@@ -31,8 +31,12 @@ export default function Cambios({ usuario }) {
     return m;
   }, [inventario]);
 
-  const nombreItems = (inventario || []).filter((i) => i.tipo === 'nombre' && !i.oculto);
-  const precioItems = (inventario || []).filter((i) => i.tipo === 'precio' && !i.oculto);
+  const nombreItems = (inventario || [])
+    .filter((i) => i.tipo === 'nombre' && !i.oculto)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const precioItems = (inventario || [])
+    .filter((i) => i.tipo === 'precio' && !i.oculto)
+    .sort((a, b) => a.price - b.price);
 
   function agregarDevuelve(id) {
     setDevuelve((d) => ({ ...d, [id]: (d[id] || 0) + 1 }));
@@ -267,7 +271,7 @@ function TileSimple({ item, disponible, cantidad, onClick }) {
     <button className="tile" disabled={bloqueado} onClick={onClick}>
       <div>
         <div className="tile-name">{item.name}</div>
-        <div className="tile-price">{fmt(item.price)}</div>
+        {item.tipo === 'nombre' && <div className="tile-price">{fmt(item.price)}</div>}
       </div>
       {disponible !== undefined && (
         <div className={`tile-stock ${disponible <= 0 ? 'stock-zero' : disponible <= 5 ? 'stock-low' : 'stock-ok'}`}>

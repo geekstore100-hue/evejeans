@@ -96,14 +96,14 @@ button { font-family: inherit; cursor: pointer; }
 .link-btn { background: none; border: none; color: #fff; font-size: 13px; text-decoration: underline; font-weight: 600; }
 
 /* ---------- Venta ---------- */
-main { padding: 12px; max-width: 1500px; margin: 0 auto; }
+main { padding: 8px; max-width: 1500px; margin: 0 auto; }
 .card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px;
   box-shadow: 0 1px 3px rgba(212,119,158,.06);
 }
 .card h2 {
   font-size: 16px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink);
-  margin: 0 0 12px; font-weight: 800;
+  margin: 0 0 8px; font-weight: 800;
 }
 .card h2 .side { float: right; text-transform: none; letter-spacing: 0; font-weight: 800; color: var(--rosa-fuerte); font-size: 15px; }
 
@@ -118,21 +118,21 @@ main { padding: 12px; max-width: 1500px; margin: 0 auto; }
   .cat-split > div:first-child { padding-right: 0; border-right: none; padding-bottom: 12px; }
   .cat-split > div:last-child { padding-left: 0; border-top: 1px solid var(--line); padding-top: 12px; }
 }
-.split-label { font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 9px; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.split-label { font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 6px; }
 
 .tile {
   border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
-  padding: 11px 12px; text-align: left; display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 9px; text-align: left; display: flex; flex-direction: column; gap: 4px;
   transition: border-color .1s, background .1s;
 }
 .tile:hover:not(:disabled) { border-color: var(--rosa); background: #fbfdfd; }
 .tile:active:not(:disabled) { background: var(--rosa-suave); }
 .tile:disabled { opacity: .45; cursor: not-allowed; }
-.tile-name { font-weight: 800; font-size: 18px; line-height: 1.1; }
+.tile-name { font-weight: 800; font-size: 21px; line-height: 1.1; }
 .tile-price { font-family: monospace; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-top: 2px; }
-.tile-stock { font-family: monospace; font-size: 24px; font-weight: 800; line-height: 1; display: flex; align-items: baseline; gap: 5px; }
-.tile-stock small { font-size: 11px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; }
+.tile-stock { font-family: monospace; font-size: 16px; font-weight: 800; line-height: 1; display: flex; align-items: baseline; gap: 4px; }
+.tile-stock small { font-size: 9px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; }
 .stock-ok { color: var(--ink); }
 .stock-low { color: #b8874a; }
 .stock-zero { color: var(--danger); }

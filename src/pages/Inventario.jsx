@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, writeBatch, collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { suscribirInventario } from '../lib/inventario';
 import { suscribirConfig, guardarConfig } from '../lib/config';
@@ -25,6 +25,13 @@ export default function Inventario() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [historial, setHistorial] = useState(null);
+
+  const [nuevoNombre, setNuevoNombre] = useState('');
+  const [nuevoPrecio, setNuevoPrecio] = useState('');
+  const [nuevoCosto, setNuevoCosto] = useState('');
+  const [nuevoTipo, setNuevoTipo] = useState('precio');
+  const [creandoRef, setCreandoRef] = useState(false);
+  const [msgNueva, setMsgNueva] = useState({ tipo: '', texto: '' });
 
   const [config, setConfig] = useState(null);
   const [cfgMin, setCfgMin] = useState('');
@@ -77,6 +84,54 @@ export default function Inventario() {
       setMsg({ tipo: 'bad', texto: 'No se pudo guardar: ' + e.message });
     } finally {
       setGuardandoCfg(false);
+    }
+  }
+
+  function slugDe(nombre) {
+    return (
+      nombre
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '') || 'ref'
+    );
+  }
+
+  async function crearReferencia() {
+    setMsgNueva({ tipo: '', texto: '' });
+    const nombre = nuevoNombre.trim();
+    const precio = parseInt(nuevoPrecio);
+    const costo = parseInt(nuevoCosto) || 0;
+    if (!nombre) {
+      setMsgNueva({ tipo: 'bad', texto: 'Falta el nombre.' });
+      return;
+    }
+    if (isNaN(precio) || precio <= 0) {
+      setMsgNueva({ tipo: 'bad', texto: 'Falta el precio de venta.' });
+      return;
+    }
+    let id = slugDe(nombre);
+    if (items.some((i) => i.id === id)) {
+      id = id + '-' + Date.now().toString().slice(-4);
+    }
+    setCreandoRef(true);
+    try {
+      await setDoc(doc(db, 'inventario', id), {
+        name: nombre,
+        price: precio,
+        costoCompra: costo,
+        tipo: nuevoTipo,
+        stock: 0,
+        oculto: false,
+      });
+      setNuevoNombre('');
+      setNuevoPrecio('');
+      setNuevoCosto('');
+      setMsgNueva({ tipo: 'good', texto: `"${nombre}" creada, con stock en 0.` });
+    } catch (e) {
+      setMsgNueva({ tipo: 'bad', texto: 'No se pudo crear: ' + e.message });
+    } finally {
+      setCreandoRef(false);
     }
   }
 
@@ -245,6 +300,36 @@ export default function Inventario() {
         <button className="btn ghost" disabled={guardandoCfg} onClick={guardarComision}>
           {guardandoCfg ? 'Guardando…' : 'Guardar comisión'}
         </button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 460, marginBottom: 12 }}>
+        <h2>Agregar una referencia nueva</h2>
+        <div className="field">
+          <label>Nombre</label>
+          <input type="text" placeholder="Ej: Camisa Oxford" value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Precio de venta</label>
+            <input type="number" inputMode="numeric" value={nuevoPrecio} onChange={(e) => setNuevoPrecio(e.target.value)} />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label>Costo de compra</label>
+            <input type="number" inputMode="numeric" value={nuevoCosto} onChange={(e) => setNuevoCosto(e.target.value)} />
+          </div>
+        </div>
+        <div className="field">
+          <label>¿Dónde va a aparecer al vender?</label>
+          <div className="chips">
+            <button className={`chip ${nuevoTipo === 'nombre' ? 'on' : ''}`} onClick={() => setNuevoTipo('nombre')}>Con nombre</button>
+            <button className={`chip ${nuevoTipo === 'precio' ? 'on' : ''}`} onClick={() => setNuevoTipo('precio')}>Por precio</button>
+          </div>
+        </div>
+        <button className="btn" disabled={creandoRef} onClick={crearReferencia}>
+          {creandoRef ? 'Creando…' : 'Crear referencia'}
+        </button>
+        {msgNueva.texto && <div className={`msg ${msgNueva.tipo}`}>{msgNueva.texto}</div>}
+        <div className="hint" style={{ fontSize: 12 }}>Nace con stock en 0. Se carga con una compra o editando el stock abajo.</div>
       </div>
 
       <div className="card" style={{ maxWidth: 720, marginBottom: 12 }}>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { registrarCompra, comprasRecientes } from '../lib/compras';
+import { crearPedidoCompra, comprasRecientes, ajustarPedido } from '../lib/compras';
 
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria', 'Lo puso Nelson'];
 
@@ -18,6 +18,7 @@ export default function Compras() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [historial, setHistorial] = useState(null);
+  const [editando, setEditando] = useState(null);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -44,8 +45,12 @@ export default function Compras() {
     return m;
   }, [inventario]);
 
-  const nombreItems = (inventario || []).filter((i) => i.tipo === 'nombre' && !i.oculto);
-  const precioItems = (inventario || []).filter((i) => i.tipo === 'precio' && !i.oculto);
+  const nombreItems = (inventario || [])
+    .filter((i) => i.tipo === 'nombre' && !i.oculto)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const precioItems = (inventario || [])
+    .filter((i) => i.tipo === 'precio' && !i.oculto)
+    .sort((a, b) => a.price - b.price);
 
   function agregar(id) {
     const it = porId[id];
@@ -88,6 +93,10 @@ export default function Compras() {
       setMsg({ tipo: 'bad', texto: 'Agrega al menos una referencia.' });
       return;
     }
+    if (!proveedor.trim()) {
+      setMsg({ tipo: 'bad', texto: 'Falta el proveedor.' });
+      return;
+    }
     if (lineas.some((l) => !l.costoUnitario || l.costoUnitario <= 0)) {
       setMsg({ tipo: 'bad', texto: 'Falta el costo unitario de alguna referencia.' });
       return;
@@ -98,17 +107,20 @@ export default function Compras() {
     }
     setGuardando(true);
     try {
-      await registrarCompra({
-        items: lineas.map((l) => ({ id: l.id, name: l.name, qty: l.qty, costoUnitario: l.costoUnitario, stockActual: porId[l.id]?.stock || 0 })),
-        proveedor: proveedor.trim(),
+      await crearPedidoCompra({
+        items: lineas.map((l) => ({ id: l.id, name: l.name, cantidadPedida: l.qty, costoUnitario: l.costoUnitario })),
+        proveedor,
         origen,
         nota: nota.trim(),
       });
-      setMsg({ tipo: 'good', texto: `Compra registrada: ${fmt(totalGeneral)}. El stock y el costo ya quedaron actualizados.` });
+      setMsg({
+        tipo: 'good',
+        texto: `Pedido registrado con ${proveedor}: ${fmt(totalGeneral)}. El stock sube cuando confirmen que llegó, en "Recibir mercancía".`,
+      });
       vaciar();
       cargarHistorial();
     } catch (e) {
-      setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar la compra.' });
+      setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
     } finally {
       setGuardando(false);
     }
@@ -129,7 +141,7 @@ export default function Compras() {
   return (
     <div className="sale-grid">
       <div className="card">
-        <h2>Qué llegó</h2>
+        <h2>Qué se pidió</h2>
         <div className="cat-split">
           <div>
             <div className="split-label">Con nombre</div>
@@ -152,7 +164,12 @@ export default function Compras() {
 
       <div className="ticket">
         <div className="card">
-          <h2>Nueva compra</h2>
+          <h2>Nuevo pedido</h2>
+          <div className="field">
+            <label>Proveedor</label>
+            <input type="text" placeholder="Nombre del proveedor" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
+          </div>
+
           <div className="lines">
             {lineas.length === 0 ? (
               <div className="empty-lines">Toca una referencia para empezar.</div>
@@ -183,15 +200,11 @@ export default function Compras() {
 
           <div className="totals">
             <div className="trow big">
-              <span>Total</span>
+              <span>Total pedido</span>
               <span className="v">{fmt(totalGeneral)}</span>
             </div>
           </div>
 
-          <div className="field">
-            <label>Proveedor (opcional)</label>
-            <input type="text" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
-          </div>
           <div className="field">
             <label>¿De dónde sale la plata?</label>
             <div className="chips">
@@ -206,7 +219,7 @@ export default function Compras() {
           </div>
 
           <button className="btn" disabled={guardando} onClick={confirmar}>
-            {guardando ? 'Guardando…' : 'Registrar compra'}
+            {guardando ? 'Guardando…' : 'Registrar pedido'}
           </button>
           <button className="btn ghost" onClick={vaciar}>Vaciar</button>
           {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
@@ -214,28 +227,118 @@ export default function Compras() {
       </div>
 
       <div className="card" style={{ gridColumn: '1 / -1' }}>
-        <h2>Compras recientes</h2>
+        <h2>Historial de pedidos</h2>
         {!historial ? (
           <div className="empty-lines">Cargando…</div>
         ) : historial.length === 0 ? (
-          <div className="empty-lines">Todavía no hay compras registradas.</div>
+          <div className="empty-lines">Todavía no hay pedidos.</div>
         ) : (
-          historial.map((c) => (
-            <div key={c.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>
-                  {c.fecha} {c.hora}{c.proveedor ? ` · ${c.proveedor}` : ''}
-                </span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{fmt(c.totalGeneral)}</span>
+          historial.map((c) =>
+            editando === c.id ? (
+              <FormularioAjuste
+                key={c.id}
+                pedido={c}
+                onCancelar={() => setEditando(null)}
+                onListo={async () => {
+                  setEditando(null);
+                  await cargarHistorial();
+                }}
+              />
+            ) : (
+              <div key={c.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>
+                    {c.fecha} {c.hora} · {c.proveedor}{' '}
+                    <span
+                      className="gasto-x"
+                      style={{
+                        display: 'inline-block', width: 'auto', height: 'auto', padding: '2px 8px',
+                        fontSize: 10, fontWeight: 800, borderRadius: 5, verticalAlign: 'middle',
+                        color: c.estado === 'confirmada' ? 'var(--ok)' : '#b8874a',
+                        borderColor: c.estado === 'confirmada' ? 'var(--ok)' : '#b8874a',
+                      }}
+                    >
+                      {c.estado === 'confirmada' ? 'CONFIRMADO' : 'PENDIENTE'}
+                    </span>
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{fmt(c.totalGeneral)}</span>
+                    {c.estado === 'pendiente' && (
+                      <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setEditando(c.id)}>
+                        Ajustar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
+                  {c.items.map((i) => `${i.name} ×${i.cantidadPedida}`).join(', ')} · {c.origen}
+                  {c.nota ? ` · ${c.nota}` : ''}
+                  {c.estado === 'confirmada' && ` · confirmó ${c.confirmadoPor} el ${c.confirmadoFecha}`}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
-                {c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')} · {c.origen}
-                {c.nota ? ` · ${c.nota}` : ''}
-              </div>
-            </div>
-          ))
+            )
+          )
         )}
       </div>
+    </div>
+  );
+}
+
+function FormularioAjuste({ pedido, onCancelar, onListo }) {
+  const [cantidades, setCantidades] = useState(() => {
+    const ini = {};
+    pedido.items.forEach((i) => (ini[i.id] = String(i.cantidadPedida)));
+    return ini;
+  });
+  const [guardando, setGuardando] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  async function guardar() {
+    setMsg('');
+    setGuardando(true);
+    try {
+      const itemsAjustados = pedido.items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        cantidadPedida: parseInt(cantidades[i.id]) || 0,
+        costoUnitario: i.costoUnitario,
+      }));
+      await ajustarPedido(pedido.id, itemsAjustados);
+      onListo();
+    } catch (e) {
+      setMsg('No se pudo ajustar: ' + e.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="card modo-prueba" style={{ marginBottom: 10 }}>
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>
+        Ajustar pedido — {pedido.proveedor}
+      </div>
+      <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+        Cambia la cantidad pedida al número real que va a llegar, para que se pueda confirmar
+        sin quedar trabado por un descuadre.
+      </p>
+      {pedido.items.map((i) => (
+        <div className="field" key={i.id} style={{ marginBottom: 8 }}>
+          <label>{i.name} · costo {fmt(i.costoUnitario)}</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={cantidades[i.id]}
+            onChange={(e) => setCantidades((c) => ({ ...c, [i.id]: e.target.value }))}
+          />
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={onCancelar}>Cancelar</button>
+        <button className="btn sm" style={{ width: 'auto' }} disabled={guardando} onClick={guardar}>
+          {guardando ? 'Guardando…' : 'Guardar ajuste'}
+        </button>
+      </div>
+      {msg && <div className="msg bad">{msg}</div>}
     </div>
   );
 }
@@ -245,13 +348,15 @@ function TileCompra({ item, enCarrito, onClick }) {
     <button className="tile" onClick={onClick}>
       <div>
         <div className="tile-name">{item.name}</div>
-        <div className="tile-price">venta {fmt(item.price)} · costo {fmt(item.costoCompra || 0)}</div>
+        <div className="tile-price">
+          {item.tipo === 'nombre' && `venta ${fmt(item.price)} · `}costo {fmt(item.costoCompra || 0)}
+        </div>
       </div>
       <div className="tile-stock stock-ok">
         {item.stock || 0}
         <small>EN STOCK</small>
       </div>
-      {enCarrito > 0 && <div className="tile-inbag">{enCarrito} comprando</div>}
+      {enCarrito > 0 && <div className="tile-inbag">{enCarrito} pidiendo</div>}
     </button>
   );
 }

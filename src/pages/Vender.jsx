@@ -42,8 +42,12 @@ export default function Vender({ usuario }) {
     return m;
   }, [inventario]);
 
-  const nombreItems = (inventario || []).filter((i) => i.tipo === 'nombre' && !i.oculto);
-  const precioItems = (inventario || []).filter((i) => i.tipo === 'precio' && !i.oculto);
+  const nombreItems = (inventario || [])
+    .filter((i) => i.tipo === 'nombre' && !i.oculto)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const precioItems = (inventario || [])
+    .filter((i) => i.tipo === 'precio' && !i.oculto)
+    .sort((a, b) => a.price - b.price);
 
   function stockDisponible(id) {
     const it = porId[id];
@@ -439,7 +443,7 @@ function Tile({ item, disponible, enCarrito, onClick }) {
     <button className="tile" disabled={disponible <= 0} onClick={onClick}>
       <div>
         <div className="tile-name">{item.name}</div>
-        <div className="tile-price">{fmt(item.price)}</div>
+        {item.tipo === 'nombre' && <div className="tile-price">{fmt(item.price)}</div>}
       </div>
       <div className={`tile-stock ${clase}`}>
         {disponible}
