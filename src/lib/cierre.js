@@ -100,7 +100,7 @@ export async function resumenDia(fecha, config, opciones = {}) {
   });
   comprasLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
 
-  const comision = config ? await comisionDeHoy(config) : null;
+  const comision = config ? await comisionDeHoy(config, fecha) : null;
   const comisionMonto = comision && comision.aplica ? comision.total : 0;
 
   // La comisión se toma en efectivo, pero solo se saca físicamente de la caja al
