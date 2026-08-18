@@ -71,8 +71,8 @@ export async function anularGasto(id, motivo, usuario) {
   });
 }
 
-export async function comisionDeHoy(config) {
-  const fecha = hoyStr();
+export async function comisionDeHoy(config, fecha) {
+  fecha = fecha || hoyStr();
   const q = query(
     collection(db, 'ventas'),
     where('fecha', '==', fecha),
