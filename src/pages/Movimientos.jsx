@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ventasDeHoy, anularVenta } from '../lib/ventas';
+import { ventasPorFecha, anularVenta, hoyStr } from '../lib/ventas';
 import { conteosRecientes } from '../lib/conteo';
 import { gastosRecientes } from '../lib/gastos';
 import { ajustesRecientes } from '../lib/inventario';
@@ -9,7 +9,34 @@ function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
+function sumarDias(fechaStr, delta) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function fechaBonita(fechaStr) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function medioDePago(v) {
+  if (v.tipo === 'venta') {
+    if (v.pagoLabel === 'Combinado' && v.pagos) {
+      return Object.entries(v.pagos)
+        .filter(([, monto]) => monto > 0)
+        .map(([medio, monto]) => `${medio} ${fmt(monto)}`)
+        .join(' + ');
+    }
+    return v.pagoLabel || '—';
+  }
+  return v.pago || '—';
+}
+
 export default function Movimientos({ usuario }) {
+  const [fecha, setFecha] = useState(hoyStr());
   const [lista, setLista] = useState(null);
   const [conteos, setConteos] = useState(null);
   const [gastos, setGastos] = useState(null);
@@ -20,16 +47,23 @@ export default function Movimientos({ usuario }) {
   const [verCompras, setVerCompras] = useState(false);
 
   useEffect(() => {
-    cargar();
     conteosRecientes().then(setConteos);
     gastosRecientes().then(setGastos);
     ajustesRecientes().then(setAjustes);
     comprasRecientes().then(setCompras);
   }, []);
 
+  useEffect(() => {
+    cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fecha]);
+
   async function cargar() {
-    setLista(await ventasDeHoy());
+    setLista(null);
+    setLista(await ventasPorFecha(fecha));
   }
+
+  const esHoy = fecha === hoyStr();
 
   async function onAnular(v) {
     const motivo = window.prompt(
@@ -47,11 +81,28 @@ export default function Movimientos({ usuario }) {
   return (
     <div className="sale-grid">
       <div className="card">
-        <h2>Movimientos de hoy</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>
+            {esHoy ? 'Movimientos de hoy' : `Movimientos · ${fechaBonita(fecha)}`}
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button className="btn ghost sm" onClick={() => setFecha((f) => sumarDias(f, -1))}>
+              ← Anterior
+            </button>
+            {!esHoy && (
+              <button className="btn ghost sm" onClick={() => setFecha(hoyStr())}>
+                Hoy
+              </button>
+            )}
+            <button className="btn ghost sm" disabled={esHoy} onClick={() => setFecha((f) => sumarDias(f, 1))}>
+              Siguiente →
+            </button>
+          </div>
+        </div>
         {!lista ? (
           <div className="empty-lines">Cargando…</div>
         ) : lista.length === 0 ? (
-          <div className="empty-lines">Todavía no hay nada hoy.</div>
+          <div className="empty-lines">{esHoy ? 'Todavía no hay nada hoy.' : 'No hubo movimientos ese día.'}</div>
         ) : (
           <table>
             <thead>
@@ -60,6 +111,7 @@ export default function Movimientos({ usuario }) {
                 <th>Hora</th>
                 <th>Tipo</th>
                 <th>Detalle</th>
+                <th>Medio de pago</th>
                 <th>Quién</th>
                 <th className="num">Total</th>
                 <th></th>
@@ -79,6 +131,7 @@ export default function Movimientos({ usuario }) {
                       ? v.items.map((i) => `${i.name}×${i.qty}`).join(', ') + (v.descuento ? ` · desc ${fmt(v.descuento)}` : '')
                       : `sobre N.º ${v.ventaOrig || '—'} · devuelve ${v.devuelve.map((d) => d.name).join(', ')} → lleva ${v.lleva.map((d) => d.name).join(', ')}`}
                   </td>
+                  <td style={{ fontSize: 12.5 }}>{medioDePago(v)}</td>
                   <td>{v.usuarioNombre}</td>
                   <td className="num">{fmt(v.total)}</td>
                   <td>
@@ -225,4 +278,3 @@ export default function Movimientos({ usuario }) {
     </div>
   );
 }
-
