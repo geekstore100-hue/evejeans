@@ -9,7 +9,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-function hoyStr() {
+export function hoyStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
@@ -89,12 +89,16 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
   return resultado;
 }
 
-export async function ventasDeHoy() {
-  const q = query(collection(db, 'ventas'), where('fecha', '==', hoyStr()));
+export async function ventasPorFecha(fecha) {
+  const q = query(collection(db, 'ventas'), where('fecha', '==', fecha));
   const snap = await getDocs(q);
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
+}
+
+export async function ventasDeHoy() {
+  return ventasPorFecha(hoyStr());
 }
 
 // Solo Nelson (las reglas de Firestore ya lo exigen). Revierte el stock que se movió
