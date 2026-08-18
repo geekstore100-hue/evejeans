@@ -49,6 +49,12 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
     const num = (contadorSnap.data().ultimo || 0) + 1;
 
     tx.update(contadorRef, { ultimo: num });
+    // El costo de compra queda "congelado" con el valor de hoy — si mañana cambia,
+    // esta venta ya no se ve afectada, igual que ya pasa con el precio de venta.
+    const itemsConCosto = items.map((i, idx) => ({
+      ...i,
+      costoCompra: snapsInventario[idx].data().costoCompra || 0,
+    }));
     snapsInventario.forEach((snap, idx) => {
       const nuevoStock = (snap.data().stock || 0) - items[idx].qty;
       tx.update(refsInventario[idx], { stock: nuevoStock });
@@ -63,7 +69,7 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
       tipo: 'venta',
       usuarioId: usuario.id,
       usuarioNombre: usuario.nombreDefault,
-      items,
+      items: itemsConCosto,
       subtotal,
       descuento: descuento || 0,
       motivoDescuento: motivoDescuento || null,
