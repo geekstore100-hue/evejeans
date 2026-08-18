@@ -6,7 +6,21 @@ function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
+function sumarDias(fechaStr, delta) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
+function fechaBonita(fechaStr) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 export default function Cierre({ usuario }) {
+  const [fecha, setFecha] = useState(hoyStr());
   const [config, setConfig] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
@@ -25,12 +39,15 @@ export default function Cierre({ usuario }) {
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  }, [config, fecha]);
+
+  const esHoy = fecha === hoyStr();
 
   async function cargar() {
     if (!config) return;
     try {
-      const r = await resumenDia(hoyStr(), config);
+      setResumen(null);
+      const r = await resumenDia(fecha, config);
       setResumen(r);
     } catch (e) {
       setErrorCarga('No se pudo cargar el resumen del día: ' + e.message);
@@ -55,7 +72,24 @@ export default function Cierre({ usuario }) {
   return (
     <div className="sale-grid">
       <div className="card">
-        <h2>Prendas vendidas hoy ({resumen.prendas.reduce((s, p) => s + p.qty, 0)})</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>
+            Prendas vendidas {esHoy ? 'hoy' : `· ${fechaBonita(fecha)}`} ({resumen.prendas.reduce((s, p) => s + p.qty, 0)})
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button className="btn ghost sm" onClick={() => setFecha((f) => sumarDias(f, -1))}>
+              ← Anterior
+            </button>
+            {!esHoy && (
+              <button className="btn ghost sm" onClick={() => setFecha(hoyStr())}>
+                Hoy
+              </button>
+            )}
+            <button className="btn ghost sm" disabled={esHoy} onClick={() => setFecha((f) => sumarDias(f, 1))}>
+              Siguiente →
+            </button>
+          </div>
+        </div>
         {resumen.prendas.length === 0 ? (
           <div className="empty-lines">Todavía no hay nada.</div>
         ) : (
@@ -86,7 +120,7 @@ export default function Cierre({ usuario }) {
         {verCambios && (
           <div className="detalle-anidado">
             {resumen.cambiosLista.length === 0 ? (
-              <div className="empty-lines">Ningún cambio hoy.</div>
+              <div className="empty-lines">{esHoy ? 'Ningún cambio hoy.' : 'Ningún cambio ese día.'}</div>
             ) : (
               resumen.cambiosLista.map((c) => (
                 <div key={c.id} className="detalle-item">
@@ -131,7 +165,7 @@ export default function Cierre({ usuario }) {
           {verGastos && (
             <div className="detalle-anidado">
               {resumen.gastosLista.length === 0 && resumen.comisionMonto === 0 ? (
-                <div className="empty-lines">Ningún gasto hoy.</div>
+                <div className="empty-lines">{esHoy ? 'Ningún gasto hoy.' : 'Ningún gasto ese día.'}</div>
               ) : (
                 <>
                   {resumen.gastosLista.map((g) => (
@@ -174,7 +208,7 @@ export default function Cierre({ usuario }) {
               {verCompras && (
                 <div className="detalle-anidado">
                   {resumen.comprasLista.length === 0 ? (
-                    <div className="empty-lines">Ninguna compra hoy.</div>
+                    <div className="empty-lines">{esHoy ? 'Ninguna compra hoy.' : 'Ninguna compra ese día.'}</div>
                   ) : (
                     resumen.comprasLista.map((c) => (
                       <div key={c.id} className="detalle-item">
