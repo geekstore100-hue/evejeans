@@ -198,6 +198,10 @@ input[type=text], input[type=number], input[type=password] {
 }
 input:focus { outline: 2px solid var(--rosa); border-color: var(--rosa); }
 input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=date] {
+  width: auto; border: 2px solid var(--line); border-radius: 8px; padding: 8px 9px;
+  font-size: 14px; font-weight: 600; background: var(--paper); color: var(--ink);
+}
 select {
   width: 100%; border: 2px solid var(--line); border-radius: 8px; padding: 12px;
   font-size: 16px; background: var(--paper); color: var(--ink);
