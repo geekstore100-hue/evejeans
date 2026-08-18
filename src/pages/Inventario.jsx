@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, setDoc, writeBatch, collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, writeBatch, collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { suscribirInventario } from '../lib/inventario';
 import { suscribirConfig, guardarConfig } from '../lib/config';
@@ -87,6 +87,14 @@ export default function Inventario() {
     }
   }
 
+  async function toggleConteo() {
+    try {
+      await guardarConfig({ ...config, conteoActivado: !config.conteoActivado });
+    } catch (e) {
+      setMsg({ tipo: 'bad', texto: 'No se pudo cambiar: ' + e.message });
+    }
+  }
+
   function slugDe(nombre) {
     return (
       nombre
@@ -132,6 +140,14 @@ export default function Inventario() {
       setMsgNueva({ tipo: 'bad', texto: 'No se pudo crear: ' + e.message });
     } finally {
       setCreandoRef(false);
+    }
+  }
+
+  async function toggleOcultar(item) {
+    try {
+      await updateDoc(doc(db, 'inventario', item.id), { oculto: !item.oculto });
+    } catch (e) {
+      setMsg({ tipo: 'bad', texto: 'No se pudo cambiar: ' + e.message });
     }
   }
 
@@ -303,6 +319,23 @@ export default function Inventario() {
       </div>
 
       <div className="card" style={{ maxWidth: 460, marginBottom: 12 }}>
+        <h2>Conteo de inicio de semana</h2>
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+          Le pide a Blanca contar 2 referencias al azar el primer día hábil de cada semana
+          (respetando festivos). Es solo un aviso — nunca bloquea la venta.
+        </p>
+        <div className="kv" style={{ borderBottom: 'none' }}>
+          <span>Estado actual</span>
+          <span className="v" style={{ color: config?.conteoActivado === false ? 'var(--danger)' : 'var(--ok)' }}>
+            {config?.conteoActivado === false ? 'Desactivado' : 'Activado'}
+          </span>
+        </div>
+        <button className="btn ghost" style={{ marginTop: 8 }} onClick={toggleConteo}>
+          {config?.conteoActivado === false ? 'Activar' : 'Desactivar'}
+        </button>
+      </div>
+
+      <div className="card" style={{ maxWidth: 460, marginBottom: 12 }}>
         <h2>Agregar una referencia nueva</h2>
         <div className="field">
           <label>Nombre</label>
@@ -341,8 +374,8 @@ export default function Inventario() {
           escribes. Antes de guardar, te muestro un resumen de los cambios para confirmar.
         </p>
 
-        <TablaInventario titulo="Con nombre" lista={nombreItems} valorActual={valorActual} cambiar={cambiar} />
-        <TablaInventario titulo="Por precio" lista={precioItems} valorActual={valorActual} cambiar={cambiar} />
+        <TablaInventario titulo="Con nombre" lista={nombreItems} valorActual={valorActual} cambiar={cambiar} onOcultar={toggleOcultar} />
+        <TablaInventario titulo="Por precio" lista={precioItems} valorActual={valorActual} cambiar={cambiar} onOcultar={toggleOcultar} />
 
         <button className="btn" disabled={!hayCambios} onClick={irARevisar} style={{ marginTop: 14 }}>
           {hayCambios ? 'Revisar y guardar' : 'Sin cambios pendientes'}
@@ -377,19 +410,20 @@ export default function Inventario() {
   );
 }
 
-function TablaInventario({ titulo, lista, valorActual, cambiar }) {
+function TablaInventario({ titulo, lista, valorActual, cambiar, onOcultar }) {
   return (
     <div style={{ marginTop: 16 }}>
       <div className="split-label">{titulo}</div>
       <div className="inv-tabla">
-        <div className="inv-fila inv-header">
+        <div className="inv-fila inv-header" style={{ gridTemplateColumns: '1fr 120px 120px 100px 80px' }}>
           <span>Referencia</span>
           <span>Precio venta</span>
           <span>Costo compra</span>
           <span>Stock</span>
+          <span></span>
         </div>
         {lista.map((it) => (
-          <div className="inv-fila" key={it.id}>
+          <div className="inv-fila" key={it.id} style={{ gridTemplateColumns: '1fr 120px 120px 100px 80px', opacity: it.oculto ? 0.5 : 1 }}>
             <span className="inv-nombre">{it.name}</span>
             <div>
               <input
@@ -418,6 +452,9 @@ function TablaInventario({ titulo, lista, valorActual, cambiar }) {
               />
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>era: {it.stock}</div>
             </div>
+            <button className="btn ghost sm" style={{ width: 'auto', height: 'fit-content' }} onClick={() => onOcultar(it)}>
+              {it.oculto ? 'Mostrar' : 'Ocultar'}
+            </button>
           </div>
         ))}
       </div>

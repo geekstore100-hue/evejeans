@@ -103,3 +103,12 @@ export async function gastosDeHoy() {
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
+
+// Para la bitácora: todos los gastos (incluidos los anulados), no solo los de hoy.
+export async function gastosRecientes(limite = 30) {
+  const snap = await getDocs(collection(db, 'gastos'));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0))
+    .slice(0, limite);
+}

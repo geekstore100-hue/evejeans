@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { suscribirConfig } from '../lib/config';
 import { calcularGanancia, valorDeMercancia, hoyStr, inicioDeSemana, inicioDeMes } from '../lib/ganancia';
+import { generarExcel } from '../lib/excel';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -21,6 +22,20 @@ export default function Ganancia() {
   const [error, setError] = useState('');
   const [mercancia, setMercancia] = useState(null);
   const [verGastos, setVerGastos] = useState(false);
+  const [generandoExcel, setGenerandoExcel] = useState(false);
+  const [errorExcel, setErrorExcel] = useState('');
+
+  async function descargarExcel() {
+    setGenerandoExcel(true);
+    setErrorExcel('');
+    try {
+      await generarExcel(config);
+    } catch (e) {
+      setErrorExcel('No se pudo generar el Excel: ' + e.message);
+    } finally {
+      setGenerandoExcel(false);
+    }
+  }
 
   useEffect(() => suscribirConfig(setConfig), []);
 
@@ -58,7 +73,18 @@ export default function Ganancia() {
   return (
     <div className="sale-grid">
       <div className="card">
-        <h2>Ganancia</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <h2 style={{ margin: 0 }}>Ganancia</h2>
+          <button
+            className="btn ghost sm"
+            style={{ width: 'auto' }}
+            disabled={!config || generandoExcel}
+            onClick={descargarExcel}
+          >
+            {generandoExcel ? 'Generando…' : 'Descargar Excel'}
+          </button>
+        </div>
+        {errorExcel && <div className="msg bad" style={{ textAlign: 'left' }}>{errorExcel}</div>}
         <div className="chips" style={{ marginBottom: 14 }}>
           {PERIODOS.map((p) => (
             <button key={p.id} className={`chip ${periodo === p.id ? 'on' : ''}`} onClick={() => setPeriodo(p.id)}>

@@ -5,6 +5,7 @@ export const CONFIG_DEFAULT = {
   comisionMinimo: 6,
   comisionValor: 1000,
   comisionPorRef: {},
+  conteoActivado: true,
 };
 
 export function suscribirConfig(callback, onError) {

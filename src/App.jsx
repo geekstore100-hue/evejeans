@@ -11,6 +11,7 @@ import Compras from './pages/Compras';
 import RecibirMercancia from './pages/RecibirMercancia';
 import Inventario from './pages/Inventario';
 import Ganancia from './pages/Ganancia';
+import Movimientos from './pages/Movimientos';
 
 const CLAVE_LOCAL = 'evejeans_vendedora';
 
@@ -109,6 +110,11 @@ export default function App() {
             Ganancia
           </button>
         )}
+        {usuario.id === 'nelson' && (
+          <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
+            Bitácora
+          </button>
+        )}
       </nav>
 
       <main>
@@ -121,6 +127,7 @@ export default function App() {
         {vista === 'compras' && usuario.id === 'nelson' && <Compras />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
         {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
+        {vista === 'movimientos' && usuario.id === 'nelson' && <Movimientos usuario={usuario} />}
       </main>
     </div>
   );

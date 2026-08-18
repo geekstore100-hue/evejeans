@@ -3,6 +3,9 @@ import {
   collection,
   runTransaction,
   serverTimestamp,
+  query,
+  where,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -84,4 +87,47 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
   });
 
   return resultado;
+}
+
+export async function ventasDeHoy() {
+  const q = query(collection(db, 'ventas'), where('fecha', '==', hoyStr()));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
+}
+
+// Solo Nelson (las reglas de Firestore ya lo exigen). Revierte el stock que se movió
+// y marca la venta o el cambio como anulado — nunca se borra, queda el registro.
+export async function anularVenta(v, motivo, usuario) {
+  const ref = doc(db, 'ventas', v.id);
+  await runTransaction(db, async (tx) => {
+    if (v.tipo === 'venta') {
+      const refsInv = v.items.map((i) => doc(db, 'inventario', i.id));
+      const snaps = [];
+      for (const r of refsInv) snaps.push(await tx.get(r));
+      snaps.forEach((snap, idx) => {
+        const nuevo = (snap.data()?.stock || 0) + v.items[idx].qty;
+        tx.update(refsInv[idx], { stock: nuevo });
+      });
+    } else if (v.tipo === 'cambio') {
+      const refsDev = v.devuelve.map((i) => doc(db, 'inventario', i.id));
+      const refsLlv = v.lleva.map((i) => doc(db, 'inventario', i.id));
+      const snapsDev = [];
+      for (const r of refsDev) snapsDev.push(await tx.get(r));
+      const snapsLlv = [];
+      for (const r of refsLlv) snapsLlv.push(await tx.get(r));
+      snapsDev.forEach((snap, idx) => {
+        tx.update(refsDev[idx], { stock: Math.max(0, (snap.data()?.stock || 0) - v.devuelve[idx].qty) });
+      });
+      snapsLlv.forEach((snap, idx) => {
+        tx.update(refsLlv[idx], { stock: (snap.data()?.stock || 0) + v.lleva[idx].qty });
+      });
+    }
+    tx.update(ref, {
+      anulada: true,
+      motivoAnulacion: motivo,
+      anuladaPor: usuario.nombreDefault,
+    });
+  });
 }

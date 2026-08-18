@@ -108,5 +108,13 @@ service cloud.firestore {
                     );
       allow delete: if esNelson();
     }
+
+    // ---------- Conteos de inicio de semana ----------
+    // Cualquiera autenticado puede leer (para saber si ya se hizo esta semana) y crear
+    // (es Blanca quien lo hace). Es un historial: nunca se edita ni se borra.
+    match /conteos/{conteoId} {
+      allow read, create: if estaAutenticado();
+      allow update, delete: if false;
+    }
   }
 }

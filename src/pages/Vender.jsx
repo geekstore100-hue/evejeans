@@ -6,6 +6,7 @@ import { imprimirTicketVenta } from '../lib/imprimir';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 import { resumenDia, hoyStr } from '../lib/cierre';
 import { suscribirConfig } from '../lib/config';
+import { tocaConteo, registrarConteo } from '../lib/conteo';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -25,6 +26,11 @@ export default function Vender({ usuario }) {
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [config, setConfig] = useState(null);
   const [efectivoCaja, setEfectivoCaja] = useState(null);
+  const [debeContar, setDebeContar] = useState(false);
+  const [contando, setContando] = useState(false);
+  const [muestraConteo, setMuestraConteo] = useState([]);
+  const [cantidadesConteo, setCantidadesConteo] = useState({});
+  const [guardandoConteo, setGuardandoConteo] = useState(false);
   const [sembrando, setSembrando] = useState(false);
   const [reiniciando, setReiniciando] = useState(false);
   const [confirmandoReinicio, setConfirmandoReinicio] = useState(false);
@@ -42,6 +48,46 @@ export default function Vender({ usuario }) {
   }, []);
 
   useEffect(() => suscribirConfig(setConfig), []);
+
+  useEffect(() => {
+    if (!config) return;
+    tocaConteo(usuario, config).then(setDebeContar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config]);
+
+  function abrirConteo() {
+    const disponibles = (inventario || []).filter((i) => !i.oculto);
+    const muestra = [...disponibles].sort(() => Math.random() - 0.5).slice(0, 2);
+    setMuestraConteo(muestra);
+    setCantidadesConteo({});
+    setContando(true);
+  }
+
+  async function guardarConteoSemana() {
+    setGuardandoConteo(true);
+    try {
+      const referencias = muestraConteo.map((it) => ({
+        id: it.id,
+        name: it.name,
+        sistema: it.stock || 0,
+        contado: parseInt(cantidadesConteo[it.id]) || 0,
+      }));
+      await registrarConteo({ usuario, referencias });
+      setContando(false);
+      setDebeContar(false);
+      const conDiferencia = referencias.filter((r) => r.contado !== r.sistema);
+      if (conDiferencia.length > 0) {
+        alert(
+          'Ojo, no coincide con el sistema:\n\n' +
+            conDiferencia.map((r) => `${r.name}: sistema ${r.sistema}, contaste ${r.contado}`).join('\n')
+        );
+      }
+    } catch (e) {
+      alert('No se pudo guardar el conteo: ' + e.message);
+    } finally {
+      setGuardandoConteo(false);
+    }
+  }
 
   async function actualizarEfectivoCaja() {
     if (!config) return;
@@ -270,6 +316,50 @@ export default function Vender({ usuario }) {
 
   return (
     <div className="vender-shell">
+      {debeContar && !contando && (
+        <div className="card modo-prueba" style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, fontSize: 13 }}>
+              <b>Falta el conteo de inicio de semana.</b> Son solo 2 referencias. Puedes seguir
+              vendiendo, pero este aviso no se quita hasta que lo hagas.
+            </span>
+            <button className="btn sm" style={{ width: 'auto' }} onClick={abrirConteo}>
+              Hacer conteo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {contando && (
+        <div className="card modo-prueba" style={{ marginBottom: 8 }}>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>Conteo de inicio de semana</div>
+          <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+            Cuenta estas prendas donde estén de verdad. No verás el número del sistema hasta que envíes.
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {muestraConteo.map((it) => (
+              <div className="field" key={it.id} style={{ minWidth: 160 }}>
+                <label>{it.name}</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={cantidadesConteo[it.id] || ''}
+                  onChange={(e) => setCantidadesConteo((c) => ({ ...c, [it.id]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setContando(false)}>
+              Ahora no
+            </button>
+            <button className="btn sm" style={{ width: 'auto' }} disabled={guardandoConteo} onClick={guardarConteoSemana}>
+              {guardandoConteo ? 'Guardando…' : 'Enviar conteo'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {usuario.id === 'nelson' && (
         <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           {!confirmandoReinicio ? (
