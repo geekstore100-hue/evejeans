@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { registrarCambio } from '../lib/cambios';
 import { suscribirInventario } from '../lib/inventario';
 import { imprimirTicketCambio } from '../lib/imprimir';
-import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -49,9 +48,6 @@ export default function Cambios({ usuario }) {
     setLleva((l) => ({ ...l, [id]: (l[id] || 0) + 1 }));
   }
 
-  const buscDev = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
-  const buscLlv = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
-  const buscDevRef = useRef(null);
 
   const lineasDevuelve = Object.entries(devuelve)
     .filter(([, q]) => q > 0)
@@ -72,7 +68,6 @@ export default function Cambios({ usuario }) {
   function vaciar() {
     limpiarCampos();
     setMsg({ tipo: '', texto: '' });
-    buscDevRef.current?.focus();
   }
 
   async function confirmar() {
@@ -103,8 +98,6 @@ export default function Cambios({ usuario }) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el cambio.' });
     } finally {
       setProcesando(false);
-      // El foco vuelve al primer buscador ("devuelve"), listo para el siguiente cambio.
-      buscDevRef.current?.focus();
     }
   }
 
@@ -121,27 +114,16 @@ export default function Cambios({ usuario }) {
         <>
           <div className="card">
             <h2>1 · Qué devuelve el cliente</h2>
-            <CuadroBusqueda
-              ref={buscDevRef}
-              busqueda={buscDev.busqueda}
-              setBusqueda={buscDev.setBusqueda}
-              busquedaMsg={buscDev.busquedaMsg}
-              setBusquedaMsg={buscDev.setBusquedaMsg}
-              onKeyDown={(e) => buscDev.manejarTecla(e, (item) => agregarDevuelve(item.id))}
-              tabIndex={1}
-              autoFocus
-            />
             <div className="cat-split">
               <div>
                 <div className="split-label">Con nombre</div>
                 <div className="tiles">
-                  {buscDev.nombreItems.map((it) => (
+                  {nombreItemsTodos.map((it) => (
                     <TileSimple
                       key={it.id}
                       item={it}
                       cantidad={devuelve[it.id] || 0}
                       onClick={() => agregarDevuelve(it.id)}
-                      seleccionado={buscDev.combinados[buscDev.selIndex]?.id === it.id}
                     />
                   ))}
                 </div>
@@ -149,13 +131,12 @@ export default function Cambios({ usuario }) {
               <div>
                 <div className="split-label">Por precio</div>
                 <div className="tiles">
-                  {buscDev.precioItems.map((it) => (
+                  {precioItemsTodos.map((it) => (
                     <TileSimple
                       key={it.id}
                       item={it}
                       cantidad={devuelve[it.id] || 0}
                       onClick={() => agregarDevuelve(it.id)}
-                      seleccionado={buscDev.combinados[buscDev.selIndex]?.id === it.id}
                     />
                   ))}
                 </div>
@@ -163,28 +144,11 @@ export default function Cambios({ usuario }) {
             </div>
 
             <h2 style={{ marginTop: 20 }}>2 · Qué se lleva</h2>
-            <CuadroBusqueda
-              busqueda={buscLlv.busqueda}
-              setBusqueda={buscLlv.setBusqueda}
-              busquedaMsg={buscLlv.busquedaMsg}
-              setBusquedaMsg={buscLlv.setBusquedaMsg}
-              onKeyDown={(e) =>
-                buscLlv.manejarTecla(e, (item) => {
-                  const disp = (item.stock || 0) - (lleva[item.id] || 0);
-                  if (disp <= 0) {
-                    buscLlv.setBusquedaMsg(`"${item.name}" no tiene disponible.`);
-                    return false;
-                  }
-                  agregarLleva(item.id);
-                })
-              }
-              tabIndex={2}
-            />
             <div className="cat-split">
               <div>
                 <div className="split-label">Con nombre</div>
                 <div className="tiles">
-                  {buscLlv.nombreItems.map((it) => {
+                  {nombreItemsTodos.map((it) => {
                     const disp = (it.stock || 0) - (lleva[it.id] || 0);
                     return (
                       <TileSimple
@@ -193,7 +157,6 @@ export default function Cambios({ usuario }) {
                         disponible={disp}
                         cantidad={lleva[it.id] || 0}
                         onClick={() => agregarLleva(it.id)}
-                        seleccionado={buscLlv.combinados[buscLlv.selIndex]?.id === it.id}
                       />
                     );
                   })}
@@ -202,7 +165,7 @@ export default function Cambios({ usuario }) {
               <div>
                 <div className="split-label">Por precio</div>
                 <div className="tiles">
-                  {buscLlv.precioItems.map((it) => {
+                  {precioItemsTodos.map((it) => {
                     const disp = (it.stock || 0) - (lleva[it.id] || 0);
                     return (
                       <TileSimple
@@ -211,7 +174,6 @@ export default function Cambios({ usuario }) {
                         disponible={disp}
                         cantidad={lleva[it.id] || 0}
                         onClick={() => agregarLleva(it.id)}
-                        seleccionado={buscLlv.combinados[buscLlv.selIndex]?.id === it.id}
                       />
                     );
                   })}

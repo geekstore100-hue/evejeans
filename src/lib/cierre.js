@@ -28,7 +28,8 @@ function ahoraStr() {
   return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
-export async function resumenDia(fecha, config) {
+export async function resumenDia(fecha, config, opciones = {}) {
+  const { restarComisionDeEfectivo = true } = opciones;
   const qVentas = query(collection(db, 'ventas'), where('fecha', '==', fecha), where('anulada', '==', false));
   const snapVentas = await getDocs(qVentas);
 
@@ -102,9 +103,12 @@ export async function resumenDia(fecha, config) {
   const comision = config ? await comisionDeHoy(config) : null;
   const comisionMonto = comision && comision.aplica ? comision.total : 0;
 
-  // La comisión se toma sola, en efectivo, el mismo día — no depende de que nadie
-  // la registre a mano. Por eso se resta directo del efectivo, igual que un gasto real.
-  netoPorMedio['Efectivo'] = (netoPorMedio['Efectivo'] || 0) - comisionMonto;
+  // La comisión se toma en efectivo, pero solo se saca físicamente de la caja al
+  // cierre del día — durante el día ese dinero todavía está ahí. Por eso el chequeo
+  // en vivo (Vender) no la resta, y el cierre del día sí.
+  if (restarComisionDeEfectivo) {
+    netoPorMedio['Efectivo'] = (netoPorMedio['Efectivo'] || 0) - comisionMonto;
+  }
 
   // "Gastos del día" que se ve en pantalla: lo ya registrado + la comisión automática.
   const gastosTot = gastosTotReal + comisionMonto;

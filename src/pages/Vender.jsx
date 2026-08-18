@@ -4,6 +4,8 @@ import { registrarVenta } from '../lib/ventas';
 import { reiniciarParaProduccion } from '../lib/reset';
 import { imprimirTicketVenta } from '../lib/imprimir';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
+import { resumenDia, hoyStr } from '../lib/cierre';
+import { suscribirConfig } from '../lib/config';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -21,6 +23,8 @@ export default function Vender({ usuario }) {
   const [cobrando, setCobrando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [ultimaVenta, setUltimaVenta] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [efectivoCaja, setEfectivoCaja] = useState(null);
   const [sembrando, setSembrando] = useState(false);
   const [reiniciando, setReiniciando] = useState(false);
   const [confirmandoReinicio, setConfirmandoReinicio] = useState(false);
@@ -36,6 +40,27 @@ export default function Vender({ usuario }) {
     });
     return quitar;
   }, []);
+
+  useEffect(() => suscribirConfig(setConfig), []);
+
+  async function actualizarEfectivoCaja() {
+    if (!config) return;
+    try {
+      const r = await resumenDia(hoyStr(), config, { restarComisionDeEfectivo: false });
+      setEfectivoCaja(r.efectivoAEntregar);
+    } catch (e) {
+      // Si falla, se deja de mostrar en vez de mostrar un dato viejo o incorrecto.
+      setEfectivoCaja(null);
+    }
+  }
+
+  useEffect(() => {
+    actualizarEfectivoCaja();
+    // Se refresca solo cada minuto, para que "verificar caja" nunca esté muy desactualizado.
+    const intervalo = setInterval(actualizarEfectivoCaja, 60000);
+    return () => clearInterval(intervalo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config]);
 
   const porId = useMemo(() => {
     const m = {};
@@ -171,6 +196,7 @@ export default function Vender({ usuario }) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar la venta.' });
     } finally {
       setCobrando(false);
+      actualizarEfectivoCaja();
       // El foco vuelve al buscador siempre, para poder seguir escribiendo de una.
       buscadorRef.current?.focus();
     }
@@ -303,6 +329,11 @@ export default function Vender({ usuario }) {
         <h2>
           Prendas
           <span className="side">
+            {efectivoCaja !== null && (
+              <span style={{ color: 'var(--cian-fuerte)', marginRight: 10 }}>
+                Caja: {fmt(efectivoCaja)}
+              </span>
+            )}
             {inventario.reduce((s, i) => s + (i.stock || 0), 0)} en total
           </span>
         </h2>
