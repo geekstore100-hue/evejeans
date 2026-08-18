@@ -80,6 +80,12 @@ export default function Cierre({ usuario }) {
             <button className="btn ghost sm" onClick={() => setFecha((f) => sumarDias(f, -1))}>
               ← Anterior
             </button>
+            <input
+              type="date"
+              value={fecha}
+              max={hoyStr()}
+              onChange={(e) => e.target.value && setFecha(e.target.value)}
+            />
             {!esHoy && (
               <button className="btn ghost sm" onClick={() => setFecha(hoyStr())}>
                 Hoy
