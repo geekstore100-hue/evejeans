@@ -95,6 +95,9 @@ export default function App() {
         <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
           Recibir mercancía
         </button>
+        <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
+          Historial
+        </button>
         {usuario.id === 'nelson' && (
           <button className={vista === 'compras' ? 'on' : ''} onClick={() => setVista('compras')}>
             Compras
@@ -110,11 +113,6 @@ export default function App() {
             Ganancia
           </button>
         )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
-            Bitácora
-          </button>
-        )}
       </nav>
 
       <main>
@@ -124,10 +122,10 @@ export default function App() {
         {vista === 'cierre' && <Cierre usuario={usuario} />}
         {vista === 'sobres' && <Sobres usuario={usuario} />}
         {vista === 'recibir' && <RecibirMercancia usuario={usuario} />}
+        {vista === 'movimientos' && <Movimientos usuario={usuario} />}
         {vista === 'compras' && usuario.id === 'nelson' && <Compras />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
         {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
-        {vista === 'movimientos' && usuario.id === 'nelson' && <Movimientos usuario={usuario} />}
       </main>
     </div>
   );
