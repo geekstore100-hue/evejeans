@@ -300,3 +300,30 @@ nav.tabs button.on { color: var(--rosa-fuerte); border-bottom-color: var(--rosa-
   width: 36px; height: 36px; border-radius: 8px; font-size: 15px; flex-shrink: 0;
 }
 .gasto-x:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+
+/* ---------- Tablas (Historial, Cierre) ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+thead th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink-soft); font-weight: 800; padding: 0 10px 8px 0; border-bottom: 2px solid var(--ink);
+  white-space: nowrap;
+}
+tbody td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+th.num, td.num { text-align: right; font-family: monospace; }
+tr.void { opacity: .55; }
+td.dim { color: var(--ink-soft); font-size: 12.5px; }
+
+.th-sort {
+  background: none; border: none; padding: 0; margin: 0; font: inherit; text-transform: inherit;
+  letter-spacing: inherit; color: inherit; cursor: pointer; white-space: nowrap;
+}
+.th-sort:hover { color: var(--rosa-fuerte); }
+
+.pill {
+  display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .03em; padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+}
+.pill.venta { background: var(--cian-suave); color: var(--cian-fuerte); }
+.pill.cambio { background: var(--rosa-suave); color: var(--rosa-fuerte); }
+.pill.anul { background: var(--danger-soft); color: var(--danger); }
