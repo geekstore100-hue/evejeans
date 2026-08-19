@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ventasPorFecha, anularVenta, hoyStr } from '../lib/ventas';
 import { conteosRecientes } from '../lib/conteo';
 import { gastosRecientes } from '../lib/gastos';
@@ -35,6 +35,19 @@ function medioDePago(v) {
   return v.pago || '—';
 }
 
+// "02:32 p. m." -> 872 (minutos desde medianoche), para poder ordenar por hora real
+// y no por el texto (que ordenaría mal por ser formato de 12 horas).
+function horaAMinutos(horaStr) {
+  if (!horaStr) return 0;
+  const m = horaStr.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return 0;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (/p\.?\s*m\.?/i.test(horaStr) && h !== 12) h += 12;
+  if (/a\.?\s*m\.?/i.test(horaStr) && h === 12) h = 0;
+  return h * 60 + min;
+}
+
 export default function Movimientos({ usuario }) {
   const [fecha, setFecha] = useState(hoyStr());
   const [lista, setLista] = useState(null);
@@ -45,12 +58,15 @@ export default function Movimientos({ usuario }) {
   const [verGastos, setVerGastos] = useState(true);
   const [verAjustes, setVerAjustes] = useState(false);
   const [verCompras, setVerCompras] = useState(false);
+  const [orden, setOrden] = useState({ campo: null, dir: 'asc' });
 
   useEffect(() => {
     conteosRecientes().then(setConteos);
     gastosRecientes().then(setGastos);
-    ajustesRecientes().then(setAjustes);
+    // Los ajustes de inventario son solo de Nelson (las reglas de Firestore ya lo exigen).
+    if (usuario.id === 'nelson') ajustesRecientes().then(setAjustes);
     comprasRecientes().then(setCompras);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -64,6 +80,23 @@ export default function Movimientos({ usuario }) {
   }
 
   const esHoy = fecha === hoyStr();
+
+  function ordenarPor(campo) {
+    setOrden((o) => (o.campo === campo ? { campo, dir: o.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' }));
+  }
+
+  const listaOrdenada = useMemo(() => {
+    if (!lista || !orden.campo) return lista;
+    const copia = [...lista];
+    copia.sort((a, b) => {
+      const cmp =
+        orden.campo === 'hora'
+          ? horaAMinutos(a.hora) - horaAMinutos(b.hora)
+          : medioDePago(a).localeCompare(medioDePago(b), 'es');
+      return orden.dir === 'asc' ? cmp : -cmp;
+    });
+    return copia;
+  }, [lista, orden]);
 
   async function onAnular(v) {
     const etiqueta = v.tipo === 'venta' ? `la venta N.º ${v.num}` : `el cambio N.º ${v.num}`;
@@ -83,7 +116,7 @@ export default function Movimientos({ usuario }) {
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0 }}>
-            {esHoy ? 'Movimientos de hoy' : `Movimientos · ${fechaBonita(fecha)}`}
+            {esHoy ? 'Historial de hoy' : `Historial · ${fechaBonita(fecha)}`}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button className="btn ghost sm" onClick={() => setFecha((f) => sumarDias(f, -1))}>
@@ -113,18 +146,26 @@ export default function Movimientos({ usuario }) {
           <table>
             <thead>
               <tr>
-                <th>N.º</th>
-                <th>Hora</th>
+                <th className="num">N.º</th>
+                <th>
+                  <button className="th-sort" onClick={() => ordenarPor('hora')}>
+                    Hora{orden.campo === 'hora' && (orden.dir === 'asc' ? ' ▲' : ' ▼')}
+                  </button>
+                </th>
                 <th>Tipo</th>
                 <th>Detalle</th>
-                <th>Medio de pago</th>
+                <th>
+                  <button className="th-sort" onClick={() => ordenarPor('pago')}>
+                    Medio de pago{orden.campo === 'pago' && (orden.dir === 'asc' ? ' ▲' : ' ▼')}
+                  </button>
+                </th>
                 <th>Quién</th>
                 <th className="num">Total</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {lista.map((v) => (
+              {listaOrdenada.map((v) => (
                 <tr key={v.id} className={v.anulada ? 'void' : ''}>
                   <td className="num">{v.num}</td>
                   <td>{v.hora}</td>
@@ -137,11 +178,11 @@ export default function Movimientos({ usuario }) {
                       ? v.items.map((i) => `${i.name}×${i.qty}`).join(', ') + (v.descuento ? ` · desc ${fmt(v.descuento)}` : '')
                       : `sobre N.º ${v.ventaOrig || '—'} · devuelve ${v.devuelve.map((d) => d.name).join(', ')} → lleva ${v.lleva.map((d) => d.name).join(', ')}`}
                   </td>
-                  <td style={{ fontSize: 12.5 }}>{medioDePago(v)}</td>
+                  <td className="dim">{medioDePago(v)}</td>
                   <td>{v.usuarioNombre}</td>
                   <td className="num">{fmt(v.total)}</td>
                   <td>
-                    {!v.anulada && (
+                    {!v.anulada && usuario.id === 'nelson' && (
                       <button className="btn ghost sm" onClick={() => onAnular(v)}>
                         Anular
                       </button>
@@ -213,36 +254,38 @@ export default function Movimientos({ usuario }) {
           )}
         </div>
 
-        <div className="card" style={{ marginTop: 12 }}>
-          <div className="kv" style={{ borderBottom: 'none' }}>
-            <span style={{ fontWeight: 800 }}>
-              Ajustes de inventario{' '}
-              <button className="link-toggle" onClick={() => setVerAjustes((v) => !v)}>
-                {verAjustes ? 'ocultar' : 'ver'}
-              </button>
-            </span>
-          </div>
-          {verAjustes && (
-            <div className="detalle-anidado">
-              {!ajustes ? (
-                <div className="empty-lines">Cargando…</div>
-              ) : ajustes.length === 0 ? (
-                <div className="empty-lines">Ninguno todavía.</div>
-              ) : (
-                ajustes.map((a) => (
-                  <div key={a.id} className="detalle-item">
-                    <div className="detalle-item-titulo">{a.fecha} {a.hora} · {a.motivo}</div>
-                    {a.cambios.map((c, i) => (
-                      <div key={i} className="detalle-item-sub">
-                        {c.nombre} ({c.campo}): {c.campo !== 'Stock' ? fmt(c.anterior) : c.anterior} → {c.campo !== 'Stock' ? fmt(c.nuevo) : c.nuevo}
-                      </div>
-                    ))}
-                  </div>
-                ))
-              )}
+        {usuario.id === 'nelson' && (
+          <div className="card" style={{ marginTop: 12 }}>
+            <div className="kv" style={{ borderBottom: 'none' }}>
+              <span style={{ fontWeight: 800 }}>
+                Ajustes de inventario{' '}
+                <button className="link-toggle" onClick={() => setVerAjustes((v) => !v)}>
+                  {verAjustes ? 'ocultar' : 'ver'}
+                </button>
+              </span>
             </div>
-          )}
-        </div>
+            {verAjustes && (
+              <div className="detalle-anidado">
+                {!ajustes ? (
+                  <div className="empty-lines">Cargando…</div>
+                ) : ajustes.length === 0 ? (
+                  <div className="empty-lines">Ninguno todavía.</div>
+                ) : (
+                  ajustes.map((a) => (
+                    <div key={a.id} className="detalle-item">
+                      <div className="detalle-item-titulo">{a.fecha} {a.hora} · {a.motivo}</div>
+                      {a.cambios.map((c, i) => (
+                        <div key={i} className="detalle-item-sub">
+                          {c.nombre} ({c.campo}): {c.campo !== 'Stock' ? fmt(c.anterior) : c.anterior} → {c.campo !== 'Stock' ? fmt(c.nuevo) : c.nuevo}
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="card" style={{ marginTop: 12 }}>
           <div className="kv" style={{ borderBottom: 'none' }}>
