@@ -66,13 +66,13 @@ export default function Movimientos({ usuario }) {
   const esHoy = fecha === hoyStr();
 
   async function onAnular(v) {
-    const motivo = window.prompt(
-      `¿Por qué se anula ${v.tipo === 'venta' ? `la venta N.º ${v.num}` : `el cambio N.º ${v.num}`}?`
-    );
+    const etiqueta = v.tipo === 'venta' ? `la venta N.º ${v.num}` : `el cambio N.º ${v.num}`;
+    const motivo = window.prompt(`¿Por qué se anula ${etiqueta}?`);
     if (!motivo || !motivo.trim()) return;
     try {
       await anularVenta(v, motivo.trim(), usuario);
       await cargar();
+      alert(`Listo, se anuló ${etiqueta}.`);
     } catch (e) {
       alert('No se pudo anular: ' + e.message);
     }
