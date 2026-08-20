@@ -36,9 +36,11 @@ export async function generarExcel(config) {
   inventario.forEach((it) => (costoPorId[it.id] = it.costoCompra || 0));
 
   // ---------- Día a día ----------
+  // La comisión ya no se estima con una fórmula: ahora es un gasto más que registran
+  // ellas mismas (categoría "Comisión"), así que sale de "gastos" como cualquier otro.
   const porDia = {};
   function diaDe(fecha) {
-    porDia[fecha] = porDia[fecha] || { ingresos: 0, descuentos: 0, prendas: 0, valorComision: 0, gastos: 0, compras: 0 };
+    porDia[fecha] = porDia[fecha] || { ingresos: 0, descuentos: 0, prendas: 0, gastos: 0, comision: 0, compras: 0 };
     return porDia[fecha];
   }
   ventas.forEach((v) => {
@@ -47,12 +49,12 @@ export async function generarExcel(config) {
     d.descuentos += v.descuento || 0;
     (v.items || []).forEach((i) => {
       d.prendas += i.qty;
-      const valorRef = (config.comisionPorRef && config.comisionPorRef[i.id]) ?? config.comisionValor;
-      d.valorComision += valorRef * i.qty;
     });
   });
   gastos.forEach((g) => {
-    diaDe(g.fecha).gastos += g.monto;
+    const d = diaDe(g.fecha);
+    if (g.categoria === 'Comisión') d.comision += g.monto;
+    else d.gastos += g.monto;
   });
   compras.forEach((c) => {
     diaDe(c.fecha).compras += c.totalGeneral;
@@ -66,7 +68,7 @@ export async function generarExcel(config) {
       Descuentos: d.descuentos,
       'Prendas vendidas': d.prendas,
       Gastos: d.gastos,
-      'Comisión (si aplica)': d.prendas >= config.comisionMinimo ? d.valorComision : 0,
+      Comisión: d.comision,
       Compras: d.compras,
     }));
 
@@ -86,12 +88,9 @@ export async function generarExcel(config) {
   });
   gastos.forEach((g) => {
     if (g.categoria === 'Socios') return; // reparto, no gasto del negocio
-    mesDe(g.fecha.slice(0, 7)).gastos += g.monto;
-  });
-  Object.entries(porDia).forEach(([fecha, d]) => {
-    if (d.prendas >= config.comisionMinimo) {
-      mesDe(fecha.slice(0, 7)).comision += d.valorComision;
-    }
+    const m = mesDe(g.fecha.slice(0, 7));
+    if (g.categoria === 'Comisión') m.comision += g.monto;
+    else m.gastos += g.monto;
   });
 
   const filasMeses = Object.entries(porMes)
