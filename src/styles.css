@@ -264,6 +264,7 @@ nav.tabs button.on { color: var(--rosa-fuerte); border-bottom-color: var(--rosa-
   @page { size: 80mm auto; margin: 3mm; }
 }
 .pt-center { text-align: center; }
+.pt-logo { display: block; max-width: 50mm; max-height: 20mm; margin: 0 auto 4px; }
 .pt-big { font-size: 15px; font-weight: 700; }
 .pt-rule { border-top: 1px dashed #000; margin: 5px 0; }
 .pt-line { display: flex; justify-content: space-between; gap: 8px; }
