@@ -13,15 +13,13 @@ import Inventario from './pages/Inventario';
 import Ganancia from './pages/Ganancia';
 import Movimientos from './pages/Movimientos';
 
-const CLAVE_LOCAL = 'evejeans_vendedora';
-
 export default function App() {
   const [cargando, setCargando] = useState(true);
   const [authId, setAuthId] = useState(null); // 'nelson' | 'vendedoras' | null
-  const [vendedoraElegida, setVendedoraElegida] = useState(() => {
-    const guardada = localStorage.getItem(CLAVE_LOCAL);
-    return guardada ? USUARIOS_BASE.find((u) => u.id === guardada) || null : null;
-  });
+  // No se guarda en localStorage a propósito: cada vez que se recarga la página
+  // o se abre de nuevo (por ejemplo al empezar el día) debe volver a preguntar
+  // quién está en el turno, en vez de seguir con la última vendedora que entró.
+  const [vendedoraElegida, setVendedoraElegida] = useState(null);
   const [vista, setVista] = useState('vender');
 
   useEffect(() => {
@@ -33,7 +31,6 @@ export default function App() {
   }, []);
 
   function elegirVendedora(u) {
-    localStorage.setItem(CLAVE_LOCAL, u.id);
     setVendedoraElegida(u);
   }
 
@@ -42,7 +39,6 @@ export default function App() {
       // Nelson sí cierra sesión de verdad: vuelve a la cuenta compartida.
       await salir();
     }
-    localStorage.removeItem(CLAVE_LOCAL);
     setVendedoraElegida(null);
   }
 
