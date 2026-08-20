@@ -119,7 +119,7 @@ export default function Ganancia() {
 
             <div className="kv" style={{ marginTop: 10 }}>
               <span>
-                Gastos administrativos{' '}
+                Gastos (incluye comisión){' '}
                 <button className="link-toggle" onClick={() => setVerGastos((v) => !v)}>
                   {verGastos ? 'ocultar' : 'ver'}
                 </button>
@@ -140,10 +140,6 @@ export default function Ganancia() {
                   ))}
               </div>
             )}
-            <div className="kv">
-              <span>Comisión ({datos.diasConComision} día{datos.diasConComision === 1 ? '' : 's'} con comisión)</span>
-              <span className="v">−{fmt(datos.comisionTotal)}</span>
-            </div>
 
             <div className="kv" style={{ marginTop: 10, borderTop: '2px solid var(--ink)', borderBottom: 'none', paddingTop: 10 }}>
               <span style={{ fontSize: 18, fontWeight: 800 }}>Ganancia Neta</span>
