@@ -156,6 +156,7 @@ export default function Vender({ usuario }) {
     qty,
     name: porId[id]?.name || id,
     price: porId[id]?.price || 0,
+    tipo: porId[id]?.tipo,
   }));
   const subtotal = lineas.reduce((s, l) => s + l.price * l.qty, 0);
   const descNum = parseInt(descuento) || 0;
