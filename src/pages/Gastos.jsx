@@ -4,8 +4,8 @@ import { suscribirConfig } from '../lib/config';
 import { registrarGasto, anularGasto, comisionDeHoy, gastosDeHoy, esNomina } from '../lib/gastos';
 import { imprimirComprobantePago } from '../lib/imprimir';
 
-const CATEGORIAS_TODOS = ['Sueldo', 'Recibos', 'Otro'];
-const CATEGORIAS_NELSON = ['Sueldo', 'Socios', 'Recibos', 'Otro'];
+const CATEGORIAS_TODOS = ['Comisión', 'Sueldo', 'Recibos', 'Otro'];
+const CATEGORIAS_NELSON = ['Comisión', 'Sueldo', 'Socios', 'Recibos', 'Otro'];
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local'];
 
 function fmt(n) {
@@ -33,7 +33,8 @@ export default function Gastos({ usuario }) {
     cargarLista();
   }, []);
 
-  // La comisión del día se calcula sola, en vivo — nadie la escribe a mano.
+  // Ya no se registra sola: esto es solo el cálculo sugerido, para que quien la
+  // registre a mano sepa cuánto poner.
   useEffect(() => {
     if (config) comisionDeHoy(config).then(setComisionHoy);
   }, [config, lista]);
@@ -120,9 +121,7 @@ export default function Gastos({ usuario }) {
     }
   }
 
-  const totalGastosReales = (lista || []).filter((g) => !g.anulado).reduce((s, g) => s + g.monto, 0);
-  const comisionMonto = comisionHoy && comisionHoy.aplica ? comisionHoy.total : 0;
-  const totalHoy = totalGastosReales + comisionMonto;
+  const totalHoy = (lista || []).filter((g) => !g.anulado).reduce((s, g) => s + g.monto, 0);
 
   return (
     <div className="sale-grid">
@@ -131,23 +130,9 @@ export default function Gastos({ usuario }) {
           Gastos de hoy <span className="side">{totalHoy > 0 ? fmt(totalHoy) : ''}</span>
         </h2>
 
-        {comisionMonto > 0 && (
-          <div className="gasto-item">
-            <div>
-              <div className="gasto-nombre">
-                Comisión <span style={{ fontSize: 11, color: 'var(--cian-fuerte)', fontWeight: 800, marginLeft: 4 }}>AUTOMÁTICA</span>
-              </div>
-              <div className="gasto-sub">
-                {comisionHoy.prendas} prendas vendidas hoy · se la reparten Blanca y Sofía, sale sola de la caja
-              </div>
-            </div>
-            <span className="gasto-monto">{fmt(comisionMonto)}</span>
-          </div>
-        )}
-
         {!lista ? (
           <div className="empty-lines">Cargando…</div>
-        ) : lista.length === 0 && comisionMonto === 0 ? (
+        ) : lista.length === 0 ? (
           <div className="empty-lines">Todavía no hay gastos hoy.</div>
         ) : (
           <>
@@ -173,7 +158,7 @@ export default function Gastos({ usuario }) {
                 </div>
               </div>
             ))}
-            {(lista.length > 0 || comisionMonto > 0) && (
+            {lista.length > 0 && (
               <div className="gasto-item" style={{ borderBottom: 'none', paddingTop: 12 }}>
                 <div className="gasto-nombre">Total del día</div>
                 <span className="gasto-monto" style={{ fontSize: 22 }}>{fmt(totalHoy)}</span>
@@ -215,6 +200,25 @@ export default function Gastos({ usuario }) {
 
           {cat && (
             <>
+              {cat === 'Comisión' && comisionHoy && (
+                <div className="hint" style={{ marginTop: -6, marginBottom: 12 }}>
+                  {comisionHoy.aplica ? (
+                    <>
+                      Sugerido: <b>{fmt(comisionHoy.total)}</b> por {comisionHoy.prendas} prendas vendidas hoy (se reparte entre Blanca y Sofía).{' '}
+                      <button
+                        type="button"
+                        className="link-toggle"
+                        onClick={() => setMonto(String(comisionHoy.total))}
+                      >
+                        usar este valor
+                      </button>
+                    </>
+                  ) : (
+                    <>Con {comisionHoy.prendas} prendas vendidas hoy todavía no se alcanza el mínimo para comisión.</>
+                  )}
+                </div>
+              )}
+
               {nomina && (
                 <>
                   <div className="paso">
