@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
   query,
   where,
   getDocs,
@@ -115,8 +116,13 @@ export async function resumenDia(fecha, config, opciones = {}) {
 
   const efectivoAEntregar = netoPorMedio['Efectivo'] || 0;
 
+  // Lo que entró en total ese día, sumando todos los medios de pago — ventas más lo
+  // que se cobró de diferencia en cambios, sin restar todavía gastos ni comisión.
+  const totalVendido = MEDIOS.reduce((s, m) => s + (porPago[m] || 0), 0);
+
   return {
     porPago,
+    totalVendido,
     gastosMedio,
     comprasMedio,
     comprasLista,
@@ -157,6 +163,22 @@ export async function registrarCierre({ usuario, esperado, contado, obs, resumen
     creadoEn: serverTimestamp(),
   });
   return { fecha, diferencia };
+}
+
+// Observaciones libres del día (una nota por fecha, se puede corregir). Un solo
+// documento por fecha — la usa cualquiera autenticado, no es un dato financiero.
+export async function leerObservacion(fecha) {
+  const snap = await getDoc(doc(db, 'observacionesCierre', fecha));
+  return snap.exists() ? snap.data().texto || '' : '';
+}
+
+export async function guardarObservacion(fecha, texto, usuario) {
+  await setDoc(doc(db, 'observacionesCierre', fecha), {
+    fecha,
+    texto,
+    actualizadoPor: usuario.nombreDefault,
+    actualizadoEn: serverTimestamp(),
+  });
 }
 
 export { hoyStr, ahoraStr, MEDIOS };
