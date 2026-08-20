@@ -92,7 +92,7 @@ export default function Vender({ usuario }) {
   async function actualizarEfectivoCaja() {
     if (!config) return;
     try {
-      const r = await resumenDia(hoyStr(), config, { restarComisionDeEfectivo: false });
+      const r = await resumenDia(hoyStr());
       setEfectivoCaja(r.efectivoAEntregar);
     } catch (e) {
       // Si falla, se deja de mostrar en vez de mostrar un dato viejo o incorrecto.
