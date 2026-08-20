@@ -60,11 +60,14 @@ export function imprimirTicketVenta(venta) {
   const area = document.getElementById('print-area');
   if (!area) return;
   const lineas = venta.lineas
-    .map(
-      (l) => `
-      <div class="pt-line"><span>${l.name}</span><span>${fmt(l.price * l.qty)}</span></div>
-      <div class="pt-small">&nbsp;&nbsp;${l.qty} × ${fmt(l.price)}</div>`
-    )
+    .map((l) => {
+      // Las prendas "por precio" no tienen nombre propio (su "nombre" es el precio,
+      // ej. "$15.000"), así que en el ticket se describen de forma genérica.
+      const nombre = l.tipo === 'precio' ? `Prenda de vestir REF $${l.price}` : l.name;
+      return `
+      <div class="pt-line"><span>${nombre}</span><span>${fmt(l.price * l.qty)}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;${l.qty} × ${fmt(l.price)}</div>`;
+    })
     .join('');
   const pagosHTML = Object.entries(venta.pagos || {})
     .map(([m, monto]) => `<div class="pt-line"><span>${m}</span><span>${fmt(monto)}</span></div>`)
