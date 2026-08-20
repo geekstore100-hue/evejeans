@@ -421,11 +421,12 @@ export default function Vender({ usuario }) {
           Prendas
           <span className="side">
             {efectivoCaja !== null && (
-              <span style={{ color: 'var(--cian-fuerte)', marginRight: 10 }}>
-                Caja: {fmt(efectivoCaja)}
-              </span>
+              <span style={{ color: 'var(--cian-fuerte)' }}>Caja: {fmt(efectivoCaja)}</span>
             )}
-            {inventario.reduce((s, i) => s + (i.stock || 0), 0)} en total
+            <span style={{ color: 'var(--ink-soft)', fontWeight: 600, margin: '0 8px' }}>·</span>
+            <span style={{ color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13 }}>
+              {inventario.reduce((s, i) => s + (i.stock || 0), 0)} prendas en stock
+            </span>
           </span>
         </h2>
         <CuadroBusqueda
