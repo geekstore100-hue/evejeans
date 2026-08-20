@@ -9,13 +9,6 @@ function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
-function sumarDias(fechaStr, delta) {
-  const [y, m, d] = fechaStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + delta);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-}
-
 function fechaBonita(fechaStr) {
   const [y, m, d] = fechaStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
@@ -23,16 +16,13 @@ function fechaBonita(fechaStr) {
 }
 
 function medioDePago(v) {
-  if (v.tipo === 'venta') {
-    if (v.pagoLabel === 'Combinado' && v.pagos) {
-      return Object.entries(v.pagos)
-        .filter(([, monto]) => monto > 0)
-        .map(([medio, monto]) => `${medio} ${fmt(monto)}`)
-        .join(' + ');
-    }
-    return v.pagoLabel || '—';
+  if (v.pagoLabel === 'Combinado' && v.pagos) {
+    return Object.entries(v.pagos)
+      .filter(([, monto]) => monto > 0)
+      .map(([medio, monto]) => `${medio} ${fmt(monto)}`)
+      .join(' + ');
   }
-  return v.pago || '—';
+  return v.pagoLabel || '—';
 }
 
 // "02:32 p. m." -> 872 (minutos desde medianoche), para poder ordenar por hora real
@@ -76,7 +66,9 @@ export default function Movimientos({ usuario }) {
 
   async function cargar() {
     setLista(null);
-    setLista(await ventasPorFecha(fecha));
+    // Los cambios ya no se listan aquí — se ven en Cierre del día.
+    const todas = await ventasPorFecha(fecha);
+    setLista(todas.filter((v) => v.tipo === 'venta'));
   }
 
   const esHoy = fecha === hoyStr();
@@ -99,7 +91,7 @@ export default function Movimientos({ usuario }) {
   }, [lista, orden]);
 
   async function onAnular(v) {
-    const etiqueta = v.tipo === 'venta' ? `la venta N.º ${v.num}` : `el cambio N.º ${v.num}`;
+    const etiqueta = `la venta N.º ${v.num}`;
     const motivo = window.prompt(`¿Por qué se anula ${etiqueta}?`);
     if (!motivo || !motivo.trim()) return;
     try {
@@ -119,9 +111,6 @@ export default function Movimientos({ usuario }) {
             {esHoy ? 'Historial de hoy' : `Historial · ${fechaBonita(fecha)}`}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="btn ghost sm" onClick={() => setFecha((f) => sumarDias(f, -1))}>
-              ← Anterior
-            </button>
             <input
               type="date"
               value={fecha}
@@ -133,9 +122,6 @@ export default function Movimientos({ usuario }) {
                 Hoy
               </button>
             )}
-            <button className="btn ghost sm" disabled={esHoy} onClick={() => setFecha((f) => sumarDias(f, 1))}>
-              Siguiente →
-            </button>
           </div>
         </div>
         {!lista ? (
@@ -149,14 +135,19 @@ export default function Movimientos({ usuario }) {
                 <th className="num">N.º</th>
                 <th>
                   <button className="th-sort" onClick={() => ordenarPor('hora')}>
-                    Hora{orden.campo === 'hora' && (orden.dir === 'asc' ? ' ▲' : ' ▼')}
+                    Hora{' '}
+                    <span className="th-sort-icon">
+                      {orden.campo === 'hora' ? (orden.dir === 'asc' ? '▲' : '▼') : '⇅'}
+                    </span>
                   </button>
                 </th>
-                <th>Tipo</th>
                 <th>Detalle</th>
                 <th>
                   <button className="th-sort" onClick={() => ordenarPor('pago')}>
-                    Medio de pago{orden.campo === 'pago' && (orden.dir === 'asc' ? ' ▲' : ' ▼')}
+                    Medio de pago{' '}
+                    <span className="th-sort-icon">
+                      {orden.campo === 'pago' ? (orden.dir === 'asc' ? '▲' : '▼') : '⇅'}
+                    </span>
                   </button>
                 </th>
                 <th>Quién</th>
@@ -170,13 +161,16 @@ export default function Movimientos({ usuario }) {
                   <td className="num">{v.num}</td>
                   <td>{v.hora}</td>
                   <td>
-                    <span className={`pill ${v.tipo}`}>{v.tipo}</span>
-                    {v.anulada && <span className="pill anul" style={{ marginLeft: 4 }}>anulada</span>}
-                  </td>
-                  <td>
-                    {v.tipo === 'venta'
-                      ? v.items.map((i) => `${i.name}×${i.qty}`).join(', ') + (v.descuento ? ` · desc ${fmt(v.descuento)}` : '')
-                      : `sobre N.º ${v.ventaOrig || '—'} · devuelve ${v.devuelve.map((d) => d.name).join(', ')} → lleva ${v.lleva.map((d) => d.name).join(', ')}`}
+                    {v.anulada && (
+                      <span
+                        className="pill anul"
+                        style={{ marginRight: 6, cursor: 'help' }}
+                        title={`Motivo: ${v.motivoAnulacion || '—'}${v.anuladaPor ? ` · anuló: ${v.anuladaPor}` : ''}`}
+                      >
+                        anulada
+                      </span>
+                    )}
+                    {v.items.map((i) => `${i.name}×${i.qty}`).join(', ') + (v.descuento ? ` · desc ${fmt(v.descuento)}` : '')}
                   </td>
                   <td className="dim">{medioDePago(v)}</td>
                   <td>{v.usuarioNombre}</td>
