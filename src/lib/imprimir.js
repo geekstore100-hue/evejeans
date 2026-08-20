@@ -48,6 +48,7 @@ export function imprimirComprobantePago(gasto) {
 
 function encabezadoTicket(num, fecha, hora, usuarioNombre) {
   return `
+    <img src="/logo.png" alt="Eve Jeans" class="pt-logo" />
     <div class="pt-center pt-big">EVE JEANS</div>
     <div class="pt-rule"></div>
     <div class="pt-line"><span>N.º</span><span><b>${num}</b></span></div>
