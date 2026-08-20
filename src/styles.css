@@ -319,11 +319,11 @@ td.dim { color: var(--ink-soft); font-size: 12.5px; }
   letter-spacing: inherit; color: inherit; cursor: pointer; white-space: nowrap;
 }
 .th-sort:hover { color: var(--rosa-fuerte); }
+.th-sort-icon { color: var(--ink-soft); font-size: 10px; }
+.th-sort:hover .th-sort-icon { color: var(--rosa-fuerte); }
 
 .pill {
   display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase;
   letter-spacing: .03em; padding: 3px 8px; border-radius: 20px; white-space: nowrap;
 }
-.pill.venta { background: var(--cian-suave); color: var(--cian-fuerte); }
-.pill.cambio { background: var(--rosa-suave); color: var(--rosa-fuerte); }
 .pill.anul { background: var(--danger-soft); color: var(--danger); }
