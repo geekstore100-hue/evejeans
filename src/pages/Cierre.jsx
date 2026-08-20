@@ -50,7 +50,7 @@ export default function Cierre({ usuario }) {
     if (!config) return;
     try {
       setResumen(null);
-      const r = await resumenDia(fecha, config);
+      const r = await resumenDia(fecha);
       setResumen(r);
     } catch (e) {
       setErrorCarga('No se pudo cargar el resumen del día: ' + e.message);
@@ -187,31 +187,20 @@ export default function Cierre({ usuario }) {
           </div>
           {verGastos && (
             <div className="detalle-anidado">
-              {resumen.gastosLista.length === 0 && resumen.comisionMonto === 0 ? (
+              {resumen.gastosLista.length === 0 ? (
                 <div className="empty-lines">{esHoy ? 'Ningún gasto hoy.' : 'Ningún gasto ese día.'}</div>
               ) : (
-                <>
-                  {resumen.gastosLista.map((g) => (
-                    <div key={g.id} className="detalle-item">
-                      <div className="detalle-item-top">
-                        <span className="detalle-item-titulo">
-                          {g.categoria}{g.quien ? ` · ${g.quien}` : ''}
-                        </span>
-                        <span className="detalle-item-monto">{fmt(g.monto)}</span>
-                      </div>
-                      <div className="detalle-item-sub">{g.hora} · {g.origen}</div>
+                resumen.gastosLista.map((g) => (
+                  <div key={g.id} className="detalle-item">
+                    <div className="detalle-item-top">
+                      <span className="detalle-item-titulo">
+                        {g.categoria}{g.quien ? ` · ${g.quien}` : ''}
+                      </span>
+                      <span className="detalle-item-monto">{fmt(g.monto)}</span>
                     </div>
-                  ))}
-                  {resumen.comisionMonto > 0 && (
-                    <div className="detalle-item">
-                      <div className="detalle-item-top">
-                        <span className="detalle-item-titulo">Comisión</span>
-                        <span className="detalle-item-monto">{fmt(resumen.comisionMonto)}</span>
-                      </div>
-                      <div className="detalle-item-sub">{resumen.comision.prendas} prendas · automática</div>
-                    </div>
-                  )}
-                </>
+                    <div className="detalle-item-sub">{g.hora} · {g.origen}</div>
+                  </div>
+                ))
               )}
             </div>
           )}
