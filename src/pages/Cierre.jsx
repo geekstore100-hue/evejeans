@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { resumenDia, hoyStr } from '../lib/cierre';
+import { resumenDia, hoyStr, leerObservacion, guardarObservacion } from '../lib/cierre';
 import { suscribirConfig } from '../lib/config';
 
 function fmt(n) {
@@ -20,6 +20,9 @@ export default function Cierre({ usuario }) {
   const [verCambios, setVerCambios] = useState(false);
   const [verGastos, setVerGastos] = useState(false);
   const [verCompras, setVerCompras] = useState(false);
+  const [obs, setObs] = useState('');
+  const [obsGuardada, setObsGuardada] = useState('');
+  const [guardandoObs, setGuardandoObs] = useState(false);
 
   useEffect(
     () =>
@@ -34,6 +37,13 @@ export default function Cierre({ usuario }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, fecha]);
 
+  useEffect(() => {
+    leerObservacion(fecha).then((t) => {
+      setObs(t);
+      setObsGuardada(t);
+    });
+  }, [fecha]);
+
   const esHoy = fecha === hoyStr();
 
   async function cargar() {
@@ -46,6 +56,21 @@ export default function Cierre({ usuario }) {
       setErrorCarga('No se pudo cargar el resumen del día: ' + e.message);
     }
   }
+
+  async function guardarObs() {
+    setGuardandoObs(true);
+    try {
+      const texto = obs.trim();
+      await guardarObservacion(fecha, texto, usuario);
+      setObs(texto);
+      setObsGuardada(texto);
+    } catch (e) {
+      alert('No se pudo guardar la observación: ' + e.message);
+    } finally {
+      setGuardandoObs(false);
+    }
+  }
+  const obsSinGuardar = obs !== obsGuardada;
 
   if (errorCarga) {
     return (
@@ -86,12 +111,12 @@ export default function Cierre({ usuario }) {
         {resumen.prendas.length === 0 ? (
           <div className="empty-lines">Todavía no hay nada.</div>
         ) : (
-          <table>
+          <table style={{ width: 'auto' }}>
             <tbody>
               {resumen.prendas.map((p) => (
                 <tr key={p.name}>
                   <td style={{ fontWeight: 700, fontSize: 16, padding: '7px 0', borderBottom: '1px solid var(--line)' }}>{p.name}</td>
-                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 18, fontWeight: 800, padding: '7px 0', borderBottom: '1px solid var(--line)' }}>
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontSize: 18, fontWeight: 800, padding: '7px 14px', borderBottom: '1px solid var(--line)' }}>
                     {p.qty}
                   </td>
                 </tr>
@@ -139,6 +164,11 @@ export default function Cierre({ usuario }) {
       <div className="ticket">
         <div className="card">
           <h2>Resumen del día</h2>
+
+          <div className="kv" style={{ fontWeight: 800, fontSize: 16 }}>
+            <span>Total vendido</span>
+            <span className="v">{fmt(resumen.totalVendido)}</span>
+          </div>
 
           <div className="kv">
             <span>Descuentos dados</span>
@@ -257,6 +287,29 @@ export default function Cierre({ usuario }) {
             <span className="v" style={{ fontSize: 22 }}>{fmt(resumen.efectivoAEntregar)}</span>
           </div>
           <div className="hint" style={{ fontSize: 12 }}>Ventas en efectivo menos los gastos y compras que salieron de la caja.</div>
+        </div>
+
+        <div className="card" style={{ marginTop: 12 }}>
+          <h2>Observaciones{esHoy ? '' : ` · ${fechaBonita(fecha)}`}</h2>
+          <textarea
+            value={obs}
+            onChange={(e) => setObs(e.target.value)}
+            placeholder="Anota algo sobre este día (ej. un faltante, un cliente, algo raro en caja)…"
+            rows={3}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            <button
+              className="btn ghost sm"
+              style={{ width: 'auto' }}
+              disabled={!obsSinGuardar || guardandoObs}
+              onClick={guardarObs}
+            >
+              {guardandoObs ? 'Guardando…' : 'Guardar'}
+            </button>
+            {!obsSinGuardar && obsGuardada && (
+              <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Guardado</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
