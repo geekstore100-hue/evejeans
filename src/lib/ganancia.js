@@ -47,7 +47,6 @@ export async function calcularGanancia(desde, hasta, config) {
   let costoMercancia = 0;
   let unidadesVendidas = 0;
   let descuentos = 0;
-  const porDia = {}; // fecha -> {prendas, valorComision}
 
   snapVentas.docs.forEach((d) => {
     const v = d.data();
@@ -60,28 +59,13 @@ export async function calcularGanancia(desde, hasta, config) {
       // respaldo, se usa el costo actual (puede no ser exacto para esas ventas puntuales).
       const costoUsado = i.costoCompra !== undefined ? i.costoCompra : (costoPorId[i.id] || 0);
       costoMercancia += costoUsado * i.qty;
-
-      porDia[v.fecha] = porDia[v.fecha] || { prendas: 0, valorComision: 0 };
-      porDia[v.fecha].prendas += i.qty;
-      const valorRef =
-        config.comisionPorRef && config.comisionPorRef[i.id] !== undefined
-          ? config.comisionPorRef[i.id]
-          : config.comisionValor;
-      porDia[v.fecha].valorComision += valorRef * i.qty;
     });
-  });
-
-  let comisionTotal = 0;
-  let diasConComision = 0;
-  Object.values(porDia).forEach((d) => {
-    if (d.prendas >= config.comisionMinimo) {
-      comisionTotal += d.valorComision;
-      diasConComision++;
-    }
   });
 
   const gananciaBruta = ingresos - costoMercancia;
 
+  // La comisión ya no se calcula aparte: ahora las vendedoras la registran ellas mismas
+  // como un gasto más (categoría "Comisión"), así que ya viene incluida aquí abajo.
   const qGastos = query(
     collection(db, 'gastos'),
     where('fecha', '>=', desde),
@@ -102,8 +86,7 @@ export async function calcularGanancia(desde, hasta, config) {
     }
   });
 
-  const gastosTotalesConComision = gastosAdmin + comisionTotal;
-  const gananciaNeta = gananciaBruta - gastosTotalesConComision;
+  const gananciaNeta = gananciaBruta - gastosAdmin;
 
   return {
     ingresos,
@@ -113,9 +96,6 @@ export async function calcularGanancia(desde, hasta, config) {
     gananciaBruta,
     gastosAdmin,
     gastosPorCategoria,
-    comisionTotal,
-    diasConComision,
-    gastosTotalesConComision,
     gananciaNeta,
     retirosSocios,
   };
