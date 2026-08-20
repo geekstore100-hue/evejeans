@@ -9,7 +9,6 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { comisionDeHoy } from './gastos';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -29,8 +28,7 @@ function ahoraStr() {
   return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
-export async function resumenDia(fecha, config, opciones = {}) {
-  const { restarComisionDeEfectivo = true } = opciones;
+export async function resumenDia(fecha) {
   const qVentas = query(collection(db, 'ventas'), where('fecha', '==', fecha), where('anulada', '==', false));
   const snapVentas = await getDocs(qVentas);
 
@@ -68,11 +66,11 @@ export async function resumenDia(fecha, config, opciones = {}) {
   const snapGastos = await getDocs(qGastos);
   const gastosMedio = {};
   const gastosLista = [];
-  let gastosTotReal = 0; // solo lo que ya quedó registrado como gasto real
+  let gastosTot = 0;
   snapGastos.docs.forEach((d) => {
     const g = d.data();
     gastosLista.push({ id: d.id, ...g });
-    gastosTotReal += g.monto;
+    gastosTot += g.monto;
     const medio = ORIGEN_A_MEDIO[g.origen];
     if (medio) gastosMedio[medio] = (gastosMedio[medio] || 0) + g.monto;
   });
@@ -101,19 +99,6 @@ export async function resumenDia(fecha, config, opciones = {}) {
   });
   comprasLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
 
-  const comision = config ? await comisionDeHoy(config, fecha) : null;
-  const comisionMonto = comision && comision.aplica ? comision.total : 0;
-
-  // La comisión se toma en efectivo, pero solo se saca físicamente de la caja al
-  // cierre del día — durante el día ese dinero todavía está ahí. Por eso el chequeo
-  // en vivo (Vender) no la resta, y el cierre del día sí.
-  if (restarComisionDeEfectivo) {
-    netoPorMedio['Efectivo'] = (netoPorMedio['Efectivo'] || 0) - comisionMonto;
-  }
-
-  // "Gastos del día" que se ve en pantalla: lo ya registrado + la comisión automática.
-  const gastosTot = gastosTotReal + comisionMonto;
-
   const efectivoAEntregar = netoPorMedio['Efectivo'] || 0;
 
   // Lo que entró en total ese día, sumando todos los medios de pago — ventas más lo
@@ -131,8 +116,6 @@ export async function resumenDia(fecha, config, opciones = {}) {
     descuentos,
     gastosTot,
     gastosLista,
-    comision,
-    comisionMonto,
     prendas,
     cambiosLista,
     efectivoAEntregar,
