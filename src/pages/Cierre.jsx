@@ -6,13 +6,6 @@ function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
-function sumarDias(fechaStr, delta) {
-  const [y, m, d] = fechaStr.split('-').map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + delta);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-}
-
 function fechaBonita(fechaStr) {
   const [y, m, d] = fechaStr.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
@@ -77,9 +70,6 @@ export default function Cierre({ usuario }) {
             Prendas vendidas {esHoy ? 'hoy' : `· ${fechaBonita(fecha)}`} ({resumen.prendas.reduce((s, p) => s + p.qty, 0)})
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="btn ghost sm" onClick={() => setFecha((f) => sumarDias(f, -1))}>
-              ← Anterior
-            </button>
             <input
               type="date"
               value={fecha}
@@ -91,9 +81,6 @@ export default function Cierre({ usuario }) {
                 Hoy
               </button>
             )}
-            <button className="btn ghost sm" disabled={esHoy} onClick={() => setFecha((f) => sumarDias(f, 1))}>
-              Siguiente →
-            </button>
           </div>
         </div>
         {resumen.prendas.length === 0 ? (
