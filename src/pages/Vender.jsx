@@ -264,9 +264,11 @@ export default function Vender({ usuario }) {
     if (textoConfirma.trim().toUpperCase() !== 'REINICIAR') return;
     setReiniciando(true);
     try {
-      const { nVentasBorradas } = await reiniciarParaProduccion();
+      await reiniciarParaProduccion();
       alert(
-        `Listo. Se borraron ${nVentasBorradas} ventas de prueba, el stock quedó en 0 en todas las referencias, y la próxima venta real será la N.º 1.\n\nAhora carga el conteo físico real, referencia por referencia, en Firestore.`
+        'Listo. El stock quedó en 0 en todas las referencias, y la próxima venta y el próximo pago de nómina van a empezar en el N.º 1.\n\n' +
+          'Esto NO borró los datos de prueba (ventas, cambios, gastos, compras, conteos...) — eso no se puede hacer desde la app a propósito. Hazlo aparte, una sola vez, desde Firebase Console: Firestore Database → esa colección → los tres puntos junto al nombre → "Eliminar colección".\n\n' +
+          'Después de eso, carga el conteo físico real, referencia por referencia, en Firestore.'
       );
       setConfirmandoReinicio(false);
       setTextoConfirma('');
@@ -380,9 +382,18 @@ export default function Vender({ usuario }) {
           ) : (
             <div>
               <p style={{ fontSize: 13, margin: '0 0 8px' }}>
-                Esto <b>borra todas las ventas</b> que haya hasta ahora, pone el{' '}
-                <b>stock de todo en 0</b> y reinicia el consecutivo. No se puede deshacer.
-                Escribe <b>REINICIAR</b> para confirmar.
+                Esto pone el <b>stock de todo en 0</b> y reinicia los consecutivos (ventas y
+                pagos de nómina), para que lo próximo real empiece en el N.º 1. No se puede
+                deshacer. Escribe <b>REINICIAR</b> para confirmar.
+              </p>
+              <p style={{ fontSize: 12, color: 'var(--ink-soft)', margin: '0 0 8px' }}>
+                Esto no borra los datos de prueba — eso hay que hacerlo aparte, una sola vez,
+                desde Firebase Console (Firestore Database → la colección → los tres puntos →
+                "Eliminar colección"), en las que tengan datos de prueba: ventas, gastos,
+                compras, conteos, y si quieres también ajustesInventario y
+                observacionesCierre. Puedes hacerlo antes o después de este paso — pero{' '}
+                <b>no</b> toques "inventario" (ya lo resetea este botón) ni "config" (ahí vive
+                la configuración y el bloqueo de pánico).
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
