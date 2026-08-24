@@ -16,9 +16,20 @@ import { guardarSinBloquear } from './offlineWrite';
 const REF = doc(db, 'config', 'panico');
 
 export function escucharPanico(callback) {
-  return onSnapshot(REF, (snap) => {
-    callback(snap.exists() && snap.data().activo === true);
-  });
+  return onSnapshot(
+    REF,
+    (snap) => {
+      callback(snap.exists() && snap.data().activo === true);
+    },
+    () => {
+      // Si por lo que sea no se pudo leer (ej. las reglas de Firestore no se han
+      // publicado todavía), no se deja a todo el mundo pegado en "Cargando…" para
+      // siempre: se asume que no hay bloqueo, para no tumbar la app entera por un
+      // problema aparte. El botón de pánico igual sigue funcionando en cuanto la
+      // lectura vuelva a funcionar.
+      callback(false);
+    }
+  );
 }
 
 // Solo Nelson puede activarlo o desactivarlo (las reglas de Firestore ya lo exigen:
