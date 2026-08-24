@@ -3,13 +3,16 @@ import {
   collection,
   setDoc,
   updateDoc,
-  runTransaction,
+  writeBatch,
+  increment,
+  getDoc,
   serverTimestamp,
   query,
   where,
   getDocs,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { guardarSinBloquear } from './offlineWrite';
 
 function hoyStr() {
   const d = new Date();
@@ -47,20 +50,27 @@ export async function registrarGasto({ usuario, categoria, quien, periodo, monto
   };
 
   if (!nomina) {
-    await setDoc(gastoRef, { ...base, consecutivoPago: null });
+    await guardarSinBloquear(setDoc(gastoRef, { ...base, consecutivoPago: null }), {
+      contexto: 'gasto',
+    });
     return { id: gastoRef.id, consecutivoPago: null, fecha, hora };
   }
 
+  // Sin runTransaction, igual que en ventas.js: así funciona sin internet. El
+  // consecutivo real se lleva con increment(), el número que se muestra en el
+  // comprobante se calcula con el último dato que tiene el computador.
   const contadorRef = doc(db, 'contadores', 'pagos');
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(contadorRef);
-    const ultimo = snap.exists() ? snap.data().ultimo || 0 : 0;
-    const num = ultimo + 1;
-    if (snap.exists()) tx.update(contadorRef, { ultimo: num });
-    else tx.set(contadorRef, { ultimo: num });
-    tx.set(gastoRef, { ...base, consecutivoPago: num });
-    return { id: gastoRef.id, consecutivoPago: num, fecha, hora, ...base };
-  });
+  const snap = await getDoc(contadorRef);
+  const ultimo = snap.exists() ? snap.data().ultimo || 0 : 0;
+  const num = ultimo + 1;
+
+  const batch = writeBatch(db);
+  if (snap.exists()) batch.update(contadorRef, { ultimo: increment(1) });
+  else batch.set(contadorRef, { ultimo: num });
+  batch.set(gastoRef, { ...base, consecutivoPago: num });
+  await guardarSinBloquear(batch.commit(), { contexto: `pago #${num}` });
+
+  return { id: gastoRef.id, consecutivoPago: num, fecha, hora, ...base };
 }
 
 export async function anularGasto(id, motivo, usuario) {
