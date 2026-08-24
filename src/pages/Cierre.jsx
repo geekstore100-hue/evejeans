@@ -129,6 +129,11 @@ export default function Cierre({ usuario }) {
           <span>Cambios</span>
           <span className="v">{resumen.cambiosLista.length}</span>
         </div>
+        {resumen.cambiosLista.length > 0 && (
+          <div className="hint" style={{ fontSize: 12, marginTop: -4, marginBottom: 8 }}>
+            Esto se anota en el Excel en la columna E/S de cada referencia: la entrada suma, la salida se escribe en negativo.
+          </div>
+        )}
         <div className="detalle-anidado">
           {resumen.cambiosLista.length === 0 ? (
             <div className="empty-lines">{esHoy ? 'Ningún cambio hoy.' : 'Ningún cambio ese día.'}</div>
@@ -142,10 +147,10 @@ export default function Cierre({ usuario }) {
                   </span>
                 </div>
                 <div className="detalle-item-sub">
-                  devuelve: {c.devuelve.map((d) => `${d.name} ×${d.qty}`).join(', ')}
+                  devuelve (Entrada): {c.devuelve.map((d) => `${d.name} ×${d.qty}`).join(', ')}
                 </div>
                 <div className="detalle-item-sub">
-                  lleva: {c.lleva.map((d) => `${d.name} ×${d.qty}`).join(', ')}
+                  lleva (Salida): {c.lleva.map((d) => `${d.name} ×${d.qty}`).join(', ')}
                 </div>
               </div>
             ))
