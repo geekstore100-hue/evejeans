@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { escucharSesion, salir, idDesdeEmail } from './lib/auth';
+import { escucharPanico, activarPanico, desactivarPanico } from './lib/panico';
 import { USUARIOS_BASE } from './lib/usuarios';
 import Gate from './pages/Gate';
 import Vender from './pages/Vender';
@@ -21,6 +22,7 @@ export default function App() {
   // quién está en el turno, en vez de seguir con la última vendedora que entró.
   const [vendedoraElegida, setVendedoraElegida] = useState(null);
   const [vista, setVista] = useState('vender');
+  const [panicoActivo, setPanicoActivo] = useState(false);
 
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
@@ -29,6 +31,21 @@ export default function App() {
     });
     return quitar;
   }, []);
+
+  // Botón de pánico: mientras haya una sesión abierta se revisa todo el tiempo si
+  // Nelson lo activó. Si es así, se cierra de inmediato la sesión de la cuenta
+  // compartida de las vendedoras (el computador de la tienda), sin importar en qué
+  // pantalla esté — y no la deja volver a entrar mientras siga activo. La sesión de
+  // Nelson NO se cierra: así puede activarlo y desactivarlo desde su propia cuenta
+  // (normalmente desde otro dispositivo) sin quedar trabado él mismo.
+  useEffect(() => {
+    if (!authId) return;
+    const quitar = escucharPanico((activo) => {
+      setPanicoActivo(activo);
+      if (activo && authId !== 'nelson') salir();
+    });
+    return quitar;
+  }, [authId]);
 
   function elegirVendedora(u) {
     setVendedoraElegida(u);
@@ -70,6 +87,36 @@ export default function App() {
         <button className="link-btn" onClick={cambiarDeTurno}>
           Cambiar de turno
         </button>
+        {usuario.id === 'nelson' &&
+          (panicoActivo ? (
+            <button
+              className="link-btn"
+              style={{ color: 'var(--ok)' }}
+              onClick={async () => {
+                const ok = window.confirm(
+                  'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
+                );
+                if (!ok) return;
+                await desactivarPanico(usuario);
+              }}
+            >
+              Desbloquear tienda
+            </button>
+          ) : (
+            <button
+              className="link-btn"
+              style={{ color: 'var(--danger)' }}
+              onClick={async () => {
+                const ok = window.confirm(
+                  'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
+                );
+                if (!ok) return;
+                await activarPanico(usuario);
+              }}
+            >
+              Bloquear tienda
+            </button>
+          ))}
       </div>
 
       <nav className="tabs">
