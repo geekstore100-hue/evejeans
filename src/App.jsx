@@ -23,6 +23,7 @@ export default function App() {
   const [vendedoraElegida, setVendedoraElegida] = useState(null);
   const [vista, setVista] = useState('vender');
   const [panicoActivo, setPanicoActivo] = useState(false);
+  const [panicoListo, setPanicoListo] = useState(false);
 
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
@@ -41,16 +42,17 @@ export default function App() {
     return quitar;
   }, []);
 
-  // Botón de pánico: mientras haya una sesión abierta se revisa todo el tiempo si
-  // Nelson lo activó. Si es así, se cierra de inmediato la sesión de la cuenta
-  // compartida de las vendedoras (el computador de la tienda), sin importar en qué
-  // pantalla esté — y no la deja volver a entrar mientras siga activo. La sesión de
-  // Nelson NO se cierra: así puede activarlo y desactivarlo desde su propia cuenta
-  // (normalmente desde otro dispositivo) sin quedar trabado él mismo.
+  // Botón de pánico: se revisa desde ANTES de que haya sesión (la regla de Firestore
+  // deja leer este dato puntual sin estar autenticado, a propósito), para poder
+  // dejar la pantalla bloqueada desde el principio si está activo — sin que se
+  // alcance a intentar entrar como la cuenta compartida ni se vea nada de la tienda.
+  // Si es Nelson quien está identificado, no se le bloquea ni se le cierra la
+  // sesión: así puede activarlo y desactivarlo desde su propia cuenta (normalmente
+  // desde otro dispositivo) sin quedar trabado él mismo.
   useEffect(() => {
-    if (!authId) return;
     const quitar = escucharPanico((activo) => {
       setPanicoActivo(activo);
+      setPanicoListo(true);
       if (activo && authId !== 'nelson') salir();
     });
     return quitar;
@@ -68,8 +70,14 @@ export default function App() {
     setVendedoraElegida(null);
   }
 
-  if (cargando) {
+  if (cargando || !panicoListo) {
     return <div className="loading">Cargando…</div>;
+  }
+
+  // Bloqueo activo y quien está (o todavía no está) identificado no es Nelson: no
+  // se muestra la tienda ni el selector de vendedoras, solo el PIN de Nelson.
+  if (panicoActivo && authId !== 'nelson') {
+    return <Gate onElegirVendedora={elegirVendedora} soloAdmin />;
   }
 
   // Nelson tiene su propia cuenta real: entra directo, sin elegir nombre.
