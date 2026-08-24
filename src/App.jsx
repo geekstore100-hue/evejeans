@@ -27,6 +27,15 @@ export default function App() {
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
       setAuthId(firebaseUser ? idDesdeEmail(firebaseUser.email) : null);
+      if (!firebaseUser) {
+        // La sesión de Firebase se cerró (cambio de turno normal, o el bloqueo de
+        // pánico forzándolo). "vendedoraElegida" es solo un nombre elegido en
+        // pantalla, no depende de Firebase, así que si no se limpia acá se queda
+        // pegado: la app seguiría mostrando la pantalla de siempre pero sin sesión
+        // real detrás, y cualquier lectura a Firestore saldría con "permiso
+        // denegado". Al ponerlo en null, vuelve a la pantalla de "¿quién eres?".
+        setVendedoraElegida(null);
+      }
       setCargando(false);
     });
     return quitar;
