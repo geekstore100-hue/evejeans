@@ -1,344 +1,284 @@
-:root {
-  --ink: #3d3548;
-  --ink-soft: #7d7189;
-  --paper: #fdf7fa;
-  --panel: #ffffff;
-  --line: #ecdfe8;
-
-  --rosa: #d4779e;
-  --rosa-fuerte: #c05f89;
-  --rosa-suave: #fce8f1;
-  --cian: #4fa8b8;
-  --cian-fuerte: #3d8b9a;
-  --cian-suave: #e0f4f7;
-
-  --danger: #c9718a;
-  --danger-soft: #fbe9ee;
-  --ok: #2f7d94;
-
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-* { box-sizing: border-box; }
-html, body, #root { height: 100%; margin: 0; }
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--sans);
-  -webkit-font-smoothing: antialiased;
-}
-button { font-family: inherit; cursor: pointer; }
-button:focus-visible, .tile:focus-visible, .chip:focus-visible {
-  outline: 3px solid var(--cian); outline-offset: 2px;
+function fmt(n) {
+  return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
-.loading {
-  height: 100vh; display: flex; align-items: center; justify-content: center;
-  color: var(--ink-soft); font-size: 15px;
+function copiaHTML(gasto, rotulo) {
+  return `
+    <div class="pt-center pt-small">${rotulo}</div>
+    <div class="pt-center pt-big">COMPROBANTE DE PAGO</div>
+    <div class="pt-center pt-small">Eve Jeans</div>
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>N.º</span><span><b>${gasto.consecutivoPago}</b></span></div>
+    <div class="pt-line"><span>Fecha</span><span>${gasto.fecha} ${gasto.hora}</span></div>
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>Recibe</span><span><b>${gasto.quien || ''}</b></span></div>
+    <div class="pt-line"><span>Concepto</span><span>${gasto.categoria}</span></div>
+    ${gasto.periodo ? `<div class="pt-line"><span>Período</span><span>${gasto.periodo}</span></div>` : ''}
+    <div class="pt-line"><span>Forma</span><span>${gasto.origen}</span></div>
+    ${gasto.desc ? `<div class="pt-small">${gasto.desc}</div>` : ''}
+    <div class="pt-rule"></div>
+    <div class="pt-line pt-total"><span>VALOR</span><span>${fmt(gasto.monto)}</span></div>
+    <div class="pt-rule"></div>
+    <div class="pt-small" style="margin-top:6px">
+      Declaro que recibí a satisfacción la suma indicada,
+      por el concepto y período señalados.
+    </div>
+    <div style="margin-top:26px;border-top:1px solid #000;padding-top:3px">
+      <div class="pt-center pt-small">Firma de quien recibe</div>
+    </div>
+    <div style="margin-top:6px" class="pt-small">C.C. ____________________</div>
+    <div style="margin-top:16px;border-top:1px solid #000;padding-top:3px">
+      <div class="pt-center pt-small">Firma de quien entrega</div>
+    </div>
+    <div class="pt-center pt-small" style="margin-top:8px">Registró: ${gasto.usuarioNombre}</div>`;
 }
 
-/* ---------- Gate / login ---------- */
-.gate {
-  position: fixed; inset: 0;
-  background: linear-gradient(160deg, #fce8f1 0%, #e0f4f7 100%);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-}
-.gate-box { max-width: 380px; width: 100%; }
-.gate-logo { width: 100%; max-width: 260px; height: auto; display: block; margin: 0 auto 14px; }
-.gate h1 { font-size: 24px; margin: 0 0 4px; color: var(--rosa-fuerte); }
-.gate p { color: var(--ink-soft); font-size: 14px; margin: 0 0 22px; }
-.gate-user {
-  width: 100%; text-align: left; padding: 16px; margin-bottom: 9px; font-size: 17px; font-weight: 700;
-  background: var(--panel); border: 2px solid var(--line); border-radius: 12px; color: var(--ink);
-}
-.gate-user:hover { border-color: var(--rosa); background: var(--rosa-suave); }
-.gate-user .r { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 3px; font-weight: 500; }
-.gate-admin-link {
-  width: 100%; text-align: center; padding: 12px; margin-top: 14px; background: none;
-  border: none; color: var(--ink-soft); font-size: 13px; text-decoration: underline;
-}
-.gate-admin-link:hover { color: var(--rosa-fuerte); }
-
-/* ---------- PIN pad ---------- */
-.pin-dots { display: flex; gap: 10px; justify-content: center; margin: 18px 0 22px; }
-.pin-dot {
-  width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--rosa);
-  background: transparent; display: inline-block;
-}
-.pin-dot.on { background: var(--rosa); }
-.pin-pad {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
-}
-.pin-key {
-  padding: 18px 0; font-size: 22px; font-weight: 800; border-radius: 12px;
-  border: 2px solid var(--line); background: var(--panel); color: var(--ink);
-}
-.pin-key:active { background: var(--rosa-suave); border-color: var(--rosa); }
-
-.btn {
-  width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 17px; font-weight: 800;
-  background: var(--rosa); color: #fff; margin-bottom: 6px;
-  box-shadow: 0 2px 6px rgba(212, 119, 158, .28);
-}
-.btn:disabled { opacity: .6; }
-.btn.ghost { background: none; border: 2px solid var(--line); color: var(--ink); box-shadow: none; }
-.btn.sm { padding: 9px 13px; font-size: 14px; }
-
-.msg { font-size: 15px; font-weight: 600; text-align: center; margin-top: 9px; min-height: 19px; color: var(--ink-soft); }
-.msg.bad { color: var(--danger); font-weight: 700; }
-.msg.good { color: var(--ok); }
-
-/* ---------- Barra superior ---------- */
-.topbar {
-  background: linear-gradient(100deg, var(--rosa) 0%, var(--cian) 100%); color: #fff;
-  padding: 8px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-}
-.brand { font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 8px; }
-.brand span { color: rgba(255,255,255,.75); font-weight: 400; }
-.brand-logo { height: 26px; width: auto; display: block; }
-.spacer { flex: 1; }
-.who { font-size: 14px; color: rgba(255,255,255,.9); }
-.who b { color: #fff; }
-.link-btn { background: none; border: none; color: #fff; font-size: 13px; text-decoration: underline; font-weight: 600; }
-
-/* ---------- Venta ---------- */
-main { padding: 8px; max-width: 1500px; margin: 0 auto; }
-.card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px;
-  box-shadow: 0 1px 3px rgba(212,119,158,.06);
-}
-.card h2 {
-  font-size: 16px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink);
-  margin: 0 0 8px; font-weight: 800;
-}
-.card h2 .side { float: right; text-transform: none; letter-spacing: 0; font-weight: 800; color: var(--rosa-fuerte); font-size: 15px; }
-
-.sale-grid { display: grid; grid-template-columns: 1fr 400px; gap: 8px; align-items: start; }
-
-/* ---------- Vender: panel de venta fijo a la derecha, ignorando la barra superior ---------- */
-.vender-shell { display: block; }
-@media (min-width: 641px) {
-  /* La barra superior, las pestañas y el contenido de la izquierda dejan libres
-     los 400px de la derecha, donde vive el panel de venta fijo. */
-  .con-panel-fijo .topbar,
-  .con-panel-fijo nav.tabs,
-  .con-panel-fijo > main {
-    margin-right: 400px;
-  }
-  .ticket.ticket-fijo-venta {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 400px;
-    height: 100vh;
-    overflow-y: auto;
-    padding: 10px;
-    background: var(--paper);
-    border-left: 1px solid var(--line);
-    z-index: 40;
-  }
-}
-@media (max-width: 640px) {
-  /* En pantallas angostas (celular) no hay espacio para un panel fijo: flujo normal. */
-  .vender-shell { display: flex; flex-direction: column; gap: 8px; }
-}
-@media (max-width: 1000px) { .sale-grid { grid-template-columns: 1fr; } }
-
-.cat-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-@media (max-width: 700px) { .cat-split { grid-template-columns: 1fr; } }
-.cat-split > div:first-child { padding-right: 12px; border-right: 1px solid var(--line); }
-.cat-split > div:last-child { padding-left: 12px; }
-@media (max-width: 700px) {
-  .cat-split > div:first-child { padding-right: 0; border-right: none; padding-bottom: 12px; }
-  .cat-split > div:last-child { padding-left: 0; border-top: 1px solid var(--line); padding-top: 12px; }
-}
-.split-label { font-size: 12px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 6px; }
-.tiles-scroll { max-height: 46vh; overflow-y: auto; padding-right: 2px; }
-
-.tile {
-  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
-  padding: 8px 9px; text-align: left; display: flex; flex-direction: column; gap: 4px;
-  transition: border-color .1s, background .1s;
-}
-.tile:hover:not(:disabled) { border-color: var(--rosa); background: #fbfdfd; }
-.tile:active:not(:disabled) { background: var(--rosa-suave); }
-.tile:disabled { opacity: .45; cursor: not-allowed; }
-.tile-sel {
-  border-color: var(--rosa) !important; background: var(--rosa-suave) !important;
-  box-shadow: 0 0 0 3px rgba(212,119,158,.35);
-}
-.tile-name { font-weight: 800; font-size: 21px; line-height: 1.1; }
-.tile-price { font-family: monospace; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-top: 2px; }
-.tile-stock { font-family: monospace; font-size: 16px; font-weight: 800; line-height: 1; display: flex; align-items: baseline; gap: 4px; }
-.tile-stock small { font-size: 9px; font-weight: 700; color: var(--ink-soft); letter-spacing: .04em; }
-.stock-ok { color: var(--ink); }
-.stock-low { color: #b8874a; }
-.stock-zero { color: var(--danger); }
-.tile-inbag { font-size: 13px; font-weight: 800; color: var(--cian-fuerte); background: var(--cian-suave); border-radius: 5px; padding: 3px 8px; align-self: flex-start; }
-
-.ticket { position: sticky; top: 0; }
-.lines { max-height: 220px; overflow-y: auto; margin-bottom: 8px; }
-.line { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 17px; font-weight: 700; }
-.line .qty { font-family: monospace; color: #fff; background: var(--cian); font-size: 15px; font-weight: 800; padding: 1px 7px; border-radius: 6px; margin-left: 6px; }
-.line .amt { font-family: monospace; font-weight: 800; font-size: 17px; }
-.line button { border: 2px solid var(--danger); background: var(--danger-soft); color: var(--danger); font-size: 18px; font-weight: 800; width: 34px; height: 34px; border-radius: 8px; }
-.empty-lines { color: var(--ink-soft); font-size: 15px; text-align: center; padding: 14px 0; }
-
-.totals { border-top: 3px solid var(--ink); padding-top: 7px; margin-bottom: 8px; }
-.trow { display: flex; justify-content: space-between; font-size: 16px; font-weight: 600; padding: 3px 0; }
-.trow.big { font-size: 26px; font-weight: 800; padding-top: 5px; }
-.trow .v { font-family: monospace; }
-.trow.disc .v { color: #b8874a; }
-
-label { display: block; font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
-.field { margin-bottom: 8px; }
-input[type=text], input[type=number], input[type=password], textarea {
-  width: 100%; border: 2px solid var(--line); border-radius: 8px; padding: 10px 11px;
-  font-size: 16px; font-weight: 600; background: var(--paper); color: var(--ink);
-}
-textarea { font-family: inherit; font-weight: 500; resize: vertical; }
-input:focus, textarea:focus { outline: 2px solid var(--rosa); border-color: var(--rosa); }
-input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-input[type=date] {
-  width: auto; border: 2px solid var(--line); border-radius: 8px; padding: 8px 9px;
-  font-size: 14px; font-weight: 600; background: var(--paper); color: var(--ink);
-}
-select {
-  width: 100%; border: 2px solid var(--line); border-radius: 8px; padding: 12px;
-  font-size: 16px; background: var(--paper); color: var(--ink);
+export function imprimirComprobantePago(gasto) {
+  const area = document.getElementById('print-area');
+  if (!area) return;
+  area.className = '';
+  area.innerHTML = `
+    ${copiaHTML(gasto, '— ORIGINAL: queda con Nelson —')}
+    <div style="margin:14px 0;border-top:2px dashed #000"></div>
+    <div class="pt-center pt-small">✂ cortar aquí</div>
+    <div style="margin:8px 0"></div>
+    ${copiaHTML(gasto, '— COPIA: queda con quien recibe —')}
+    <div class="pt-center pt-small" style="margin-top:8px">.</div>`;
+  window.print();
 }
 
-.pays-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; }
-.pay-row { display: flex; flex-direction: column; gap: 3px; }
-.pay-quick { border: 2px solid var(--line); border-radius: 7px; padding: 7px 9px; background: var(--paper); font-size: 13px; font-weight: 700; color: var(--ink); text-align: left; }
-.pay-quick:hover { border-color: var(--rosa); background: var(--rosa-suave); }
-.pay-amt { padding: 7px 9px !important; font-size: 15px !important; }
-
-.kv { display: flex; justify-content: space-between; font-size: 15px; padding: 6px 0; border-bottom: 1px solid var(--paper); }
-.kv .v { font-family: monospace; font-weight: 700; }
-.hint { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-top: 8px; }
-.link-toggle {
-  background: none; border: none; padding: 0; font-size: 12px; font-weight: 600;
-  color: var(--rosa-fuerte); text-decoration: underline; cursor: pointer;
+function encabezadoTicket(num, fecha, hora, usuarioNombre) {
+  return `
+    <img src="/logo.png" alt="Eve Jeans" class="pt-logo" />
+    <div class="pt-center pt-big">EVE JEANS</div>
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>N.º</span><span><b>${num}</b></span></div>
+    <div class="pt-line"><span>Fecha</span><span>${fecha} ${hora}</span></div>
+    <div class="pt-line"><span>Atendió</span><span>${usuarioNombre}</span></div>
+    <div class="pt-rule"></div>`;
 }
 
-/* ---------- Detalle anidado (gastos/cambios/compras desplegados en Cierre) ---------- */
-.detalle-anidado {
-  margin: 6px 0 10px; padding-left: 10px; border-left: 3px solid var(--rosa-suave);
-}
-.detalle-item { padding: 7px 0; border-bottom: 1px solid var(--paper); }
-.detalle-item:last-child { border-bottom: none; }
-.detalle-item-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.detalle-item-titulo { font-size: 14px; font-weight: 700; color: var(--ink); }
-.detalle-item-monto { font-family: monospace; font-weight: 700; font-size: 14px; }
-.detalle-item-sub { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+export function imprimirTicketVenta(venta) {
+  const area = document.getElementById('print-area');
+  if (!area) return;
+  area.className = '';
+  const lineas = venta.lineas
+    .map((l) => {
+      // Las prendas "por precio" no tienen nombre propio (su "nombre" es el precio,
+      // ej. "$15.000"), así que en el ticket se describen de forma genérica.
+      const nombre = l.tipo === 'precio' ? `Prenda de vestir REF $${l.price}` : l.name;
+      return `
+      <div class="pt-line"><span>${nombre}</span><span>${fmt(l.price * l.qty)}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;${l.qty} × ${fmt(l.price)}</div>`;
+    })
+    .join('');
+  const pagosHTML = Object.entries(venta.pagos || {})
+    .map(([m, monto]) => `<div class="pt-line"><span>${m}</span><span>${fmt(monto)}</span></div>`)
+    .join('');
 
-.modo-prueba { background: #fdf2e3; border-color: #e6c894; }
-
-/* ---------- Pestañas ---------- */
-nav.tabs { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
-nav.tabs button {
-  padding: 8px 16px; background: none; border: none; font-size: 15px; font-weight: 700;
-  color: var(--ink-soft); border-bottom: 3px solid transparent; white-space: nowrap;
-}
-nav.tabs button.on { color: var(--rosa-fuerte); border-bottom-color: var(--rosa-fuerte); }
-
-/* ---------- Tabla de inventario ---------- */
-.inv-tabla { display: flex; flex-direction: column; gap: 4px; }
-.inv-fila {
-  display: grid; grid-template-columns: 1fr 120px 120px 100px; gap: 8px; align-items: center;
-  padding: 6px 0; border-bottom: 1px solid var(--line);
-}
-.inv-fila.inv-header { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
-.inv-nombre { font-weight: 700; font-size: 15px; }
-.inv-fila input { padding: 8px 9px; font-size: 15px; }
-
-/* ---------- Impresión ---------- */
-#print-area { display: none; }
-@media print {
-  body > *:not(#print-area) { display: none !important; }
-  #print-area {
-    display: block !important; width: 72mm; margin: 0; padding: 0;
-    font-family: monospace; font-size: 11px; color: #000; line-height: 1.35;
-  }
-  /* El cierre del día se imprime con letra más grande que los demás comprobantes
-     (venta, cambio, pago) porque es un papel para revisar con calma, no un
-     tiquete corto — se prioriza que se lea fácil sobre que ocupe poco papel. */
-  #print-area.cierre-print { font-size: 13px; line-height: 1.5; }
-  #print-area.cierre-print .pt-big { font-size: 18px; }
-  #print-area.cierre-print .pt-total { font-size: 15px; }
-  #print-area.cierre-print .pt-small { font-size: 11px; }
-  @page { size: 80mm auto; margin: 3mm; }
-}
-.pt-center { text-align: center; }
-.pt-logo { display: block; max-width: 50mm; max-height: 20mm; margin: 0 auto 4px; }
-.pt-big { font-size: 15px; font-weight: 700; }
-.pt-rule { border-top: 1px dashed #000; margin: 5px 0; }
-.pt-line { display: flex; justify-content: space-between; gap: 8px; }
-.pt-total { font-size: 14px; font-weight: 700; }
-.pt-small { font-size: 9.5px; }
-/* Para el dato más importante del cierre (el total vendido): bien resaltado,
-   con líneas arriba y abajo para que salte a la vista de una. */
-.pt-destacado {
-  font-size: 20px; font-weight: 800; border-top: 2px solid #000; border-bottom: 2px solid #000;
-  padding: 4px 0; margin: 4px 0;
+  area.innerHTML = `
+    ${encabezadoTicket(venta.num, venta.fecha, venta.hora, venta.usuarioNombre)}
+    ${lineas}
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>Subtotal</span><span>${fmt(venta.subtotal)}</span></div>
+    ${venta.descuento ? `<div class="pt-line"><span>Descuento</span><span>-${fmt(venta.descuento)}</span></div>` : ''}
+    <div class="pt-line pt-total"><span>TOTAL</span><span>${fmt(venta.total)}</span></div>
+    <div class="pt-rule"></div>
+    ${pagosHTML}
+    <div class="pt-rule"></div>
+    <div class="pt-center pt-small">Cambios hasta 8 días<br>presentando este comprobante</div>
+    <div class="pt-center pt-small" style="margin-top:8px">.</div>`;
+  window.print();
 }
 
-/* ---------- Gastos: pasos y chips ---------- */
-.paso {
-  display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800;
-  margin: 16px 0 8px; color: var(--ink);
+function fechaBonitaLarga(fechaStr) {
+  const [y, m, d] = fechaStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
-.paso:first-child { margin-top: 0; }
-.paso-n {
-  background: var(--cian); color: #fff; width: 24px; height: 24px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
-}
-.chips { display: flex; flex-wrap: wrap; gap: 7px; }
-.chip {
-  border: 2px solid var(--line); background: var(--panel); color: var(--ink);
-  padding: 11px 15px; border-radius: 10px; font-size: 16px; font-weight: 700;
-}
-.chip:hover { border-color: var(--rosa); background: var(--rosa-suave); }
-.chip.on { background: var(--rosa); border-color: var(--rosa); color: #fff; }
-.monto-grande { font-size: 28px !important; font-weight: 800 !important; text-align: center; padding: 14px !important; }
 
-.gasto-item {
-  display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  padding: 13px 0; border-bottom: 1px solid var(--line);
+function medioLineaHTML(medio, resumen, esNelson) {
+  const entro = resumen.porPago[medio] || 0;
+  const salioGastos = resumen.gastosMedio[medio] || 0;
+  const salioCompras = resumen.comprasMedio[medio] || 0;
+  if (entro === 0 && salioGastos === 0 && salioCompras === 0) return '';
+  let extra = '';
+  if (salioGastos > 0) extra += `<div class="pt-small">&nbsp;&nbsp;−${fmt(salioGastos)} en gastos</div>`;
+  if (esNelson && salioCompras > 0) extra += `<div class="pt-small">&nbsp;&nbsp;−${fmt(salioCompras)} en compras</div>`;
+  return `<div class="pt-line"><span>${medio}</span><span>${fmt(resumen.netoPorMedio[medio])}</span></div>${extra}`;
 }
-.gasto-nombre { font-size: 18px; font-weight: 800; }
-.gasto-sub { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
-.gasto-monto { font-family: monospace; font-size: 19px; font-weight: 800; }
-.gasto-x {
-  border: 2px solid var(--line); background: none; color: var(--ink-soft);
-  width: 36px; height: 36px; border-radius: 8px; font-size: 15px; flex-shrink: 0;
-}
-.gasto-x:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
 
-/* ---------- Tablas (Historial, Cierre) ---------- */
-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-thead th {
-  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--ink-soft); font-weight: 800; padding: 0 10px 8px 0; border-bottom: 2px solid var(--ink);
-  white-space: nowrap;
-}
-tbody td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
-tbody tr:last-child td { border-bottom: none; }
-th.num, td.num { text-align: right; font-family: monospace; }
-tr.void { opacity: .55; }
-td.dim { color: var(--ink-soft); font-size: 12.5px; }
+// Cierre del día completo, para dejar un comprobante físico de todo lo que se
+// vendió, cambió, gastó y compró ese día, junto con el efectivo a entregar.
+// Las compras solo se incluyen si quien imprime es Nelson (mismo criterio que en
+// pantalla: es información de costos, no la ven las vendedoras).
+export function imprimirCierre({ fecha, resumen, usuario, obs }) {
+  const area = document.getElementById('print-area');
+  if (!area) return;
+  const esNelson = usuario.id === 'nelson';
+  const totalPrendas = resumen.prendas.reduce((s, p) => s + p.qty, 0);
 
-.th-sort {
-  background: none; border: none; padding: 0; margin: 0; font: inherit; text-transform: inherit;
-  letter-spacing: inherit; color: inherit; cursor: pointer; white-space: nowrap;
-}
-.th-sort:hover { color: var(--rosa-fuerte); }
-.th-sort-icon { color: var(--ink-soft); font-size: 10px; }
-.th-sort:hover .th-sort-icon { color: var(--rosa-fuerte); }
+  const prendasHTML = resumen.prendas.length
+    ? resumen.prendas
+        .map((p) => `<div class="pt-line"><span>${p.name}</span><span>×${p.qty}</span></div>`)
+        .join('')
+    : `<div class="pt-small">Ninguna.</div>`;
 
-.pill {
-  display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase;
-  letter-spacing: .03em; padding: 3px 8px; border-radius: 20px; white-space: nowrap;
+  const cambiosHTML = resumen.cambiosLista.length
+    ? resumen.cambiosLista
+        .map(
+          (c) => `
+      <div class="pt-line"><span>Cambio ${c.hora}</span><span>${
+            c.diferencia === 0 ? 'parejo' : (c.diferencia > 0 ? '+' : '−') + fmt(Math.abs(c.diferencia))
+          }</span></div>
+      <div class="pt-small">&nbsp;&nbsp;Entrada: ${c.devuelve.map((d) => `${d.name} ×${d.qty}`).join(', ')}</div>
+      <div class="pt-small">&nbsp;&nbsp;Salida: ${c.lleva.map((d) => `${d.name} ×${d.qty}`).join(', ')}</div>`
+        )
+        .join('')
+    : `<div class="pt-small">Ninguno.</div>`;
+
+  const gastosHTML = resumen.gastosLista.length
+    ? resumen.gastosLista
+        .map(
+          (g) => `
+      <div class="pt-line"><span>${g.categoria}${g.quien ? ' · ' + g.quien : ''}</span><span>${fmt(g.monto)}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;${g.hora} · ${g.origen}</div>`
+        )
+        .join('')
+    : `<div class="pt-small">Ninguno.</div>`;
+
+  const comprasHTML = !esNelson
+    ? ''
+    : `
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>COMPRAS DEL DÍA</b></div>
+    ${
+      resumen.comprasLista.length
+        ? resumen.comprasLista
+            .map(
+              (c) => `
+      <div class="pt-line"><span>${c.proveedor || 'Sin proveedor'}</span><span>${fmt(c.totalGeneral)}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;${c.hora} · ${c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}</div>`
+            )
+            .join('')
+        : `<div class="pt-small">Ninguna.</div>`
+    }
+    <div class="pt-line pt-total" style="margin-top:2px"><span>Total compras</span><span>${fmt(resumen.comprasTot)}</span></div>`;
+
+  const mediosHTML = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito']
+    .map((m) => medioLineaHTML(m, resumen, esNelson))
+    .join('');
+
+  // Ventas, cambios y gastos anulados: no se cuentan en ningún total de arriba,
+  // pero si hubo alguno ese día se deja constancia — con motivo y quién lo anuló.
+  const anuladasVC = resumen.anuladasLista || [];
+  const anuladosG = resumen.gastosAnuladosLista || [];
+  const hayAnulaciones = anuladasVC.length > 0 || anuladosG.length > 0;
+  const anulacionesHTML = !hayAnulaciones
+    ? ''
+    : `
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>ANULACIONES</b></div>
+    ${anuladasVC
+      .map(
+        (a) => `
+      <div class="pt-line"><span>${a.tipo === 'cambio' ? 'Cambio' : 'Venta'} ${a.hora} · N.º ${a.num}</span><span>${fmt(a.total)}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;Motivo: ${a.motivoAnulacion || '—'}</div>
+      <div class="pt-small">&nbsp;&nbsp;Anuló: ${a.anuladaPor || '—'}</div>`
+      )
+      .join('')}
+    ${anuladosG
+      .map(
+        (g) => `
+      <div class="pt-line"><span>Gasto ${g.hora} · ${g.categoria}</span><span>${fmt(g.monto)}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;Motivo: ${g.motivoAnulacion || '—'}</div>
+      <div class="pt-small">&nbsp;&nbsp;Anuló: ${g.anuladoPor || '—'}</div>`
+      )
+      .join('')}`;
+
+  const impresoEn = new Date().toLocaleString('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  area.className = 'cierre-print';
+  area.innerHTML = `
+    <img src="/logo.png" alt="Eve Jeans" class="pt-logo" />
+    <div class="pt-center pt-big">CIERRE DEL DÍA</div>
+    <div class="pt-center pt-small">Eve Jeans</div>
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>Fecha</span><span><b>${fechaBonitaLarga(fecha)}</b></span></div>
+    <div class="pt-line"><span>Impreso</span><span>${impresoEn}</span></div>
+    <div class="pt-line"><span>Por</span><span>${usuario.nombreDefault}</span></div>
+    <div class="pt-rule"></div>
+
+    <div class="pt-small"><b>PRENDAS VENDIDAS (${totalPrendas})</b></div>
+    ${prendasHTML}
+
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>CAMBIOS (${resumen.cambiosLista.length})</b></div>
+    ${cambiosHTML}
+
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>GASTOS DEL DÍA</b></div>
+    ${gastosHTML}
+    <div class="pt-line pt-total" style="margin-top:2px"><span>Total gastos</span><span>${fmt(resumen.gastosTot)}</span></div>
+    ${comprasHTML}
+
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>POR MEDIO DE PAGO</b></div>
+    ${mediosHTML}
+
+    <div class="pt-rule"></div>
+    <div class="pt-line pt-destacado"><span>TOTAL VENDIDO</span><span>${fmt(resumen.totalVendido)}</span></div>
+    ${
+      resumen.descuentos > 0
+        ? `<div class="pt-line"><span>Descuentos dados</span><span>${fmt(resumen.descuentos)}</span></div>`
+        : ''
+    }
+    <div class="pt-line"><span>Efectivo antes de gastos</span><span>${fmt(resumen.porPago['Efectivo'] || 0)}</span></div>
+    <div class="pt-rule"></div>
+    <div class="pt-line pt-total"><span>EFECTIVO A ENTREGAR</span><span>${fmt(resumen.efectivoAEntregar)}</span></div>
+    <div class="pt-rule"></div>
+    ${anulacionesHTML}
+
+    ${
+      obs
+        ? `<div class="pt-small"><b>OBSERVACIONES</b></div><div class="pt-small">${obs}</div><div class="pt-rule"></div>`
+        : ''
+    }
+
+    <div class="pt-center pt-small" style="margin-top:8px">.</div>`;
+  window.print();
 }
-.pill.anul { background: var(--danger-soft); color: var(--danger); }
+
+export function imprimirTicketCambio(cambio) {
+  const area = document.getElementById('print-area');
+  if (!area) return;
+  area.className = '';
+  const devHTML = cambio.devuelve
+    .map((d) => `<div class="pt-line"><span>${d.name}</span><span>×${d.qty}</span></div>`)
+    .join('');
+  const llvHTML = cambio.lleva
+    .map((d) => `<div class="pt-line"><span>${d.name}</span><span>×${d.qty}</span></div>`)
+    .join('');
+
+  area.innerHTML = `
+    ${encabezadoTicket(cambio.num, cambio.fecha, cambio.hora, cambio.usuarioNombre)}
+    <div class="pt-small">CAMBIO</div>
+    <div class="pt-rule"></div>
+    <div class="pt-small">DEVUELVE</div>
+    ${devHTML}
+    <div class="pt-small" style="margin-top:4px">SE LLEVA</div>
+    ${llvHTML}
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>Devuelve</span><span>${fmt(cambio.valDev)}</span></div>
+    <div class="pt-line"><span>Se lleva</span><span>${fmt(cambio.valLlv)}</span></div>
+    <div class="pt-line pt-total"><span>${cambio.diferencia > 0 ? 'PAGA' : 'DIFERENCIA'}</span><span>${fmt(Math.abs(cambio.diferencia))}</span></div>
+    ${cambio.pago ? `<div class="pt-line"><span>Forma</span><span>${cambio.pago}</span></div>` : ''}
+    <div class="pt-rule"></div>
+    <div class="pt-center pt-small" style="margin-top:8px">.</div>`;
+  window.print();
+}
