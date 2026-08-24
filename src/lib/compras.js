@@ -2,6 +2,7 @@ import {
   doc,
   collection,
   writeBatch,
+  increment,
   updateDoc,
   serverTimestamp,
   query,
@@ -9,6 +10,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { guardarSinBloquear } from './offlineWrite';
 
 function hoyStr() {
   const d = new Date();
@@ -62,7 +64,7 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota }) {
     creadoEn: serverTimestamp(),
   });
 
-  await batch.commit();
+  await guardarSinBloquear(batch.commit(), { contexto: 'pedido de compra' });
   return { id: compraRef.id, totalGeneral };
 }
 
@@ -79,11 +81,14 @@ export async function confirmarRecepcion(compraId, compra, itemsConfirmados, usu
     cantidadRecibida: mapaConfirmado[i.id]?.cantidadRecibida ?? 0,
   }));
 
+  // increment() en vez de sumar sobre stockActual (que puede quedar desactualizado
+  // si hay algo pendiente de subir sin internet) — así el stock siempre queda
+  // correcto sin importar cuándo se sincronice cada cosa.
   const batch = writeBatch(db);
   itemsFinal.forEach((i) => {
     const info = mapaConfirmado[i.id];
     if (info && info.cantidadRecibida > 0) {
-      batch.update(doc(db, 'inventario', i.id), { stock: (info.stockActual || 0) + info.cantidadRecibida });
+      batch.update(doc(db, 'inventario', i.id), { stock: increment(info.cantidadRecibida) });
     }
   });
 
@@ -94,7 +99,7 @@ export async function confirmarRecepcion(compraId, compra, itemsConfirmados, usu
     confirmadoFecha: hoyStr(),
   });
 
-  await batch.commit();
+  await guardarSinBloquear(batch.commit(), { contexto: `recepción compra ${compraId}` });
 
   const conDiferencia = itemsFinal.filter((i) => i.cantidadRecibida !== i.cantidadPedida);
   return { conDiferencia };
