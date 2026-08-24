@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { resumenDia, hoyStr, leerObservacion, guardarObservacion } from '../lib/cierre';
 import { suscribirConfig } from '../lib/config';
+import { imprimirCierre } from '../lib/imprimir';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -160,7 +161,16 @@ export default function Cierre({ usuario }) {
 
       <div className="ticket">
         <div className="card">
-          <h2>Resumen del día</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <h2 style={{ margin: 0 }}>Resumen del día</h2>
+            <button
+              className="btn ghost sm"
+              style={{ width: 'auto' }}
+              onClick={() => imprimirCierre({ fecha, resumen, usuario, obs: obsGuardada })}
+            >
+              Imprimir
+            </button>
+          </div>
 
           <div className="kv" style={{ fontWeight: 800, fontSize: 16 }}>
             <span>Total vendido</span>
