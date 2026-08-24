@@ -105,6 +105,30 @@ export async function resumenDia(fecha) {
   // que se cobró de diferencia en cambios, sin restar todavía gastos ni comisión.
   const totalVendido = MEDIOS.reduce((s, m) => s + (porPago[m] || 0), 0);
 
+  // Ventas y cambios anulados ese día — no cuentan para nada de lo de arriba (por
+  // eso las consultas de arriba solo piden anulada == false), pero quedan aparte
+  // para poder mostrarlos igual: que se vea que existieron y por qué se anularon.
+  const qVentasAnuladas = query(
+    collection(db, 'ventas'),
+    where('fecha', '==', fecha),
+    where('anulada', '==', true)
+  );
+  const snapVentasAnuladas = await getDocs(qVentasAnuladas);
+  const anuladasLista = snapVentasAnuladas.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.hora < b.hora ? -1 : 1));
+
+  // Mismo caso con los gastos anulados.
+  const qGastosAnulados = query(
+    collection(db, 'gastos'),
+    where('fecha', '==', fecha),
+    where('anulado', '==', true)
+  );
+  const snapGastosAnulados = await getDocs(qGastosAnulados);
+  const gastosAnuladosLista = snapGastosAnulados.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.hora < b.hora ? -1 : 1));
+
   return {
     porPago,
     totalVendido,
@@ -119,6 +143,8 @@ export async function resumenDia(fecha) {
     prendas,
     cambiosLista,
     efectivoAEntregar,
+    anuladasLista,
+    gastosAnuladosLista,
   };
 }
 
