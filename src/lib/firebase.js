@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDLeWeuVi9N_x3mq_zSczQgFMZyrJd5GF4',
@@ -13,4 +13,11 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Caché local persistente: si se va el internet, la app sigue leyendo lo último
+// que vio y guarda lo nuevo en el disco del computador hasta poder subirlo.
+// persistentMultipleTabManager permite tener la app abierta en más de una
+// pestaña del mismo computador sin que se bloqueen entre sí.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
