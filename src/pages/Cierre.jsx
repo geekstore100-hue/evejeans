@@ -17,7 +17,6 @@ export default function Cierre({ usuario }) {
   const [config, setConfig] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [verCambios, setVerCambios] = useState(false);
   const [verGastos, setVerGastos] = useState(false);
   const [verCompras, setVerCompras] = useState(false);
   const [obs, setObs] = useState('');
@@ -125,40 +124,33 @@ export default function Cierre({ usuario }) {
           </table>
         )}
 
-        {/* Cambios: un solo renglón, con el desplegable como texto sutil */}
+        {/* Cambios: siempre visibles, sin necesidad de desplegar */}
         <div className="kv" style={{ marginTop: 14 }}>
-          <span>
-            Cambios{' '}
-            <button className="link-toggle" onClick={() => setVerCambios((v) => !v)}>
-              {verCambios ? 'ocultar' : 'ver'}
-            </button>
-          </span>
+          <span>Cambios</span>
           <span className="v">{resumen.cambiosLista.length}</span>
         </div>
-        {verCambios && (
-          <div className="detalle-anidado">
-            {resumen.cambiosLista.length === 0 ? (
-              <div className="empty-lines">{esHoy ? 'Ningún cambio hoy.' : 'Ningún cambio ese día.'}</div>
-            ) : (
-              resumen.cambiosLista.map((c) => (
-                <div key={c.id} className="detalle-item">
-                  <div className="detalle-item-top">
-                    <span className="detalle-item-titulo">Cambio {c.hora}</span>
-                    <span className="detalle-item-monto">
-                      {c.diferencia === 0 ? 'parejo' : c.diferencia > 0 ? `+${fmt(c.diferencia)}` : `−${fmt(-c.diferencia)}`}
-                    </span>
-                  </div>
-                  <div className="detalle-item-sub">
-                    devuelve: {c.devuelve.map((d) => `${d.name} ×${d.qty}`).join(', ')}
-                  </div>
-                  <div className="detalle-item-sub">
-                    lleva: {c.lleva.map((d) => `${d.name} ×${d.qty}`).join(', ')}
-                  </div>
+        <div className="detalle-anidado">
+          {resumen.cambiosLista.length === 0 ? (
+            <div className="empty-lines">{esHoy ? 'Ningún cambio hoy.' : 'Ningún cambio ese día.'}</div>
+          ) : (
+            resumen.cambiosLista.map((c) => (
+              <div key={c.id} className="detalle-item">
+                <div className="detalle-item-top">
+                  <span className="detalle-item-titulo">Cambio {c.hora}</span>
+                  <span className="detalle-item-monto">
+                    {c.diferencia === 0 ? 'parejo' : c.diferencia > 0 ? `+${fmt(c.diferencia)}` : `−${fmt(-c.diferencia)}`}
+                  </span>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+                <div className="detalle-item-sub">
+                  devuelve: {c.devuelve.map((d) => `${d.name} ×${d.qty}`).join(', ')}
+                </div>
+                <div className="detalle-item-sub">
+                  lleva: {c.lleva.map((d) => `${d.name} ×${d.qty}`).join(', ')}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <div className="ticket">
@@ -170,10 +162,12 @@ export default function Cierre({ usuario }) {
             <span className="v">{fmt(resumen.totalVendido)}</span>
           </div>
 
-          <div className="kv">
-            <span>Descuentos dados</span>
-            <span className="v">{fmt(resumen.descuentos)}</span>
-          </div>
+          {resumen.descuentos > 0 && (
+            <div className="kv">
+              <span>Descuentos dados</span>
+              <span className="v">{fmt(resumen.descuentos)}</span>
+            </div>
+          )}
 
           {/* Gastos: un solo renglón, con el desplegable como texto sutil */}
           <div className="kv">
