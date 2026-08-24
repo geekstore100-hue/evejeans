@@ -5,8 +5,13 @@ import { entrarComoVendedoraCompartida, entrarComoNelson } from '../lib/auth';
 // Se muestra cuando todavía no hay nadie identificado. Si Firebase ya nos autenticó
 // como la cuenta compartida (o lo hace ahora mismo, en silencio), solo falta
 // preguntar el nombre — sin clave. Si alguien quiere entrar como Nelson, ahí sí pide PIN.
-export default function Gate({ onElegirVendedora }) {
-  const [modo, setModo] = useState('entrando'); // entrando | elegir | nelson
+//
+// soloAdmin: se usa mientras el bloqueo de pánico está activo. En ese caso no se
+// intenta entrar como la cuenta compartida (la tienda queda bloqueada de verdad,
+// sin nombres ni menú ni nada que ver) y lo único que se muestra es el PIN de
+// Nelson, para que él pueda entrar a desactivarlo desde su propia cuenta.
+export default function Gate({ onElegirVendedora, soloAdmin }) {
+  const [modo, setModo] = useState(soloAdmin ? 'nelson' : 'entrando'); // entrando | elegir | nelson
   const [errorEntrada, setErrorEntrada] = useState('');
   const [pinNelson, setPinNelson] = useState('');
   const [errorNelson, setErrorNelson] = useState('');
@@ -15,10 +20,11 @@ export default function Gate({ onElegirVendedora }) {
   const vendedoras = USUARIOS_BASE.filter((u) => u.id !== 'nelson');
 
   useEffect(() => {
+    if (soloAdmin) return;
     entrarComoVendedoraCompartida()
       .then(() => setModo('elegir'))
       .catch((e) => setErrorEntrada('No se pudo entrar: ' + e.message));
-  }, []);
+  }, [soloAdmin]);
 
   async function confirmarNelson() {
     if (!pinNelson) return;
@@ -69,9 +75,11 @@ export default function Gate({ onElegirVendedora }) {
           <button className="btn" disabled={entrandoNelson} onClick={confirmarNelson}>
             {entrandoNelson ? 'Entrando…' : 'Entrar'}
           </button>
-          <button className="btn ghost" onClick={() => setModo('elegir')}>
-            Volver
-          </button>
+          {!soloAdmin && (
+            <button className="btn ghost" onClick={() => setModo('elegir')}>
+              Volver
+            </button>
+          )}
         </div>
       </div>
     );
