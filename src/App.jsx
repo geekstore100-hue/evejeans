@@ -9,6 +9,7 @@ import Gastos from './pages/Gastos';
 import Cierre from './pages/Cierre';
 import Sobres from './pages/Sobres';
 import Compras from './pages/Compras';
+import ComprasFausto from './pages/ComprasFausto';
 import RecibirMercancia from './pages/RecibirMercancia';
 import EntradasSalidas from './pages/EntradasSalidas';
 import Inventario from './pages/Inventario';
@@ -113,7 +114,7 @@ export default function App() {
           </button>
         </div>
         <main>
-          <Compras usuario={usuario} />
+          <ComprasFausto usuario={usuario} />
         </main>
       </div>
     );
