@@ -9,7 +9,7 @@ function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
 
-export default function Compras() {
+export default function Compras({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
   const [carrito, setCarrito] = useState({}); // {id: {qty, costoUnitario}}
@@ -117,6 +117,7 @@ export default function Compras() {
         proveedor,
         origen,
         nota: nota.trim(),
+        usuario,
       });
       setMsg({
         tipo: 'good',
@@ -290,7 +291,7 @@ export default function Compras() {
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{fmt(c.totalGeneral)}</span>
-                    {c.estado === 'pendiente' && (
+                    {c.estado === 'pendiente' && (usuario.id === 'nelson' || c.usuarioId === usuario.id) && (
                       <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setEditando(c.id)}>
                         Ajustar
                       </button>
@@ -299,6 +300,7 @@ export default function Compras() {
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
                   {c.items.map((i) => `${i.name} ×${i.cantidadPedida}`).join(', ')} · {c.origen}
+                  {c.usuarioNombre ? ` · pidió ${c.usuarioNombre}` : ''}
                   {c.nota ? ` · ${c.nota}` : ''}
                   {c.estado === 'confirmada' && ` · confirmó ${c.confirmadoPor} el ${c.confirmadoFecha}`}
                 </div>
