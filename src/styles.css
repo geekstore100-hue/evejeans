@@ -99,6 +99,18 @@ button:focus-visible, .tile:focus-visible, .chip:focus-visible {
 .who { font-size: 14px; color: rgba(255,255,255,.9); }
 .who b { color: #fff; }
 .link-btn { background: none; border: none; color: #fff; font-size: 13px; text-decoration: underline; font-weight: 600; }
+/* Separador antes del botón de pánico, para que no quede pegado a "Cambiar de
+   turno" y no se confundan al tocar rápido. */
+.topbar-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,.35); margin: 0 2px; }
+/* Botón de pánico: a propósito NO se parece a los demás link-btn (sin subrayado,
+   fondo sólido, ícono) — para que se sienta como un botón aparte y no como otro
+   link más de la barra, y así sea más difícil tocarlo sin querer. */
+.panic-btn {
+  border: none; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 700;
+  color: #fff; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+}
+.panic-btn.bloquear { background: var(--danger); }
+.panic-btn.desbloquear { background: var(--ok); }
 
 /* ---------- Venta ---------- */
 main { padding: 8px; max-width: 1500px; margin: 0 auto; }
