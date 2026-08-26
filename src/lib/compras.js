@@ -45,6 +45,9 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
     cantidadRecibida: null,
     costoUnitario: i.costoUnitario,
     total: i.cantidadPedida * i.costoUnitario,
+    // Nota por referencia (la usa la pantalla simple de Fausto) — Firestore no
+    // acepta "undefined", por eso el "|| null" en vez de dejarla tal cual.
+    nota: i.nota || null,
   }));
   const totalGeneral = itemsConTotal.reduce((s, i) => s + i.total, 0);
 
@@ -56,7 +59,9 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
     usuarioNombre: usuario.nombreDefault,
     proveedor: proveedor.trim(),
     nota: nota || null,
-    origen,
+    // "|| null": la pantalla de Fausto ya no pregunta el origen del dinero, así
+    // que este campo puede llegar vacío — Firestore no acepta "undefined".
+    origen: origen || null,
     items: itemsConTotal,
     totalGeneral,
     estado: 'pendiente', // pendiente | confirmada
