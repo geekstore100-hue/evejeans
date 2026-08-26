@@ -10,6 +10,7 @@ import Cierre from './pages/Cierre';
 import Sobres from './pages/Sobres';
 import Compras from './pages/Compras';
 import RecibirMercancia from './pages/RecibirMercancia';
+import EntradasSalidas from './pages/EntradasSalidas';
 import Inventario from './pages/Inventario';
 import Ganancia from './pages/Ganancia';
 import Movimientos from './pages/Movimientos';
@@ -155,6 +156,9 @@ export default function App() {
         <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
           Recibir mercancía
         </button>
+        <button className={vista === 'entradasSalidas' ? 'on' : ''} onClick={() => setVista('entradasSalidas')}>
+          Entradas y salidas
+        </button>
         <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
           Historial
         </button>
@@ -182,6 +186,7 @@ export default function App() {
         {vista === 'cierre' && <Cierre usuario={usuario} />}
         {vista === 'sobres' && <Sobres usuario={usuario} />}
         {vista === 'recibir' && <RecibirMercancia usuario={usuario} />}
+        {vista === 'entradasSalidas' && <EntradasSalidas usuario={usuario} />}
         {vista === 'movimientos' && <Movimientos usuario={usuario} />}
         {vista === 'compras' && usuario.id === 'nelson' && <Compras />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
