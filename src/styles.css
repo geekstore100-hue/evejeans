@@ -357,6 +357,13 @@ td.dim { color: var(--ink-soft); font-size: 12.5px; }
 
 /* ---------- Compras de Fausto — versión simple, letra grande, un paso a la
    vez. Clases aparte ("cf-") para no afectar la pantalla normal de Compras. ---------- */
+.cf-nav { max-width: 640px; margin: 10px auto 0; padding: 0 10px; display: flex; gap: 8px; }
+.cf-nav button {
+  flex: 1; padding: 14px; font-size: 16px; font-weight: 800; border-radius: 12px;
+  border: 2px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.cf-nav button.on { border-color: var(--rosa); background: var(--rosa-suave); color: var(--rosa-fuerte); }
+
 .cf-page { max-width: 640px; margin: 0 auto; padding: 10px; display: flex; flex-direction: column; gap: 14px; }
 .cf-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
 .cf-paso { font-size: 18px; font-weight: 800; color: var(--rosa-fuerte); margin-bottom: 10px; }
