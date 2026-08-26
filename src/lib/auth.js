@@ -21,6 +21,13 @@ export async function entrarComoNelson(pin) {
   await signInWithEmailAndPassword(auth, 'nelson@evejeans.local', pin);
 }
 
+// Fausto (compras) también tiene su propia cuenta real, con su propio PIN — así queda
+// registrado que fue él quien hizo cada pedido, y las reglas de Firestore lo pueden
+// verificar de verdad (no es una etiqueta elegida en pantalla, como con las vendedoras).
+export async function entrarComoFausto(pin) {
+  await signInWithEmailAndPassword(auth, 'fausto@evejeans.local', pin);
+}
+
 export async function salir() {
   await signOut(auth);
 }
