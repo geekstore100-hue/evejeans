@@ -354,3 +354,90 @@ td.dim { color: var(--ink-soft); font-size: 12.5px; }
   letter-spacing: .03em; padding: 3px 8px; border-radius: 20px; white-space: nowrap;
 }
 .pill.anul { background: var(--danger-soft); color: var(--danger); }
+
+/* ---------- Compras de Fausto — versión simple, letra grande, un paso a la
+   vez. Clases aparte ("cf-") para no afectar la pantalla normal de Compras. ---------- */
+.cf-page { max-width: 640px; margin: 0 auto; padding: 10px; display: flex; flex-direction: column; gap: 14px; }
+.cf-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+.cf-paso { font-size: 18px; font-weight: 800; color: var(--rosa-fuerte); margin-bottom: 10px; }
+
+.cf-input {
+  width: 100%; padding: 14px; font-size: 18px; border: 2px solid var(--line); border-radius: 10px;
+  color: var(--ink); margin-bottom: 4px; background: var(--panel);
+}
+.cf-input:focus { border-color: var(--rosa); outline: none; }
+
+.cf-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.cf-tile {
+  padding: 16px 10px; font-size: 17px; font-weight: 700; text-align: center; border-radius: 12px;
+  border: 2px solid var(--line); background: var(--panel); color: var(--ink); min-height: 64px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.cf-tile-on { border-color: var(--ok); background: var(--cian-suave); }
+.cf-tile-check { font-size: 13px; color: var(--ok); font-weight: 800; }
+
+.cf-linea { border-top: 2px solid var(--line); padding: 14px 0; }
+.cf-linea:first-child { border-top: none; padding-top: 0; }
+.cf-linea-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; }
+.cf-linea-nombre { font-size: 18px; font-weight: 800; }
+.cf-quitar {
+  background: none; border: 2px solid var(--danger); color: var(--danger); border-radius: 8px;
+  padding: 8px 12px; font-size: 14px; font-weight: 700; white-space: nowrap;
+}
+.cf-linea-campo { margin-bottom: 10px; }
+.cf-linea-campo label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; font-weight: 700; }
+.cf-input-costo { font-size: 20px; font-weight: 800; }
+
+.cf-stepper { display: flex; align-items: stretch; gap: 8px; }
+.cf-stepper button {
+  width: 56px; font-size: 26px; font-weight: 800; border-radius: 10px; border: 2px solid var(--line);
+  background: var(--rosa-suave); color: var(--rosa-fuerte); flex-shrink: 0;
+}
+.cf-stepper input {
+  flex: 1; text-align: center; font-size: 22px; font-weight: 800; border: 2px solid var(--line);
+  border-radius: 10px; padding: 8px; min-width: 0;
+}
+.cf-linea-total { text-align: right; font-size: 16px; font-weight: 800; color: var(--rosa-fuerte); }
+.cf-total-general {
+  text-align: right; font-size: 20px; font-weight: 900; margin-top: 12px;
+  border-top: 2px solid var(--line); padding-top: 12px;
+}
+
+.cf-origenes { display: flex; flex-direction: column; gap: 8px; }
+.cf-origen {
+  padding: 14px; font-size: 16px; font-weight: 700; border-radius: 10px; border: 2px solid var(--line);
+  background: var(--panel); color: var(--ink); text-align: left;
+}
+.cf-origen.on { border-color: var(--rosa); background: var(--rosa-suave); color: var(--rosa-fuerte); }
+
+.cf-btn-registrar {
+  width: 100%; padding: 18px; font-size: 20px; font-weight: 900; border-radius: 12px; border: none;
+  background: var(--rosa); color: #fff; box-shadow: 0 3px 8px rgba(212,119,158,.32);
+}
+.cf-btn-registrar:disabled { opacity: .6; }
+.cf-btn-secundario {
+  flex: 1; padding: 14px; font-size: 16px; font-weight: 700; border-radius: 10px; border: 2px solid var(--line);
+  background: var(--panel); color: var(--ink);
+}
+
+.cf-exito {
+  background: var(--cian-suave); border: 2px solid var(--ok); color: var(--cian-fuerte); border-radius: 14px;
+  padding: 16px; font-size: 17px; font-weight: 700; text-align: center;
+}
+.cf-exito-cerrar {
+  display: block; margin: 12px auto 0; padding: 10px 20px; border-radius: 8px; border: none;
+  background: var(--ok); color: #fff; font-weight: 800; font-size: 15px;
+}
+
+.cf-pedido-row { border-top: 2px solid var(--line); padding: 12px 0; }
+.cf-pedido-row:first-child { border-top: none; padding-top: 0; }
+.cf-pedido-top { display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 700; gap: 8px; }
+.cf-estado { font-size: 11px; font-weight: 900; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.cf-estado.pendiente { background: #fdf1de; color: #b8874a; }
+.cf-estado.confirmada { background: var(--cian-suave); color: var(--ok); }
+.cf-pedido-total { font-size: 16px; font-weight: 800; margin-top: 4px; }
+.cf-btn-corregir {
+  margin-top: 8px; padding: 10px 14px; font-size: 15px; font-weight: 700; border-radius: 8px;
+  border: 2px solid var(--rosa); background: var(--rosa-suave); color: var(--rosa-fuerte);
+}
+.cf-correccion { border-top: 2px solid var(--line); padding-top: 12px; }
