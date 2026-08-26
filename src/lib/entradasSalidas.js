@@ -8,6 +8,7 @@ import {
   query,
   where,
   serverTimestamp,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { guardarSinBloquear } from './offlineWrite';
@@ -80,11 +81,34 @@ export async function registrarMovimiento({ usuario, tipo, itemId, itemNombre, c
     cantidad,
     categoria,
     detalle: detalle || null,
+    anulada: false,
     creadoEn: serverTimestamp(),
   });
   await guardarSinBloquear(batch.commit(), { contexto: `${tipo} de mercancía #${num}` });
 
   return { num, fecha, hora };
+}
+
+// Solo Nelson (las reglas de Firestore ya lo exigen). Revierte el movimiento de
+// stock que hizo el registro original y lo marca como anulado — nunca se borra,
+// queda el registro. Usa una transacción (en vez del patrón "sin bloquear" que usan
+// las ventas del día a día) porque anular es una acción de administración, no algo
+// urgente que deba funcionar sin internet en plena venta.
+export async function anularMovimiento(m, motivo, usuario) {
+  const ref = doc(db, 'entradasSalidas', m.id);
+  const itemRef = doc(db, 'inventario', m.itemId);
+  await runTransaction(db, async (tx) => {
+    const itemSnap = await tx.get(itemRef);
+    const stockActual = itemSnap.data()?.stock || 0;
+    const nuevo =
+      m.tipo === 'entrada' ? Math.max(0, stockActual - m.cantidad) : stockActual + m.cantidad;
+    tx.update(itemRef, { stock: nuevo });
+    tx.update(ref, {
+      anulada: true,
+      motivoAnulacion: motivo,
+      anuladaPor: usuario.nombreDefault,
+    });
+  });
 }
 
 export async function movimientosPorFecha(fecha) {
