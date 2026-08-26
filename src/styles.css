@@ -360,6 +360,7 @@ td.dim { color: var(--ink-soft); font-size: 12.5px; }
 .cf-page { max-width: 640px; margin: 0 auto; padding: 10px; display: flex; flex-direction: column; gap: 14px; }
 .cf-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
 .cf-paso { font-size: 18px; font-weight: 800; color: var(--rosa-fuerte); margin-bottom: 10px; }
+.cf-split-label { font-size: 14px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
 
 .cf-input {
   width: 100%; padding: 14px; font-size: 18px; border: 2px solid var(--line); border-radius: 10px;
