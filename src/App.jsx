@@ -47,14 +47,15 @@ export default function App() {
   // deja leer este dato puntual sin estar autenticado, a propósito), para poder
   // dejar la pantalla bloqueada desde el principio si está activo — sin que se
   // alcance a intentar entrar como la cuenta compartida ni se vea nada de la tienda.
-  // Si es Nelson quien está identificado, no se le bloquea ni se le cierra la
-  // sesión: así puede activarlo y desactivarlo desde su propia cuenta (normalmente
-  // desde otro dispositivo) sin quedar trabado él mismo.
+  // Solo bloquea la cuenta COMPARTIDA de vendedoras (el computador de la tienda).
+  // Ni Nelson ni Fausto se bloquean ni se les cierra la sesión: cada uno tiene su
+  // propia cuenta real, así que pueden entrar (o Nelson, activarlo/desactivarlo)
+  // sin quedar trabados ellos mismos.
   useEffect(() => {
     const quitar = escucharPanico((activo) => {
       setPanicoActivo(activo);
       setPanicoListo(true);
-      if (activo && authId !== 'nelson') salir();
+      if (activo && authId !== 'nelson' && authId !== 'fausto') salir();
     });
     return quitar;
   }, [authId]);
@@ -64,8 +65,9 @@ export default function App() {
   }
 
   async function cambiarDeTurno() {
-    if (authId === 'nelson') {
-      // Nelson sí cierra sesión de verdad: vuelve a la cuenta compartida.
+    if (authId === 'nelson' || authId === 'fausto') {
+      // Nelson y Fausto sí cierran sesión de verdad: cada uno tiene su propia
+      // cuenta real, no una etiqueta elegida sobre la cuenta compartida.
       await salir();
     }
     setVendedoraElegida(null);
@@ -75,20 +77,46 @@ export default function App() {
     return <div className="loading">Cargando…</div>;
   }
 
-  // Bloqueo activo y quien está (o todavía no está) identificado no es Nelson: no
-  // se muestra la tienda ni el selector de vendedoras, solo el PIN de Nelson.
-  if (panicoActivo && authId !== 'nelson') {
+  // Bloqueo activo y quien está (o todavía no está) identificado no es Nelson ni
+  // Fausto: no se muestra la tienda ni el selector de vendedoras, solo el PIN de
+  // Nelson (con un enlace ahí mismo para entrar como Fausto).
+  if (panicoActivo && authId !== 'nelson' && authId !== 'fausto') {
     return <Gate onElegirVendedora={elegirVendedora} soloAdmin />;
   }
 
-  // Nelson tiene su propia cuenta real: entra directo, sin elegir nombre.
+  // Nelson y Fausto tienen su propia cuenta real: entran directo, sin elegir nombre.
   const usuario =
-    authId === 'nelson'
-      ? USUARIOS_BASE.find((u) => u.id === 'nelson')
+    authId === 'nelson' || authId === 'fausto'
+      ? USUARIOS_BASE.find((u) => u.id === authId)
       : vendedoraElegida;
 
   if (!usuario) {
     return <Gate onElegirVendedora={elegirVendedora} />;
+  }
+
+  // Fausto solo se encarga de compras: no ve el resto de la tienda, ni las pestañas
+  // ni el botón de pánico (eso sigue siendo solo de Nelson).
+  if (usuario.id === 'fausto') {
+    return (
+      <div>
+        <div className="topbar">
+          <div className="brand">
+            <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
+            <span>· punto de venta</span>
+          </div>
+          <div className="spacer" />
+          <div className="who">
+            Turno de <b>{usuario.nombreDefault}</b>
+          </div>
+          <button className="link-btn" onClick={cambiarDeTurno}>
+            Cambiar de turno
+          </button>
+        </div>
+        <main>
+          <Compras usuario={usuario} />
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -188,7 +216,7 @@ export default function App() {
         {vista === 'recibir' && <RecibirMercancia usuario={usuario} />}
         {vista === 'entradasSalidas' && <EntradasSalidas usuario={usuario} />}
         {vista === 'movimientos' && <Movimientos usuario={usuario} />}
-        {vista === 'compras' && usuario.id === 'nelson' && <Compras />}
+        {vista === 'compras' && usuario.id === 'nelson' && <Compras usuario={usuario} />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
         {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
       </main>
