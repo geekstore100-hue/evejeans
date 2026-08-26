@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
 import {
   registrarMovimiento,
+  anularMovimiento,
   movimientosPorFecha,
   hoyStr,
   SALIDA_CATEGORIAS,
@@ -49,6 +50,31 @@ export default function EntradasSalidas({ usuario }) {
       setLista(m);
     } catch (e) {
       setErrorLista('No se pudo cargar: ' + e.message);
+    }
+  }
+
+  async function onAnular(m) {
+    const etiqueta = `el movimiento N.º ${m.num} (${m.itemNombre})`;
+    const motivo = window.prompt(`¿Por qué se anula ${etiqueta}?`);
+    if (!motivo || !motivo.trim()) return;
+    try {
+      await anularMovimiento(m, motivo.trim(), usuario);
+      await cargar();
+      if (m.fecha === hoyStr()) {
+        alert(`Listo, se anuló ${etiqueta}.`);
+      } else {
+        // Ese día ya se sincronizó con el Excel (el sincronizado automático solo
+        // toca el día de hoy), así que sin este aviso el número viejo se quedaría
+        // ahí sin que nadie se dé cuenta.
+        alert(
+          `Listo, se anuló ${etiqueta}.\n\n` +
+            `OJO: este movimiento era del ${m.fecha}, un día que ya se sincronizó con tu Excel. ` +
+            `Para que el Excel quede al día, entra al script (Apps Script), pon FECHA_MANUAL_R = "${m.fecha}" ` +
+            `y corre sincronizarFechaManual.`
+        );
+      }
+    } catch (e) {
+      alert('No se pudo anular: ' + e.message);
     }
   }
 
@@ -146,11 +172,12 @@ export default function EntradasSalidas({ usuario }) {
                 <th className="num">Cant.</th>
                 <th>Motivo</th>
                 <th>Quién</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {lista.map((m) => (
-                <tr key={m.id}>
+                <tr key={m.id} className={m.anulada ? 'void' : ''}>
                   <td className="num">{m.num}</td>
                   <td>{m.hora}</td>
                   <td>
@@ -164,11 +191,27 @@ export default function EntradasSalidas({ usuario }) {
                     >
                       {m.tipo === 'salida' ? 'salida' : 'entrada'}
                     </span>
+                    {m.anulada && (
+                      <span
+                        className="pill anul"
+                        style={{ marginLeft: 6, cursor: 'help' }}
+                        title={`Motivo: ${m.motivoAnulacion || '—'}${m.anuladaPor ? ` · anuló: ${m.anuladaPor}` : ''}`}
+                      >
+                        anulado
+                      </span>
+                    )}
                   </td>
                   <td>{m.itemNombre}</td>
                   <td className="num">{m.cantidad}</td>
                   <td className="dim">{m.categoria}{m.detalle ? ` · ${m.detalle}` : ''}</td>
                   <td>{m.usuarioNombre}</td>
+                  <td>
+                    {!m.anulada && usuario.id === 'nelson' && (
+                      <button className="btn ghost sm" onClick={() => onAnular(m)}>
+                        Anular
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
