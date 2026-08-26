@@ -6,4 +6,5 @@ export const USUARIOS_BASE = [
   { id: 'blanca', nombreDefault: 'Blanca', rol: 'Lunes a viernes' },
   { id: 'sofia', nombreDefault: 'Sofía', rol: 'Sábados, domingos y festivos' },
   { id: 'nelson', nombreDefault: 'Nelson', rol: 'Dueño' },
+  { id: 'fausto', nombreDefault: 'Fausto', rol: 'Compras' },
 ];
