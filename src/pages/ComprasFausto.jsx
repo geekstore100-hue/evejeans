@@ -5,12 +5,10 @@ import { crearPedidoCompra, comprasRecientes, ajustarPedido } from '../lib/compr
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
 // paso a la vez, botones grandes con +/- para la cantidad (además de poder
 // escribirla directo, para pedidos grandes de una sola referencia), y sin nada
-// que no necesite (historial completo, atajos de teclado, etc.). El historial
-// de TODOS los pedidos lo sigue viendo Nelson desde su propia pantalla de
-// Compras — acá solo se ven los últimos pedidos DE FAUSTO, por si hay que
-// corregir alguno.
-
-const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria'];
+// que no necesite (buscador, origen del dinero, historial completo, atajos de
+// teclado, etc.). El historial de TODOS los pedidos lo sigue viendo Nelson
+// desde su propia pantalla de Compras — acá solo se ven los últimos pedidos DE
+// FAUSTO, por si hay que corregir alguno.
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -19,11 +17,8 @@ function fmt(n) {
 export default function ComprasFausto({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [busqueda, setBusqueda] = useState('');
-  const [carrito, setCarrito] = useState({}); // {id: {qty, costoUnitario}}
+  const [carrito, setCarrito] = useState({}); // {id: {qty, costoUnitario, nota}}
   const [proveedor, setProveedor] = useState('');
-  const [origen, setOrigen] = useState(null);
-  const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [exito, setExito] = useState(null); // { proveedor, total } | null
@@ -57,18 +52,33 @@ export default function ComprasFausto({ usuario }) {
     return m;
   }, [inventario]);
 
-  const itemsFiltrados = useMemo(() => {
-    const todos = (inventario || []).filter((i) => !i.oculto);
-    const q = busqueda.trim().toLowerCase();
-    const lista = q ? todos.filter((i) => i.name.toLowerCase().includes(q)) : todos;
-    return [...lista].sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  }, [inventario, busqueda]);
+  // Primero las referencias "con nombre" (orden alfabético), y después las "por
+  // precio" en orden ascendente — sin buscador: son pocas y así siempre están en
+  // el mismo lugar, más fácil de recordar dónde está cada una.
+  const itemsNombre = useMemo(
+    () =>
+      (inventario || [])
+        .filter((i) => i.tipo === 'nombre' && !i.oculto)
+        .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [inventario]
+  );
+  const itemsPrecio = useMemo(
+    () =>
+      (inventario || [])
+        .filter((i) => i.tipo === 'precio' && !i.oculto)
+        .sort((a, b) => (a.price || 0) - (b.price || 0)),
+    [inventario]
+  );
 
   function agregar(id) {
     const it = porId[id];
     setCarrito((c) => ({
       ...c,
-      [id]: { qty: c[id]?.qty || 1, costoUnitario: c[id]?.costoUnitario ?? (it.costoCompra || 0) },
+      [id]: {
+        qty: c[id]?.qty || 1,
+        costoUnitario: c[id]?.costoUnitario ?? (it.costoCompra || 0),
+        nota: c[id]?.nota || '',
+      },
     }));
   }
   function quitarLinea(id) {
@@ -87,12 +97,16 @@ export default function ComprasFausto({ usuario }) {
   function cambiarCosto(id, valor) {
     setCarrito((c) => ({ ...c, [id]: { ...c[id], costoUnitario: parseInt(valor) || 0 } }));
   }
+  function cambiarNota(id, valor) {
+    setCarrito((c) => ({ ...c, [id]: { ...c[id], nota: valor } }));
+  }
 
   const lineas = Object.entries(carrito).map(([id, d]) => ({
     id,
     name: porId[id]?.name || id,
     qty: d.qty,
     costoUnitario: d.costoUnitario,
+    nota: d.nota || '',
     total: d.qty * d.costoUnitario,
   }));
   const totalGeneral = lineas.reduce((s, l) => s + l.total, 0);
@@ -100,9 +114,6 @@ export default function ComprasFausto({ usuario }) {
   function vaciar() {
     setCarrito({});
     setProveedor('');
-    setOrigen(null);
-    setNota('');
-    setBusqueda('');
   }
 
   async function confirmar() {
@@ -124,17 +135,17 @@ export default function ComprasFausto({ usuario }) {
       setMsg({ tipo: 'bad', texto: 'Falta el costo de alguna prenda.' });
       return;
     }
-    if (!origen) {
-      setMsg({ tipo: 'bad', texto: 'Falta decir de dónde salió la plata.' });
-      return;
-    }
     setGuardando(true);
     try {
       await crearPedidoCompra({
-        items: lineas.map((l) => ({ id: l.id, name: l.name, cantidadPedida: l.qty, costoUnitario: l.costoUnitario })),
+        items: lineas.map((l) => ({
+          id: l.id,
+          name: l.name,
+          cantidadPedida: l.qty,
+          costoUnitario: l.costoUnitario,
+          nota: l.nota.trim(),
+        })),
         proveedor,
-        origen,
-        nota: nota.trim(),
         usuario,
       });
       setExito({ proveedor, total: totalGeneral });
@@ -183,15 +194,10 @@ export default function ComprasFausto({ usuario }) {
 
       <div className="cf-card">
         <div className="cf-paso">2. ¿Qué compraste?</div>
-        <input
-          className="cf-input"
-          type="text"
-          placeholder="Busca la prenda…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
+
+        <div className="cf-split-label">Con nombre</div>
         <div className="cf-tiles">
-          {itemsFiltrados.map((it) => (
+          {itemsNombre.map((it) => (
             <button
               key={it.id}
               className={`cf-tile ${carrito[it.id] ? 'cf-tile-on' : ''}`}
@@ -201,9 +207,20 @@ export default function ComprasFausto({ usuario }) {
               {carrito[it.id] && <span className="cf-tile-check">✓ agregada</span>}
             </button>
           ))}
-          {itemsFiltrados.length === 0 && (
-            <div className="empty-lines">No encontré ninguna prenda con ese nombre.</div>
-          )}
+        </div>
+
+        <div className="cf-split-label" style={{ marginTop: 16 }}>Por precio</div>
+        <div className="cf-tiles">
+          {itemsPrecio.map((it) => (
+            <button
+              key={it.id}
+              className={`cf-tile ${carrito[it.id] ? 'cf-tile-on' : ''}`}
+              onClick={() => agregar(it.id)}
+            >
+              {it.name}
+              {carrito[it.id] && <span className="cf-tile-check">✓ agregada</span>}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -228,6 +245,7 @@ export default function ComprasFausto({ usuario }) {
                     type="number"
                     inputMode="numeric"
                     value={l.qty}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => cambiarCantidad(l.id, e.target.value)}
                   />
                   <button type="button" onClick={() => sumarUno(l.id, 1)}>
@@ -242,7 +260,18 @@ export default function ComprasFausto({ usuario }) {
                   type="number"
                   inputMode="numeric"
                   value={l.costoUnitario}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => cambiarCosto(l.id, e.target.value)}
+                />
+              </div>
+              <div className="cf-linea-campo">
+                <label>Nota — opcional</label>
+                <input
+                  className="cf-input"
+                  type="text"
+                  placeholder="Por ejemplo: talla, color…"
+                  value={l.nota}
+                  onChange={(e) => cambiarNota(l.id, e.target.value)}
                 />
               </div>
               <div className="cf-linea-total">Total: {fmt(l.total)}</div>
@@ -251,22 +280,6 @@ export default function ComprasFausto({ usuario }) {
           <div className="cf-total-general">Total del pedido: {fmt(totalGeneral)}</div>
         </div>
       )}
-
-      <div className="cf-card">
-        <div className="cf-paso">4. ¿De dónde salió la plata?</div>
-        <div className="cf-origenes">
-          {ORIGENES.map((o) => (
-            <button key={o} className={`cf-origen ${origen === o ? 'on' : ''}`} onClick={() => setOrigen(o)}>
-              {o}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="cf-card">
-        <div className="cf-paso">5. Nota — opcional</div>
-        <input className="cf-input" type="text" value={nota} onChange={(e) => setNota(e.target.value)} />
-      </div>
 
       <button className="cf-btn-registrar" disabled={guardando} onClick={confirmar}>
         {guardando ? 'Guardando…' : 'Registrar pedido'}
@@ -350,6 +363,7 @@ function CorreccionSimple({ pedido, onCancelar, onListo }) {
             type="number"
             inputMode="numeric"
             value={cantidades[i.id]}
+            onFocus={(e) => e.target.select()}
             onChange={(e) => setCantidades((c) => ({ ...c, [i.id]: e.target.value }))}
           />
         </div>
