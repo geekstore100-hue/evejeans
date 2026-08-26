@@ -168,17 +168,13 @@ export default function Inventario() {
   const hayCambios = Object.keys(cambios).length > 0;
 
   // Lista de cambios reales (comparados contra el valor original) para la pantalla de revisión.
+  // El stock ya NO se edita desde acá — eso ahora pasa por "Entradas y salidas",
+  // que deja motivo, categoría y queda agrupado por día.
   function listaCambiosReales() {
     const lista = [];
     Object.entries(cambios).forEach(([id, campos]) => {
       const item = items.find((i) => i.id === id);
       if (!item) return;
-      if (campos.stock !== undefined && campos.stock !== '') {
-        const v = parseInt(campos.stock);
-        if (!isNaN(v) && v >= 0 && v !== item.stock) {
-          lista.push({ id, nombre: item.name, campo: 'Stock', anterior: item.stock, nuevo: v });
-        }
-      }
       if (campos.price !== undefined && campos.price !== '') {
         const v = parseInt(campos.price);
         if (!isNaN(v) && v >= 0 && v !== item.price) {
@@ -362,7 +358,10 @@ export default function Inventario() {
           {creandoRef ? 'Creando…' : 'Crear referencia'}
         </button>
         {msgNueva.texto && <div className={`msg ${msgNueva.tipo}`}>{msgNueva.texto}</div>}
-        <div className="hint" style={{ fontSize: 12 }}>Nace con stock en 0. Se carga con una compra o editando el stock abajo.</div>
+        <div className="hint" style={{ fontSize: 12 }}>
+          Nace con stock en 0. Se carga con una compra, o desde "Entradas y salidas" (pestaña de
+          arriba) eligiendo "Entrada".
+        </div>
       </div>
 
       <div className="card" style={{ maxWidth: 720, marginBottom: 12 }}>
@@ -370,8 +369,8 @@ export default function Inventario() {
           Inventario <span className="side">{items.reduce((s, i) => s + (i.stock || 0), 0)} prendas</span>
         </h2>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-          Se ve el valor actual junto a cada campo, para que nunca se pierda de vista mientras
-          escribes. Antes de guardar, te muestro un resumen de los cambios para confirmar.
+          Aquí solo se ajustan precio y costo. El stock (cuánto hay de cada una) se mueve desde
+          la pestaña "Entradas y salidas" — deja motivo y queda agrupado por día.
         </p>
 
         <TablaInventario titulo="Con nombre" lista={nombreItems} valorActual={valorActual} cambiar={cambiar} onOcultar={toggleOcultar} />
@@ -415,7 +414,7 @@ function TablaInventario({ titulo, lista, valorActual, cambiar, onOcultar }) {
     <div style={{ marginTop: 16 }}>
       <div className="split-label">{titulo}</div>
       <div className="inv-tabla">
-        <div className="inv-fila inv-header" style={{ gridTemplateColumns: '1fr 120px 120px 100px 80px' }}>
+        <div className="inv-fila inv-header" style={{ gridTemplateColumns: '1fr 120px 120px 80px 80px' }}>
           <span>Referencia</span>
           <span>Precio venta</span>
           <span>Costo compra</span>
@@ -423,7 +422,7 @@ function TablaInventario({ titulo, lista, valorActual, cambiar, onOcultar }) {
           <span></span>
         </div>
         {lista.map((it) => (
-          <div className="inv-fila" key={it.id} style={{ gridTemplateColumns: '1fr 120px 120px 100px 80px', opacity: it.oculto ? 0.5 : 1 }}>
+          <div className="inv-fila" key={it.id} style={{ gridTemplateColumns: '1fr 120px 120px 80px 80px', opacity: it.oculto ? 0.5 : 1 }}>
             <span className="inv-nombre">{it.name}</span>
             <div>
               <input
@@ -443,15 +442,7 @@ function TablaInventario({ titulo, lista, valorActual, cambiar, onOcultar }) {
               />
               <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>era: {fmt(it.costoCompra || 0)}</div>
             </div>
-            <div>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={valorActual(it, 'stock')}
-                onChange={(e) => cambiar(it.id, 'stock', e.target.value)}
-              />
-              <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>era: {it.stock}</div>
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, paddingTop: 8, textAlign: 'center' }}>{it.stock || 0}</div>
             <button className="btn ghost sm" style={{ width: 'auto', height: 'fit-content' }} onClick={() => onOcultar(it)}>
               {it.oculto ? 'Mostrar' : 'Ocultar'}
             </button>
