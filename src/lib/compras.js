@@ -22,12 +22,12 @@ function ahoraStr() {
   return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Paso 1 — Nelson hace el pedido con el proveedor.
+// Paso 1 — Nelson (o Fausto, encargado de compras) hace el pedido con el proveedor.
 // Fija el costo de cada referencia de una vez (eso no depende de si ya llegó o no),
 // pero todavía NO mueve el stock: el stock solo sube cuando alguien confirma que
 // físicamente llegó y contó lo que decía la caja.
 // items: [{id, name, cantidadPedida, costoUnitario}]
-export async function crearPedidoCompra({ items, proveedor, origen, nota }) {
+export async function crearPedidoCompra({ items, proveedor, origen, nota, usuario }) {
   if (!items || items.length === 0) throw new Error('No hay ninguna referencia en el pedido.');
   if (!proveedor || !proveedor.trim()) throw new Error('Falta el proveedor.');
 
@@ -52,7 +52,8 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota }) {
   batch.set(compraRef, {
     fecha: hoyStr(),
     hora: ahoraStr(),
-    usuarioNombre: 'Nelson',
+    usuarioId: usuario.id,
+    usuarioNombre: usuario.nombreDefault,
     proveedor: proveedor.trim(),
     nota: nota || null,
     origen,
