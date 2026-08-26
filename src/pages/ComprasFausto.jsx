@@ -146,6 +146,10 @@ export default function ComprasFausto({ usuario }) {
           nota: l.nota.trim(),
         })),
         proveedor,
+        // Su plata siempre sale de la misma caja (efectivo de las ventas) — se
+        // manda fijo, sin preguntárselo, para que el Cierre del día siga
+        // descontando bien lo que él gasta del efectivo a entregar.
+        origen: 'Efectivo de la caja',
         usuario,
       });
       setExito({ proveedor, total: totalGeneral });
@@ -269,7 +273,7 @@ export default function ComprasFausto({ usuario }) {
                 <input
                   className="cf-input"
                   type="text"
-                  placeholder="Por ejemplo: talla, color…"
+                  placeholder=""
                   value={l.nota}
                   onChange={(e) => cambiarNota(l.id, e.target.value)}
                 />
