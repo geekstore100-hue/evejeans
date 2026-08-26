@@ -1,228 +1,217 @@
-import { useEffect, useState } from 'react';
-import { escucharSesion, salir, idDesdeEmail } from './lib/auth';
-import { escucharPanico, activarPanico, desactivarPanico } from './lib/panico';
-import { USUARIOS_BASE } from './lib/usuarios';
-import Gate from './pages/Gate';
-import Vender from './pages/Vender';
-import Cambios from './pages/Cambios';
-import Gastos from './pages/Gastos';
-import Cierre from './pages/Cierre';
-import Sobres from './pages/Sobres';
-import Compras from './pages/Compras';
-import ComprasFausto from './pages/ComprasFausto';
-import RecibirMercancia from './pages/RecibirMercancia';
-import EntradasSalidas from './pages/EntradasSalidas';
-import Inventario from './pages/Inventario';
-import Ganancia from './pages/Ganancia';
-import Movimientos from './pages/Movimientos';
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-export default function App() {
-  const [cargando, setCargando] = useState(true);
-  const [authId, setAuthId] = useState(null); // 'nelson' | 'vendedoras' | null
-  // No se guarda en localStorage a propósito: cada vez que se recarga la página
-  // o se abre de nuevo (por ejemplo al empezar el día) debe volver a preguntar
-  // quién está en el turno, en vez de seguir con la última vendedora que entró.
-  const [vendedoraElegida, setVendedoraElegida] = useState(null);
-  const [vista, setVista] = useState('vender');
-  const [panicoActivo, setPanicoActivo] = useState(false);
-  const [panicoListo, setPanicoListo] = useState(false);
-
-  useEffect(() => {
-    const quitar = escucharSesion((firebaseUser) => {
-      setAuthId(firebaseUser ? idDesdeEmail(firebaseUser.email) : null);
-      if (!firebaseUser) {
-        // La sesión de Firebase se cerró (cambio de turno normal, o el bloqueo de
-        // pánico forzándolo). "vendedoraElegida" es solo un nombre elegido en
-        // pantalla, no depende de Firebase, así que si no se limpia acá se queda
-        // pegado: la app seguiría mostrando la pantalla de siempre pero sin sesión
-        // real detrás, y cualquier lectura a Firestore saldría con "permiso
-        // denegado". Al ponerlo en null, vuelve a la pantalla de "¿quién eres?".
-        setVendedoraElegida(null);
-      }
-      setCargando(false);
-    });
-    return quitar;
-  }, []);
-
-  // Botón de pánico: se revisa desde ANTES de que haya sesión (la regla de Firestore
-  // deja leer este dato puntual sin estar autenticado, a propósito), para poder
-  // dejar la pantalla bloqueada desde el principio si está activo — sin que se
-  // alcance a intentar entrar como la cuenta compartida ni se vea nada de la tienda.
-  // Solo bloquea la cuenta COMPARTIDA de vendedoras (el computador de la tienda).
-  // Ni Nelson ni Fausto se bloquean ni se les cierra la sesión: cada uno tiene su
-  // propia cuenta real, así que pueden entrar (o Nelson, activarlo/desactivarlo)
-  // sin quedar trabados ellos mismos.
-  useEffect(() => {
-    const quitar = escucharPanico((activo) => {
-      setPanicoActivo(activo);
-      setPanicoListo(true);
-      if (activo && authId !== 'nelson' && authId !== 'fausto') salir();
-    });
-    return quitar;
-  }, [authId]);
-
-  function elegirVendedora(u) {
-    setVendedoraElegida(u);
-  }
-
-  async function cambiarDeTurno() {
-    if (authId === 'nelson' || authId === 'fausto') {
-      // Nelson y Fausto sí cierran sesión de verdad: cada uno tiene su propia
-      // cuenta real, no una etiqueta elegida sobre la cuenta compartida.
-      await salir();
+    function estaAutenticado() {
+      return request.auth != null;
     }
-    setVendedoraElegida(null);
+    function miId() {
+      // El correo interno es id@evejeans.local -> el id es la parte antes del @
+      return request.auth.token.email.split('@')[0];
+    }
+    function esNelson() {
+      return estaAutenticado() && miId() == 'nelson';
+    }
+    // Fausto (compras) tiene su propia cuenta real, igual que Nelson — solo se
+    // encarga del módulo de Compras, nada más.
+    function esFausto() {
+      return estaAutenticado() && miId() == 'fausto';
+    }
+    // Blanca y Sofía comparten una sola cuenta de acceso ("vendedoras"), así que el
+    // nombre que va en cada documento es una etiqueta elegida en la pantalla, no algo
+    // que se pueda verificar contra una identidad real distinta. Solo se valida que
+    // sea uno de los nombres válidos.
+    function usuarioIdValido(id) {
+      return id == 'blanca' || id == 'sofia' || id == 'nelson' || id == 'fausto';
+    }
+
+    // ---------- Inventario ----------
+    match /inventario/{itemId} {
+      allow read: if estaAutenticado();
+      allow create, delete: if esNelson();
+      allow update: if esNelson()
+                    || (
+                      estaAutenticado()
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
+                      && request.resource.data.stock is number
+                      && request.resource.data.stock >= 0
+                    )
+                    // Fausto solo puede tocar el costo de compra (al registrar un pedido),
+                    // nunca el stock, el nombre, el precio de venta ni nada más.
+                    || (
+                      esFausto()
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costoCompra'])
+                    );
+    }
+
+    // ---------- Contador del consecutivo de ventas ----------
+    match /contadores/{contadorId} {
+      allow get: if estaAutenticado();
+      allow update: if estaAutenticado()
+                    && request.resource.data.ultimo == resource.data.ultimo + 1;
+      allow create, delete: if esNelson();
+    }
+
+    // ---------- Ventas ----------
+    // Una vez creada, una venta (o cambio) queda fija para siempre: lo único que se
+    // puede hacer después es anularla (marcarla, con motivo y quién lo hizo), nunca
+    // reescribir sus datos ni borrarla — ni siquiera Nelson, ni un bug del código.
+    match /ventas/{ventaId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && request.resource.data.anulada == false
+                    && request.resource.data.total is number
+                    && request.resource.data.total >= 0;
+      allow update: if esNelson()
+                    && resource.data.anulada == false
+                    && request.resource.data.anulada == true
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['anulada', 'motivoAnulacion', 'anuladaPor']);
+      allow delete: if false;
+    }
+
+    // ---------- Entradas y salidas de mercancía (defectos, pérdidas, correcciones...) ----------
+    // Igual que ventas/gastos: una vez creado un movimiento queda fijo para siempre,
+    // nunca se edita ni se borra — si algo se anotó mal, se corrige con OTRO
+    // movimiento en sentido contrario, no reescribiendo el original.
+    match /entradasSalidas/{movId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && (request.resource.data.tipo == 'entrada' || request.resource.data.tipo == 'salida')
+                    && request.resource.data.cantidad is number
+                    && request.resource.data.cantidad > 0
+                    && request.resource.data.anulada == false;
+      // Anular es solo de Nelson: revierte el movimiento con otro movimiento en
+      // sentido contrario a nivel de stock (eso lo hace el código, no esta regla),
+      // y aquí solo se permite marcar el original como anulado — nunca reescribir
+      // sus datos ni borrarlo.
+      allow update: if esNelson()
+                    // get(..., false) en vez de comparar directo: así también funciona con
+                    // movimientos viejos que se crearon antes de que existiera este campo
+                    // (leer un campo que no existe con "." da error y niega el permiso).
+                    && resource.data.get('anulada', false) != true
+                    && request.resource.data.anulada == true
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['anulada', 'motivoAnulacion', 'anuladaPor']);
+      allow delete: if false;
+    }
+
+    // ---------- Configuración general (comisiones, etc.) ----------
+    match /config/{configId} {
+      // "panico" se puede leer SIN estar autenticado, a propósito: es el único dato
+      // que hace falta consultar ANTES de que alguien entre a la app, para poder
+      // dejar la pantalla en blanco desde el principio si el bloqueo de emergencia
+      // está activo (sin eso, no habría forma de saberlo sin ya haber iniciado
+      // sesión). No expone nada del negocio: solo si está activo y quién lo
+      // activó o desactivó. El resto de la configuración sigue exigiendo sesión.
+      allow read: if configId == 'panico' || estaAutenticado();
+      allow write: if esNelson();
+    }
+
+    // ---------- Gastos ----------
+    match /gastos/{gastoId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && request.resource.data.anulado == false
+                    && request.resource.data.monto is number
+                    && request.resource.data.monto >= 0;
+      allow update: if estaAutenticado()
+                    && resource.data.anulado == false
+                    && request.resource.data.anulado == true
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['anulado', 'motivoAnulacion', 'anuladoPor']);
+      allow delete: if false;
+    }
+
+    // ---------- Cierres del día ----------
+    // Ya no se crean (se quitó el botón de cerrar el día), pero los que quedaron de
+    // antes se dejan como registro fijo: nadie los edita ni los borra.
+    match /cierres/{cierreId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && request.resource.data.contado is number
+                    && request.resource.data.contado >= 0;
+      allow update, delete: if false;
+    }
+
+    // ---------- Planillas de efectivo por entregar (Cierre del día -> Fausto) ----------
+    // El monto "pendiente" es un cálculo automático (el mismo efectivo a entregar
+    // del Cierre de ese día) — no mueve plata, así que cualquiera autenticado lo
+    // puede crear con solo abrir la pantalla, para no calcularlo de nuevo cada
+    // vez. Confirmar que se recibió DE VERDAD sí es dinero: eso solo lo pueden
+    // hacer Nelson o Fausto, una sola vez, y nunca se puede editar ni borrar
+    // después.
+    match /planillas/{fecha} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && request.resource.data.efectivoAEntregar is number
+                    && request.resource.data.efectivoAEntregar > 0
+                    && request.resource.data.estado == 'pendiente'
+                    && request.resource.data.recibido == null;
+      allow update: if (esNelson() || esFausto())
+                    && resource.data.estado == 'pendiente'
+                    && request.resource.data.estado == 'recibido'
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['estado', 'recibido', 'difEntrega', 'entregoNombre', 'recibidoPorId', 'recibidoPorNombre', 'recibidoFecha', 'notaRecibo']);
+      allow delete: if false;
+    }
+
+    // ---------- Ajustes de inventario (el registro que reemplaza el Excel) ----------
+    // Solo Nelson los crea y los lee. Es un historial: nunca se edita ni se borra.
+    match /ajustesInventario/{ajusteId} {
+      allow read, create: if esNelson();
+      allow update, delete: if false;
+    }
+
+    // ---------- Compras de mercancía ----------
+    // Nelson o Fausto (compras) hacen el pedido (fijan el costo, eligen el proveedor).
+    // Cualquiera autenticado puede leer, y puede CONFIRMAR la recepción (pasar de
+    // "pendiente" a "confirmada"), pero solo tocando esos campos — nunca puede crear
+    // un pedido nuevo ni cambiar el costo.
+    // Nelson sigue pudiendo editar o borrar cualquier compra en cualquier momento.
+    // Fausto solo puede corregir ("Ajustar") sus PROPIOS pedidos, y solo mientras
+    // sigan "pendientes" — nunca los de Nelson, ni uno ya confirmado, ni puede borrar.
+    match /compras/{compraId} {
+      allow read: if estaAutenticado();
+      allow create: if (esNelson() || esFausto())
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && request.resource.data.estado == 'pendiente';
+      allow update: if esNelson()
+                    || (
+                      esFausto()
+                      && resource.data.usuarioId == 'fausto'
+                      && resource.data.estado == 'pendiente'
+                      && request.resource.data.estado == 'pendiente'
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['items', 'totalGeneral'])
+                    )
+                    || (
+                      estaAutenticado()
+                      && resource.data.estado == 'pendiente'
+                      && request.resource.data.estado == 'confirmada'
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['items', 'estado', 'confirmadoPor', 'confirmadoFecha'])
+                    );
+      allow delete: if esNelson();
+    }
+
+    // ---------- Conteos de inicio de semana ----------
+    // Cualquiera autenticado puede leer (para saber si ya se hizo esta semana) y crear
+    // (es Blanca quien lo hace). Es un historial: nunca se edita ni se borra.
+    match /conteos/{conteoId} {
+      allow read, create: if estaAutenticado();
+      allow update, delete: if false;
+    }
+
+    // ---------- Observaciones de Cierre del día ----------
+    // Una nota de texto libre por fecha (no es un dato financiero, por eso se puede
+    // corregir libremente). El id del documento es la fecha (AAAA-MM-DD).
+    match /observacionesCierre/{fecha} {
+      allow read, write: if estaAutenticado();
+    }
   }
-
-  if (cargando || !panicoListo) {
-    return <div className="loading">Cargando…</div>;
-  }
-
-  // Bloqueo activo y quien está (o todavía no está) identificado no es Nelson ni
-  // Fausto: no se muestra la tienda ni el selector de vendedoras, solo el PIN de
-  // Nelson (con un enlace ahí mismo para entrar como Fausto).
-  if (panicoActivo && authId !== 'nelson' && authId !== 'fausto') {
-    return <Gate onElegirVendedora={elegirVendedora} soloAdmin />;
-  }
-
-  // Nelson y Fausto tienen su propia cuenta real: entran directo, sin elegir nombre.
-  const usuario =
-    authId === 'nelson' || authId === 'fausto'
-      ? USUARIOS_BASE.find((u) => u.id === authId)
-      : vendedoraElegida;
-
-  if (!usuario) {
-    return <Gate onElegirVendedora={elegirVendedora} />;
-  }
-
-  // Fausto solo se encarga de compras: no ve el resto de la tienda, ni las pestañas
-  // ni el botón de pánico (eso sigue siendo solo de Nelson).
-  if (usuario.id === 'fausto') {
-    return (
-      <div>
-        <div className="topbar">
-          <div className="brand">
-            <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
-            <span>· punto de venta</span>
-          </div>
-          <div className="spacer" />
-          <div className="who">
-            Turno de <b>{usuario.nombreDefault}</b>
-          </div>
-          <button className="link-btn" onClick={cambiarDeTurno}>
-            Cambiar de turno
-          </button>
-        </div>
-        <main>
-          <ComprasFausto usuario={usuario} />
-        </main>
-      </div>
-    );
-  }
-
-  return (
-    <div className={vista === 'vender' ? 'con-panel-fijo' : ''}>
-      <div className="topbar">
-        <div className="brand">
-          <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
-          <span>· punto de venta</span>
-        </div>
-        <div className="spacer" />
-        <div className="who">
-          Turno de <b>{usuario.nombreDefault}</b>
-        </div>
-        <button className="link-btn" onClick={cambiarDeTurno}>
-          Cambiar de turno
-        </button>
-        {usuario.id === 'nelson' && (
-          <>
-            <div className="topbar-divider" />
-            {panicoActivo ? (
-              <button
-                className="panic-btn desbloquear"
-                onClick={async () => {
-                  const ok = window.confirm(
-                    'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
-                  );
-                  if (!ok) return;
-                  await desactivarPanico(usuario);
-                }}
-              >
-                🔓 Desbloquear tienda
-              </button>
-            ) : (
-              <button
-                className="panic-btn bloquear"
-                onClick={async () => {
-                  const ok = window.confirm(
-                    'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
-                  );
-                  if (!ok) return;
-                  await activarPanico(usuario);
-                }}
-              >
-                🔒 Bloquear tienda
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
-      <nav className="tabs">
-        <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
-          Vender
-        </button>
-        <button className={vista === 'cambios' ? 'on' : ''} onClick={() => setVista('cambios')}>
-          Cambios
-        </button>
-        <button className={vista === 'gastos' ? 'on' : ''} onClick={() => setVista('gastos')}>
-          Gastos
-        </button>
-        <button className={vista === 'cierre' ? 'on' : ''} onClick={() => setVista('cierre')}>
-          Cierre del día
-        </button>
-        <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
-          Entrega de dinero
-        </button>
-        <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
-          Recibir mercancía
-        </button>
-        <button className={vista === 'entradasSalidas' ? 'on' : ''} onClick={() => setVista('entradasSalidas')}>
-          Entradas y salidas
-        </button>
-        <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
-          Historial
-        </button>
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'compras' ? 'on' : ''} onClick={() => setVista('compras')}>
-            Compras
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>
-            Inventario
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'ganancia' ? 'on' : ''} onClick={() => setVista('ganancia')}>
-            Ganancia
-          </button>
-        )}
-      </nav>
-
-      <main>
-        {vista === 'vender' && <Vender usuario={usuario} />}
-        {vista === 'cambios' && <Cambios usuario={usuario} />}
-        {vista === 'gastos' && <Gastos usuario={usuario} />}
-        {vista === 'cierre' && <Cierre usuario={usuario} />}
-        {vista === 'sobres' && <Sobres usuario={usuario} />}
-        {vista === 'recibir' && <RecibirMercancia usuario={usuario} />}
-        {vista === 'entradasSalidas' && <EntradasSalidas usuario={usuario} />}
-        {vista === 'movimientos' && <Movimientos usuario={usuario} />}
-        {vista === 'compras' && usuario.id === 'nelson' && <Compras usuario={usuario} />}
-        {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
-        {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
-      </main>
-    </div>
-  );
 }
