@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { USUARIOS_BASE } from '../lib/usuarios';
-import { entrarComoVendedoraCompartida, entrarComoNelson } from '../lib/auth';
+import { entrarComoVendedoraCompartida, entrarComoNelson, entrarComoFausto } from '../lib/auth';
 
 // Se muestra cuando todavía no hay nadie identificado. Si Firebase ya nos autenticó
 // como la cuenta compartida (o lo hace ahora mismo, en silencio), solo falta
@@ -11,13 +11,18 @@ import { entrarComoVendedoraCompartida, entrarComoNelson } from '../lib/auth';
 // sin nombres ni menú ni nada que ver) y lo único que se muestra es el PIN de
 // Nelson, para que él pueda entrar a desactivarlo desde su propia cuenta.
 export default function Gate({ onElegirVendedora, soloAdmin }) {
-  const [modo, setModo] = useState(soloAdmin ? 'nelson' : 'entrando'); // entrando | elegir | nelson
+  const [modo, setModo] = useState(soloAdmin ? 'nelson' : 'entrando'); // entrando | elegir | nelson | fausto
   const [errorEntrada, setErrorEntrada] = useState('');
   const [pinNelson, setPinNelson] = useState('');
   const [errorNelson, setErrorNelson] = useState('');
   const [entrandoNelson, setEntrandoNelson] = useState(false);
+  const [pinFausto, setPinFausto] = useState('');
+  const [errorFausto, setErrorFausto] = useState('');
+  const [entrandoFausto, setEntrandoFausto] = useState(false);
 
-  const vendedoras = USUARIOS_BASE.filter((u) => u.id !== 'nelson');
+  // Fausto (compras) tiene su propia cuenta real, como Nelson — no es un nombre que
+  // se elige bajo la cuenta compartida de las vendedoras.
+  const vendedoras = USUARIOS_BASE.filter((u) => u.id !== 'nelson' && u.id !== 'fausto');
 
   useEffect(() => {
     if (soloAdmin) return;
@@ -38,6 +43,21 @@ export default function Gate({ onElegirVendedora, soloAdmin }) {
       setPinNelson('');
     } finally {
       setEntrandoNelson(false);
+    }
+  }
+
+  async function confirmarFausto() {
+    if (!pinFausto) return;
+    setErrorFausto('');
+    setEntrandoFausto(true);
+    try {
+      await entrarComoFausto(pinFausto);
+      // El listener de sesión en App.jsx reconoce a Fausto solo, no hace falta nada más aquí.
+    } catch (e) {
+      setErrorFausto('PIN incorrecto.');
+      setPinFausto('');
+    } finally {
+      setEntrandoFausto(false);
     }
   }
 
@@ -80,6 +100,39 @@ export default function Gate({ onElegirVendedora, soloAdmin }) {
               Volver
             </button>
           )}
+          {soloAdmin && (
+            <button className="gate-admin-link" onClick={() => setModo('fausto')}>
+              Entrar como Fausto (Compras)
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (modo === 'fausto') {
+    return (
+      <div className="gate">
+        <div className="gate-box">
+          <h1>Fausto</h1>
+          <p>Escribe tu PIN.</p>
+          <input
+            type="password"
+            value={pinFausto}
+            onChange={(e) => setPinFausto(e.target.value)}
+            style={{ marginBottom: 12 }}
+            autoFocus
+          />
+          {errorFausto && <div className="msg bad">{errorFausto}</div>}
+          <button className="btn" disabled={entrandoFausto} onClick={confirmarFausto}>
+            {entrandoFausto ? 'Entrando…' : 'Entrar'}
+          </button>
+          {/* Durante el bloqueo de pánico, "Volver" no debe mostrar la lista de
+              vendedoras (todo el punto es que la tienda quede oculta) — vuelve a la
+              pantalla del PIN de Nelson en vez de a "elegir". */}
+          <button className="btn ghost" onClick={() => setModo(soloAdmin ? 'nelson' : 'elegir')}>
+            Volver
+          </button>
         </div>
       </div>
     );
@@ -98,6 +151,9 @@ export default function Gate({ onElegirVendedora, soloAdmin }) {
         ))}
         <button className="gate-admin-link" onClick={() => setModo('nelson')}>
           Entrar como Nelson (Administración)
+        </button>
+        <button className="gate-admin-link" onClick={() => setModo('fausto')}>
+          Entrar como Fausto (Compras)
         </button>
       </div>
     </div>
