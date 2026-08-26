@@ -73,6 +73,11 @@ export default function Compras({ usuario }) {
   function cambiarCosto(id, valor) {
     setCarrito((c) => ({ ...c, [id]: { ...c[id], costoUnitario: parseInt(valor) || 0 } }));
   }
+  // Para pedidos grandes de una sola referencia (ej. 80 unidades) no hace falta tocar
+  // 80 veces la referencia: se toca una vez y de ahí se escribe la cantidad de una.
+  function cambiarCantidad(id, valor) {
+    setCarrito((c) => ({ ...c, [id]: { ...c[id], qty: parseInt(valor) || 0 } }));
+  }
 
   const lineas = Object.entries(carrito).map(([id, d]) => ({
     id,
@@ -100,6 +105,10 @@ export default function Compras({ usuario }) {
     }
     if (!proveedor.trim()) {
       setMsg({ tipo: 'bad', texto: 'Falta el proveedor.' });
+      return;
+    }
+    if (lineas.some((l) => !l.qty || l.qty <= 0)) {
+      setMsg({ tipo: 'bad', texto: 'Revisa la cantidad de alguna referencia — no puede ser cero.' });
       return;
     }
     if (lineas.some((l) => !l.costoUnitario || l.costoUnitario <= 0)) {
@@ -205,19 +214,25 @@ export default function Compras({ usuario }) {
               lineas.map((l) => (
                 <div key={l.id} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 700 }}>
-                      {l.name} <span className="qty">×{l.qty}</span>
-                    </span>
+                    <span style={{ fontWeight: 700 }}>{l.name}</span>
                     <button tabIndex={-1} onClick={() => quitarLinea(l.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 18 }}>✕</button>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Cantidad</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={l.qty}
+                      onChange={(e) => cambiarCantidad(l.id, e.target.value)}
+                      style={{ padding: 8, fontSize: 14, width: 70 }}
+                    />
                     <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Costo c/u</label>
                     <input
                       type="number"
                       inputMode="numeric"
                       value={l.costoUnitario}
                       onChange={(e) => cambiarCosto(l.id, e.target.value)}
-                      style={{ padding: 8, fontSize: 14 }}
+                      style={{ padding: 8, fontSize: 14, width: 100 }}
                     />
                     <span style={{ fontFamily: 'monospace', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(l.total)}</span>
                   </div>
@@ -299,7 +314,8 @@ export default function Compras({ usuario }) {
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
-                  {c.items.map((i) => `${i.name} ×${i.cantidadPedida}`).join(', ')} · {c.origen}
+                  {c.items.map((i) => `${i.name} ×${i.cantidadPedida}`).join(', ')}
+                  {c.origen ? ` · ${c.origen}` : ''}
                   {c.usuarioNombre ? ` · pidió ${c.usuarioNombre}` : ''}
                   {c.nota ? ` · ${c.nota}` : ''}
                   {c.estado === 'confirmada' && ` · confirmó ${c.confirmadoPor} el ${c.confirmadoFecha}`}
