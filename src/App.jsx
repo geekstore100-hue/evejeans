@@ -133,36 +133,38 @@ export default function App() {
         <button className="link-btn" onClick={cambiarDeTurno}>
           Cambiar de turno
         </button>
-        {usuario.id === 'nelson' &&
-          (panicoActivo ? (
-            <button
-              className="link-btn"
-              style={{ color: 'var(--ok)' }}
-              onClick={async () => {
-                const ok = window.confirm(
-                  'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
-                );
-                if (!ok) return;
-                await desactivarPanico(usuario);
-              }}
-            >
-              Desbloquear tienda
-            </button>
-          ) : (
-            <button
-              className="link-btn"
-              style={{ color: 'var(--danger)' }}
-              onClick={async () => {
-                const ok = window.confirm(
-                  'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
-                );
-                if (!ok) return;
-                await activarPanico(usuario);
-              }}
-            >
-              Bloquear tienda
-            </button>
-          ))}
+        {usuario.id === 'nelson' && (
+          <>
+            <div className="topbar-divider" />
+            {panicoActivo ? (
+              <button
+                className="panic-btn desbloquear"
+                onClick={async () => {
+                  const ok = window.confirm(
+                    'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
+                  );
+                  if (!ok) return;
+                  await desactivarPanico(usuario);
+                }}
+              >
+                🔓 Desbloquear tienda
+              </button>
+            ) : (
+              <button
+                className="panic-btn bloquear"
+                onClick={async () => {
+                  const ok = window.confirm(
+                    'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
+                  );
+                  if (!ok) return;
+                  await activarPanico(usuario);
+                }}
+              >
+                🔒 Bloquear tienda
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       <nav className="tabs">
