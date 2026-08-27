@@ -19,18 +19,35 @@ export default function Sobres({ usuario }) {
   const [recibidas, setRecibidas] = useState(null);
   const [abierto, setAbierto] = useState(null); // fecha de la planilla que se está recibiendo
   const [hoyAbierto, setHoyAbierto] = useState(false);
+  const [errorCarga, setErrorCarga] = useState('');
 
   useEffect(() => {
     cargar();
   }, []);
 
   async function cargar() {
-    // Revisa si hay días atrasados sin planilla y las crea solas (con el monto
-    // que ya calculó el Cierre de cada día) antes de mostrar la lista.
-    await asegurarPlanillasPendientes();
-    const [p, r] = await Promise.all([planillasPendientes(), planillasRecibidas()]);
-    setPendientes(p);
-    setRecibidas(r);
+    setErrorCarga('');
+    try {
+      // Revisa si hay días atrasados sin planilla y las crea solas (con el monto
+      // que ya calculó el Cierre de cada día) antes de mostrar la lista.
+      await asegurarPlanillasPendientes();
+      const [p, r] = await Promise.all([planillasPendientes(), planillasRecibidas()]);
+      setPendientes(p);
+      setRecibidas(r);
+    } catch (e) {
+      setErrorCarga('No se pudo cargar: ' + e.message);
+    }
+  }
+
+  if (errorCarga) {
+    return (
+      <div style={{ padding: 24 }}>
+        <div className="card" style={{ maxWidth: 460 }}>
+          <h2>No se pudo cargar</h2>
+          <p style={{ fontSize: 14, color: 'var(--danger)' }}>{errorCarga}</p>
+        </div>
+      </div>
+    );
   }
 
   const totalPendiente = (pendientes || []).reduce((s, p) => s + p.efectivoAEntregar, 0);
