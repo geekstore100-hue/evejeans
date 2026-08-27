@@ -203,8 +203,17 @@ export default function Movimientos({ usuario }) {
                   {c.fecha} {c.hora} · {c.usuarioNombre}
                 </div>
                 {c.referencias.map((r, i) => (
-                  <div key={i} style={{ fontSize: 12, color: r.contado !== r.sistema ? 'var(--danger)' : 'var(--ink-soft)' }}>
-                    {r.name}: sistema {r.sistema} / contó {r.contado}
+                  <div key={i} style={{ marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: r.contado !== r.sistema ? 'var(--danger)' : 'var(--ink-soft)' }}>
+                      {r.name}: sistema {r.sistema} / contó {r.contado}
+                    </div>
+                    {r.porUbicacion && (
+                      <div style={{ fontSize: 10, color: 'var(--ink-soft)' }}>
+                        estantería {r.porUbicacion.estanteria || 0} · bodega {r.porUbicacion.bodega || 0} · exhibición{' '}
+                        {r.porUbicacion.exhibicion || 0} · apartados {r.porUbicacion.apartados || 0} · cambios{' '}
+                        {r.porUbicacion.cambios || 0} · lavandería {r.porUbicacion.lavanderia || 0}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
