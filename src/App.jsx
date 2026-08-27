@@ -17,6 +17,7 @@ import Inventario from './pages/Inventario';
 import Ganancia from './pages/Ganancia';
 import Movimientos from './pages/Movimientos';
 import Conciliacion from './pages/Conciliacion';
+import Capital from './pages/Capital';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -225,6 +226,11 @@ export default function App() {
             Conciliación
           </button>
         )}
+        {usuario.id === 'nelson' && (
+          <button className={vista === 'capital' ? 'on' : ''} onClick={() => setVista('capital')}>
+            Capital disponible
+          </button>
+        )}
       </nav>
 
       <main>
@@ -240,6 +246,7 @@ export default function App() {
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
         {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
         {vista === 'conciliacion' && usuario.id === 'nelson' && <Conciliacion usuario={usuario} />}
+        {vista === 'capital' && usuario.id === 'nelson' && <Capital usuario={usuario} />}
       </main>
     </div>
   );
