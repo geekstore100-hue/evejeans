@@ -6,8 +6,8 @@ import { db } from './firebase';
 // despliegues, y el mismo TOKEN_SUBIDA que pusiste allá. Mientras esto no esté
 // lleno, la conciliación sigue funcionando igual — solo no se podrá adjuntar
 // el PDF (se guarda el número que escribas, sin el archivo).
-const URL_SUBIDA_EXTRACTO = ''; // <-- pega aquí la URL que termina en /exec
-const TOKEN_SUBIDA_EXTRACTO = ''; // <-- el mismo TOKEN_SUBIDA del Apps Script
+const URL_SUBIDA_EXTRACTO = 'https://script.google.com/macros/s/AKfycbzzSbDw6eanxG0WblR3WcLTmghiVuf6raw9D7zTsiUDM89FoMeejdUITJ9rwkwXWss3nA/exec'; // <-- pega aquí la URL que termina en /exec
+const TOKEN_SUBIDA_EXTRACTO = 'Solliml4+'; // <-- el mismo TOKEN_SUBIDA del Apps Script
 // ------------------------------------
 
 // Medios de pago que se pueden conciliar contra un extracto de la entidad.
