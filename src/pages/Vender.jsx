@@ -9,6 +9,17 @@ import { tocaConteo, registrarConteo } from '../lib/conteo';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
+// Lugares donde puede estar físicamente una prenda al momento del conteo — se
+// cuenta por separado en cada uno y se suman, en vez de adivinar un solo total.
+const UBICACIONES = [
+  { key: 'estanteria', label: 'Estantería' },
+  { key: 'bodega', label: 'Bodega' },
+  { key: 'exhibicion', label: 'Exhibición' },
+  { key: 'apartados', label: 'Apartados' },
+  { key: 'cambios', label: 'Cambios' },
+  { key: 'lavanderia', label: 'Lavandería' },
+];
+
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
@@ -62,12 +73,22 @@ export default function Vender({ usuario }) {
   async function guardarConteoSemana() {
     setGuardandoConteo(true);
     try {
-      const referencias = muestraConteo.map((it) => ({
-        id: it.id,
-        name: it.name,
-        sistema: it.stock || 0,
-        contado: parseInt(cantidadesConteo[it.id]) || 0,
-      }));
+      const referencias = muestraConteo.map((it) => {
+        const porUbicacion = {};
+        let contado = 0;
+        UBICACIONES.forEach((u) => {
+          const val = parseInt(cantidadesConteo[it.id]?.[u.key]) || 0;
+          porUbicacion[u.key] = val;
+          contado += val;
+        });
+        return {
+          id: it.id,
+          name: it.name,
+          sistema: it.stock || 0,
+          contado,
+          porUbicacion,
+        };
+      });
       await registrarConteo({ usuario, referencias });
       setContando(false);
       setDebeContar(false);
@@ -314,21 +335,31 @@ export default function Vender({ usuario }) {
         <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           <div style={{ fontWeight: 800, marginBottom: 8 }}>Conteo de inicio de semana</div>
           <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-            Cuenta estas prendas donde estén de verdad. No verás el número del sistema hasta que envíes.
+            Cuenta cuántas hay de verdad en cada lugar. No verás el número del sistema hasta que envíes.
           </p>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            {muestraConteo.map((it) => (
-              <div className="field" key={it.id} style={{ minWidth: 160 }}>
-                <label>{it.name}</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={cantidadesConteo[it.id] || ''}
-                  onChange={(e) => setCantidadesConteo((c) => ({ ...c, [it.id]: e.target.value }))}
-                />
+          {muestraConteo.map((it) => (
+            <div key={it.id} style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>{it.name}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {UBICACIONES.map((u) => (
+                  <div className="field" key={u.key} style={{ minWidth: 100, flex: '1 0 100px' }}>
+                    <label>{u.label}</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={cantidadesConteo[it.id]?.[u.key] || ''}
+                      onChange={(e) =>
+                        setCantidadesConteo((c) => ({
+                          ...c,
+                          [it.id]: { ...c[it.id], [u.key]: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setContando(false)}>
               Ahora no
