@@ -23,16 +23,33 @@ export default function EntregaEfectivoFausto({ usuario }) {
   const [abierto, setAbierto] = useState(null);
   const [hoyAbierto, setHoyAbierto] = useState(false);
   const [exito, setExito] = useState(null);
+  const [errorCarga, setErrorCarga] = useState('');
 
   useEffect(() => {
     cargar();
   }, []);
 
   async function cargar() {
-    await asegurarPlanillasPendientes();
-    const [p, r] = await Promise.all([planillasPendientes(), planillasRecibidas(5)]);
-    setPendientes(p);
-    setRecibidas(r.filter((x) => x.recibidoPorId === usuario.id));
+    setErrorCarga('');
+    try {
+      await asegurarPlanillasPendientes();
+      const [p, r] = await Promise.all([planillasPendientes(), planillasRecibidas(5)]);
+      setPendientes(p);
+      setRecibidas(r.filter((x) => x.recibidoPorId === usuario.id));
+    } catch (e) {
+      setErrorCarga('No se pudo cargar: ' + e.message);
+    }
+  }
+
+  if (errorCarga) {
+    return (
+      <div className="cf-page">
+        <div className="cf-card">
+          <div className="cf-paso">No se pudo cargar</div>
+          <p style={{ fontSize: 14, color: 'var(--danger)' }}>{errorCarga}</p>
+        </div>
+      </div>
+    );
   }
 
   if (!pendientes) return <div className="loading">Cargando…</div>;
