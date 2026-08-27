@@ -65,30 +65,40 @@ export async function asegurarPlanillasPendientes() {
   const snap = await getDocs(q);
   const yaExisten = new Set(snap.docs.map((d) => d.id));
 
+  const faltantes = [];
   for (let d = new Date(desde); d <= ayer; d.setDate(d.getDate() + 1)) {
     const fecha = fechaAStr(d);
-    if (yaExisten.has(fecha)) continue;
-    const resumen = await resumenDia(fecha);
-    const efectivoAEntregar = resumen.efectivoAEntregar || 0;
-    // Si ese día no hubo nada de efectivo (por ejemplo un día cerrado), no se
-    // crea planilla — no hay nada que recoger. Vuelve a revisarse la próxima
-    // vez, pero eso no cuesta nada (una consulta vacía).
-    if (efectivoAEntregar > 0) {
-      await setDoc(doc(db, 'planillas', fecha), {
-        fecha,
-        efectivoAEntregar,
-        estado: 'pendiente', // pendiente | recibido
-        recibido: null,
-        difEntrega: null,
-        entregoNombre: null,
-        recibidoPorId: null,
-        recibidoPorNombre: null,
-        recibidoFecha: null,
-        notaRecibo: null,
-        creadoEn: serverTimestamp(),
-      });
-    }
+    if (!yaExisten.has(fecha)) faltantes.push(fecha);
   }
+  if (faltantes.length === 0) return;
+
+  // Se calculan todos los días que falten al tiempo (en paralelo) en vez de uno
+  // por uno — la primera vez que se abre esta pantalla puede haber varios días
+  // sin revisar, y calcularlos de a uno hace que la carga se sienta muy lenta.
+  await Promise.all(
+    faltantes.map(async (fecha) => {
+      const resumen = await resumenDia(fecha);
+      const efectivoAEntregar = resumen.efectivoAEntregar || 0;
+      // Si ese día no hubo nada de efectivo (por ejemplo un día cerrado), no se
+      // crea planilla — no hay nada que recoger. Vuelve a revisarse la próxima
+      // vez, pero eso no cuesta nada (una consulta vacía).
+      if (efectivoAEntregar > 0) {
+        await setDoc(doc(db, 'planillas', fecha), {
+          fecha,
+          efectivoAEntregar,
+          estado: 'pendiente', // pendiente | recibido
+          recibido: null,
+          difEntrega: null,
+          entregoNombre: null,
+          recibidoPorId: null,
+          recibidoPorNombre: null,
+          recibidoFecha: null,
+          notaRecibo: null,
+          creadoEn: serverTimestamp(),
+        });
+      }
+    })
+  );
 }
 
 export async function planillasPendientes() {
