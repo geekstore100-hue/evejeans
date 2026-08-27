@@ -335,31 +335,40 @@ export default function Vender({ usuario }) {
         <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           <div style={{ fontWeight: 800, marginBottom: 8 }}>Conteo de inicio de semana</div>
           <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-            Cuenta cuántas hay de verdad en cada lugar. No verás el número del sistema hasta que envíes.
+            Cuenta cuántas hay de verdad en cada lugar.
           </p>
-          {muestraConteo.map((it) => (
-            <div key={it.id} style={{ marginBottom: 14 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>{it.name}</div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {UBICACIONES.map((u) => (
-                  <div className="field" key={u.key} style={{ minWidth: 100, flex: '1 0 100px' }}>
-                    <label>{u.label}</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      value={cantidadesConteo[it.id]?.[u.key] || ''}
-                      onChange={(e) =>
-                        setCantidadesConteo((c) => ({
-                          ...c,
-                          [it.id]: { ...c[it.id], [u.key]: e.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                ))}
+          {muestraConteo.map((it) => {
+            const totalItem = UBICACIONES.reduce(
+              (s, u) => s + (parseInt(cantidadesConteo[it.id]?.[u.key]) || 0),
+              0
+            );
+            return (
+              <div key={it.id} style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span>{it.name}</span>
+                  <span style={{ color: 'var(--ink-soft)' }}>Total contado: {totalItem}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {UBICACIONES.map((u) => (
+                    <div className="field" key={u.key} style={{ minWidth: 100, flex: '1 0 100px' }}>
+                      <label>{u.label}</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={cantidadesConteo[it.id]?.[u.key] || ''}
+                        onChange={(e) =>
+                          setCantidadesConteo((c) => ({
+                            ...c,
+                            [it.id]: { ...c[it.id], [u.key]: e.target.value },
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setContando(false)}>
               Ahora no
