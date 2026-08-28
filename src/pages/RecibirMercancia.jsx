@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { pedidosPendientes, confirmarRecepcion } from '../lib/compras';
+import { pedidosPendientes, confirmarRecepcion, claveLinea } from '../lib/compras';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -31,10 +31,12 @@ export default function RecibirMercancia({ usuario }) {
   }, [inventario]);
 
   // Agrupar por proveedor para que se vea junto lo mismo que llega junto.
+  // "Sin proveedor" para los pedidos que no lo preguntan (ej. Fausto).
   const porProveedor = {};
   (pendientes || []).forEach((p) => {
-    porProveedor[p.proveedor] = porProveedor[p.proveedor] || [];
-    porProveedor[p.proveedor].push(p);
+    const clave = p.proveedor || 'Sin proveedor';
+    porProveedor[clave] = porProveedor[clave] || [];
+    porProveedor[clave].push(p);
   });
 
   return (
@@ -70,7 +72,9 @@ export default function RecibirMercancia({ usuario }) {
                 <div className="gasto-item" key={p.id}>
                   <div>
                     <div className="gasto-nombre">{p.fecha} {p.hora}</div>
-                    <div className="gasto-sub">{p.items.map((i) => `${i.name} ×${i.cantidadPedida}`).join(', ')}</div>
+                    <div className="gasto-sub">
+                      {p.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''} ×${i.cantidadPedida}`).join(', ')}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span className="gasto-monto">{fmt(p.totalGeneral)}</span>
@@ -91,14 +95,14 @@ export default function RecibirMercancia({ usuario }) {
 function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
   const [cantidades, setCantidades] = useState(() => {
     const inicial = {};
-    pedido.items.forEach((i) => (inicial[i.id] = String(i.cantidadPedida)));
+    pedido.items.forEach((i) => (inicial[claveLinea(i)] = String(i.cantidadPedida)));
     return inicial;
   });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
 
   const diferencias = pedido.items
-    .map((i) => ({ ...i, cantidadIngresada: parseInt(cantidades[i.id]) }))
+    .map((i) => ({ ...i, cantidadIngresada: parseInt(cantidades[claveLinea(i)]) }))
     .filter((i) => isNaN(i.cantidadIngresada) || i.cantidadIngresada !== i.cantidadPedida);
 
   const todoCoincide = diferencias.length === 0;
@@ -109,8 +113,8 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
     setGuardando(true);
     try {
       const itemsConfirmados = pedido.items.map((i) => ({
-        id: i.id,
-        cantidadRecibida: parseInt(cantidades[i.id]) || 0,
+        lineaId: claveLinea(i),
+        cantidadRecibida: parseInt(cantidades[claveLinea(i)]) || 0,
         stockActual: porId[i.id]?.stock || 0,
       }));
       await confirmarRecepcion(pedido.id, pedido, itemsConfirmados, usuario);
@@ -128,15 +132,18 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
         Confirmar recepción — {pedido.fecha}
       </div>
       {pedido.items.map((i) => (
-        <div className="field" key={i.id} style={{ marginBottom: 8 }}>
-          <label>{i.name} · pedido {i.cantidadPedida}</label>
+        <div className="field" key={claveLinea(i)} style={{ marginBottom: 8 }}>
+          <label>
+            {i.name}
+            {i.nota ? ` (${i.nota})` : ''} · pedido {i.cantidadPedida}
+          </label>
           <input
             type="number"
             inputMode="numeric"
-            value={cantidades[i.id]}
-            onChange={(e) => setCantidades((c) => ({ ...c, [i.id]: e.target.value }))}
+            value={cantidades[claveLinea(i)]}
+            onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
             style={
-              diferencias.some((d) => d.id === i.id)
+              diferencias.some((d) => claveLinea(d) === claveLinea(i))
                 ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' }
                 : {}
             }
