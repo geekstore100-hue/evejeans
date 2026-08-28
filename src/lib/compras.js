@@ -22,24 +22,48 @@ function ahoraStr() {
   return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Identifica cada LÍNEA del pedido (no la referencia) — hace falta porque una
+// misma referencia "por precio" (ej. "$60.000") puede aparecer más de una vez
+// en el mismo pedido, con cantidades y notas distintas (ej. 10 de chaquetas y
+// 20 de pantalones, ambas a $60.000). El "id" sigue siendo el de la referencia
+// en inventario (para el costo/stock); "lineaId" es único por línea.
+function nuevaLineaId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+export { nuevaLineaId };
+
+// Devuelve el identificador de línea de un item, ya sea de un pedido nuevo
+// (siempre trae lineaId) o de uno viejo creado antes de que existiera este
+// campo (ahí se usa el "id" de la referencia, como se hacía antes).
+export function claveLinea(item) {
+  return item.lineaId || item.id;
+}
+
 // Paso 1 — Nelson (o Fausto, encargado de compras) hace el pedido con el proveedor.
 // Fija el costo de cada referencia de una vez (eso no depende de si ya llegó o no),
 // pero todavía NO mueve el stock: el stock solo sube cuando alguien confirma que
 // físicamente llegó y contó lo que decía la caja.
-// items: [{id, name, cantidadPedida, costoUnitario}]
+// items: [{id, lineaId, name, cantidadPedida, costoUnitario, nota}]
+// proveedor es opcional (la pantalla simple de Fausto ya no lo pregunta) —
+// cuando no se sabe o no se preguntó, queda como null.
 export async function crearPedidoCompra({ items, proveedor, origen, nota, usuario }) {
   if (!items || items.length === 0) throw new Error('No hay ninguna referencia en el pedido.');
-  if (!proveedor || !proveedor.trim()) throw new Error('Falta el proveedor.');
 
   const batch = writeBatch(db);
   // El costo de compra se actualiza ya, aunque la mercancía no haya llegado —
-  // es el precio que se acordó con el proveedor.
-  items.forEach((i) => {
-    batch.update(doc(db, 'inventario', i.id), { costoCompra: i.costoUnitario });
+  // es el precio que se acordó con el proveedor. Si la misma referencia
+  // aparece en más de una línea (ver arriba), Firestore no permite escribir
+  // el mismo documento dos veces en un solo batch — por eso se agrupa por id
+  // primero, y solo se escribe una vez cada uno (con el último costo escrito).
+  const costoPorId = {};
+  items.forEach((i) => (costoPorId[i.id] = i.costoUnitario));
+  Object.entries(costoPorId).forEach(([id, costoUnitario]) => {
+    batch.update(doc(db, 'inventario', id), { costoCompra: costoUnitario });
   });
 
   const itemsConTotal = items.map((i) => ({
     id: i.id,
+    lineaId: i.lineaId || nuevaLineaId(),
     name: i.name,
     cantidadPedida: i.cantidadPedida,
     cantidadRecibida: null,
@@ -57,7 +81,7 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
     hora: ahoraStr(),
     usuarioId: usuario.id,
     usuarioNombre: usuario.nombreDefault,
-    proveedor: proveedor.trim(),
+    proveedor: proveedor && proveedor.trim() ? proveedor.trim() : null,
     nota: nota || null,
     // "|| null": la pantalla de Fausto ya no pregunta el origen del dinero, así
     // que este campo puede llegar vacío — Firestore no acepta "undefined".
@@ -76,26 +100,33 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
 
 // Paso 2 — quien recibe la mercancía (vendedora o Nelson) cuenta lo que llegó de verdad
 // y lo confirma. Ahí sí sube el stock, con la cantidad REAL contada (no la pedida).
-// itemsConfirmados: [{id, cantidadRecibida, stockActual}]  (stockActual viene del inventario en vivo)
+// itemsConfirmados: [{lineaId, cantidadRecibida, stockActual}]  (stockActual viene del inventario en vivo)
 export async function confirmarRecepcion(compraId, compra, itemsConfirmados, usuario) {
   const ref = doc(db, 'compras', compraId);
   const mapaConfirmado = {};
-  itemsConfirmados.forEach((i) => (mapaConfirmado[i.id] = i));
+  itemsConfirmados.forEach((i) => (mapaConfirmado[i.lineaId] = i));
 
   const itemsFinal = compra.items.map((i) => ({
     ...i,
-    cantidadRecibida: mapaConfirmado[i.id]?.cantidadRecibida ?? 0,
+    cantidadRecibida: mapaConfirmado[claveLinea(i)]?.cantidadRecibida ?? 0,
   }));
+
+  // Se suma por REFERENCIA (id), no por línea — porque puede haber más de una
+  // línea de la misma referencia (ver crearPedidoCompra), y Firestore no deja
+  // escribir el mismo documento dos veces en un solo batch.
+  const recibidoPorId = {};
+  itemsFinal.forEach((i) => {
+    if (i.cantidadRecibida > 0) {
+      recibidoPorId[i.id] = (recibidoPorId[i.id] || 0) + i.cantidadRecibida;
+    }
+  });
 
   // increment() en vez de sumar sobre stockActual (que puede quedar desactualizado
   // si hay algo pendiente de subir sin internet) — así el stock siempre queda
   // correcto sin importar cuándo se sincronice cada cosa.
   const batch = writeBatch(db);
-  itemsFinal.forEach((i) => {
-    const info = mapaConfirmado[i.id];
-    if (info && info.cantidadRecibida > 0) {
-      batch.update(doc(db, 'inventario', i.id), { stock: increment(info.cantidadRecibida) });
-    }
+  Object.entries(recibidoPorId).forEach(([id, cantidad]) => {
+    batch.update(doc(db, 'inventario', id), { stock: increment(cantidad) });
   });
 
   batch.update(ref, {
@@ -117,16 +148,22 @@ export async function pedidosPendientes() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.hora < b.hora ? -1 : 1));
 }
 
-// Solo Nelson: cuando de verdad llegó menos (o más) de lo acordado con el proveedor,
-// se corrige el pedido para que la vendedora pueda confirmarlo contra el número real.
+// Solo Nelson (o Fausto, sus propios pedidos): cuando de verdad llegó menos (o
+// más) de lo acordado con el proveedor, se corrige el pedido para que se
+// pueda confirmar contra el número real. Conserva lineaId y nota de cada
+// línea — itemsAjustados debe traer todas las líneas del pedido (incluso las
+// que no cambiaron), cada una con al menos {id, lineaId, name, cantidadPedida,
+// costoUnitario, nota}.
 export async function ajustarPedido(compraId, itemsAjustados) {
   const nuevosItems = itemsAjustados.map((i) => ({
     id: i.id,
+    lineaId: i.lineaId || nuevaLineaId(),
     name: i.name,
     cantidadPedida: i.cantidadPedida,
     cantidadRecibida: null,
     costoUnitario: i.costoUnitario,
     total: i.cantidadPedida * i.costoUnitario,
+    nota: i.nota || null,
   }));
   const totalGeneral = nuevosItems.reduce((s, i) => s + i.total, 0);
   await updateDoc(doc(db, 'compras', compraId), { items: nuevosItems, totalGeneral });
