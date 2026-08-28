@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasRecientes, ajustarPedido } from '../lib/compras';
+import { crearPedidoCompra, comprasRecientes, ajustarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 
-const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria', 'Lo puso Nelson'];
+const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria'];
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -291,7 +291,8 @@ export default function Compras({ usuario }) {
               <div key={c.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 700, fontSize: 15 }}>
-                    {c.fecha} {c.hora} · {c.proveedor}{' '}
+                    {c.fecha} {c.hora}
+                    {c.proveedor ? ` · ${c.proveedor}` : ''}{' '}
                     <span
                       className="gasto-x"
                       style={{
@@ -314,7 +315,7 @@ export default function Compras({ usuario }) {
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
-                  {c.items.map((i) => `${i.name} ×${i.cantidadPedida}`).join(', ')}
+                  {c.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''} ×${i.cantidadPedida}`).join(', ')}
                   {c.origen ? ` · ${c.origen}` : ''}
                   {c.usuarioNombre ? ` · pidió ${c.usuarioNombre}` : ''}
                   {c.nota ? ` · ${c.nota}` : ''}
@@ -332,7 +333,7 @@ export default function Compras({ usuario }) {
 function FormularioAjuste({ pedido, onCancelar, onListo }) {
   const [cantidades, setCantidades] = useState(() => {
     const ini = {};
-    pedido.items.forEach((i) => (ini[i.id] = String(i.cantidadPedida)));
+    pedido.items.forEach((i) => (ini[claveLinea(i)] = String(i.cantidadPedida)));
     return ini;
   });
   const [guardando, setGuardando] = useState(false);
@@ -344,9 +345,11 @@ function FormularioAjuste({ pedido, onCancelar, onListo }) {
     try {
       const itemsAjustados = pedido.items.map((i) => ({
         id: i.id,
+        lineaId: i.lineaId,
         name: i.name,
-        cantidadPedida: parseInt(cantidades[i.id]) || 0,
+        cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
         costoUnitario: i.costoUnitario,
+        nota: i.nota,
       }));
       await ajustarPedido(pedido.id, itemsAjustados);
       onListo();
@@ -360,20 +363,23 @@ function FormularioAjuste({ pedido, onCancelar, onListo }) {
   return (
     <div className="card modo-prueba" style={{ marginBottom: 10 }}>
       <div style={{ fontWeight: 800, marginBottom: 8 }}>
-        Ajustar pedido — {pedido.proveedor}
+        Ajustar pedido{pedido.proveedor ? ` — ${pedido.proveedor}` : ''}
       </div>
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
         Cambia la cantidad pedida al número real que va a llegar, para que se pueda confirmar
         sin quedar trabado por un descuadre.
       </p>
       {pedido.items.map((i) => (
-        <div className="field" key={i.id} style={{ marginBottom: 8 }}>
-          <label>{i.name} · costo {fmt(i.costoUnitario)}</label>
+        <div className="field" key={claveLinea(i)} style={{ marginBottom: 8 }}>
+          <label>
+            {i.name}
+            {i.nota ? ` (${i.nota})` : ''} · costo {fmt(i.costoUnitario)}
+          </label>
           <input
             type="number"
             inputMode="numeric"
-            value={cantidades[i.id]}
-            onChange={(e) => setCantidades((c) => ({ ...c, [i.id]: e.target.value }))}
+            value={cantidades[claveLinea(i)]}
+            onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
           />
         </div>
       ))}
