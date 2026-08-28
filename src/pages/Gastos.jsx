@@ -150,7 +150,7 @@ export default function Gastos({ usuario }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span className="gasto-monto">{fmt(g.monto)}</span>
-                  {!g.anulado && (
+                  {!g.anulado && usuario.id === 'nelson' && (
                     <button className="gasto-x" title="Anular" onClick={() => onAnular(g)}>
                       ✕
                     </button>
