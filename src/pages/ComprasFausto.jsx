@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasRecientes, ajustarPedido } from '../lib/compras';
+import { crearPedidoCompra, comprasRecientes, ajustarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
 // paso a la vez, botones grandes con +/- para la cantidad (además de poder
@@ -17,11 +17,10 @@ function fmt(n) {
 export default function ComprasFausto({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [carrito, setCarrito] = useState({}); // {id: {qty, costoUnitario, nota}}
-  const [proveedor, setProveedor] = useState('');
+  const [carrito, setCarrito] = useState({}); // {lineaId: {id, qty, costoUnitario, nota}}
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
-  const [exito, setExito] = useState(null); // { proveedor, total } | null
+  const [exito, setExito] = useState(null); // { total } | null
   const [misPedidos, setMisPedidos] = useState(null);
   const [corrigiendo, setCorrigiendo] = useState(null);
 
@@ -70,40 +69,53 @@ export default function ComprasFausto({ usuario }) {
     [inventario]
   );
 
+  // Tocar una prenda agrega UNA línea de esa referencia (o mantiene la que ya
+  // había, no la duplica) — si hace falta otra línea de la MISMA referencia
+  // con otra nota (ej. 10 chaquetas y 20 pantalones, ambas a $60.000), se usa
+  // el botón "Agregar otra línea" que aparece dentro de cada línea, abajo.
+  function yaTieneReferencia(id) {
+    return Object.values(carrito).some((l) => l.id === id);
+  }
   function agregar(id) {
+    if (yaTieneReferencia(id)) return;
     const it = porId[id];
     setCarrito((c) => ({
       ...c,
-      [id]: {
-        qty: c[id]?.qty || 1,
-        costoUnitario: c[id]?.costoUnitario ?? (it.costoCompra || 0),
-        nota: c[id]?.nota || '',
-      },
+      [nuevaLineaId()]: { id, qty: 1, costoUnitario: it.costoCompra || 0, nota: '' },
     }));
   }
-  function quitarLinea(id) {
+  function agregarOtraLinea(lineaId) {
+    const base = carrito[lineaId];
+    if (!base) return;
+    setCarrito((c) => ({
+      ...c,
+      [nuevaLineaId()]: { id: base.id, qty: 1, costoUnitario: base.costoUnitario, nota: '' },
+    }));
+  }
+  function quitarLinea(lineaId) {
     setCarrito((c) => {
       const copia = { ...c };
-      delete copia[id];
+      delete copia[lineaId];
       return copia;
     });
   }
-  function cambiarCantidad(id, valor) {
-    setCarrito((c) => ({ ...c, [id]: { ...c[id], qty: parseInt(valor) || 0 } }));
+  function cambiarCantidad(lineaId, valor) {
+    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], qty: parseInt(valor) || 0 } }));
   }
-  function sumarUno(id, delta) {
-    setCarrito((c) => ({ ...c, [id]: { ...c[id], qty: Math.max(0, (c[id]?.qty || 0) + delta) } }));
+  function sumarUno(lineaId, delta) {
+    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], qty: Math.max(0, (c[lineaId]?.qty || 0) + delta) } }));
   }
-  function cambiarCosto(id, valor) {
-    setCarrito((c) => ({ ...c, [id]: { ...c[id], costoUnitario: parseInt(valor) || 0 } }));
+  function cambiarCosto(lineaId, valor) {
+    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], costoUnitario: parseInt(valor) || 0 } }));
   }
-  function cambiarNota(id, valor) {
-    setCarrito((c) => ({ ...c, [id]: { ...c[id], nota: valor } }));
+  function cambiarNota(lineaId, valor) {
+    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], nota: valor } }));
   }
 
-  const lineas = Object.entries(carrito).map(([id, d]) => ({
-    id,
-    name: porId[id]?.name || id,
+  const lineas = Object.entries(carrito).map(([lineaId, d]) => ({
+    lineaId,
+    id: d.id,
+    name: porId[d.id]?.name || d.id,
     qty: d.qty,
     costoUnitario: d.costoUnitario,
     nota: d.nota || '',
@@ -113,7 +125,6 @@ export default function ComprasFausto({ usuario }) {
 
   function vaciar() {
     setCarrito({});
-    setProveedor('');
   }
 
   async function confirmar() {
@@ -121,10 +132,6 @@ export default function ComprasFausto({ usuario }) {
     setExito(null);
     if (lineas.length === 0) {
       setMsg({ tipo: 'bad', texto: 'Toca al menos una prenda para agregarla al pedido.' });
-      return;
-    }
-    if (!proveedor.trim()) {
-      setMsg({ tipo: 'bad', texto: 'Falta escribir el nombre del proveedor.' });
       return;
     }
     if (lineas.some((l) => !l.qty || l.qty <= 0)) {
@@ -140,19 +147,22 @@ export default function ComprasFausto({ usuario }) {
       await crearPedidoCompra({
         items: lineas.map((l) => ({
           id: l.id,
+          lineaId: l.lineaId,
           name: l.name,
           cantidadPedida: l.qty,
           costoUnitario: l.costoUnitario,
           nota: l.nota.trim(),
         })),
-        proveedor,
+        // Ya no se pregunta a quién se le compró — Nelson decidió quitar ese
+        // paso de esta pantalla.
+        proveedor: null,
         // Su plata siempre sale de la misma caja (efectivo de las ventas) — se
         // manda fijo, sin preguntárselo, para que el Cierre del día siga
         // descontando bien lo que él gasta del efectivo a entregar.
         origen: 'Efectivo de la caja',
         usuario,
       });
-      setExito({ proveedor, total: totalGeneral });
+      setExito({ total: totalGeneral });
       vaciar();
       cargarMisPedidos();
     } catch (e) {
@@ -178,7 +188,7 @@ export default function ComprasFausto({ usuario }) {
     <div className="cf-page">
       {exito && (
         <div className="cf-exito">
-          ✅ ¡Listo! Se guardó el pedido con <b>{exito.proveedor}</b> por <b>{fmt(exito.total)}</b>.
+          ✅ ¡Listo! Se guardó el pedido por <b>{fmt(exito.total)}</b>.
           <button className="cf-exito-cerrar" onClick={() => setExito(null)}>
             Entendido
           </button>
@@ -186,29 +196,18 @@ export default function ComprasFausto({ usuario }) {
       )}
 
       <div className="cf-card">
-        <div className="cf-paso">1. ¿A quién le compraste?</div>
-        <input
-          className="cf-input"
-          type="text"
-          placeholder="Nombre del proveedor"
-          value={proveedor}
-          onChange={(e) => setProveedor(e.target.value)}
-        />
-      </div>
-
-      <div className="cf-card">
-        <div className="cf-paso">2. ¿Qué compraste?</div>
+        <div className="cf-paso">1. ¿Qué compraste?</div>
 
         <div className="cf-split-label">Con nombre</div>
         <div className="cf-tiles">
           {itemsNombre.map((it) => (
             <button
               key={it.id}
-              className={`cf-tile ${carrito[it.id] ? 'cf-tile-on' : ''}`}
+              className={`cf-tile ${yaTieneReferencia(it.id) ? 'cf-tile-on' : ''}`}
               onClick={() => agregar(it.id)}
             >
               {it.name}
-              {carrito[it.id] && <span className="cf-tile-check">✓ agregada</span>}
+              {yaTieneReferencia(it.id) && <span className="cf-tile-check">✓ agregada</span>}
             </button>
           ))}
         </div>
@@ -218,11 +217,11 @@ export default function ComprasFausto({ usuario }) {
           {itemsPrecio.map((it) => (
             <button
               key={it.id}
-              className={`cf-tile ${carrito[it.id] ? 'cf-tile-on' : ''}`}
+              className={`cf-tile ${yaTieneReferencia(it.id) ? 'cf-tile-on' : ''}`}
               onClick={() => agregar(it.id)}
             >
               {it.name}
-              {carrito[it.id] && <span className="cf-tile-check">✓ agregada</span>}
+              {yaTieneReferencia(it.id) && <span className="cf-tile-check">✓ agregada</span>}
             </button>
           ))}
         </div>
@@ -230,19 +229,24 @@ export default function ComprasFausto({ usuario }) {
 
       {lineas.length > 0 && (
         <div className="cf-card">
-          <div className="cf-paso">3. Cantidad y costo de cada una</div>
+          <div className="cf-paso">2. Cantidad y costo de cada una</div>
+          <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 0 }}>
+            Si de la MISMA prenda llegaron varios tipos (ej. unas chaquetas y unos pantalones al
+            mismo precio), usa "Agregar otra línea" para contarlos por separado, cada uno con su
+            propia nota.
+          </p>
           {lineas.map((l) => (
-            <div key={l.id} className="cf-linea">
+            <div key={l.lineaId} className="cf-linea">
               <div className="cf-linea-top">
                 <span className="cf-linea-nombre">{l.name}</span>
-                <button className="cf-quitar" onClick={() => quitarLinea(l.id)}>
+                <button className="cf-quitar" onClick={() => quitarLinea(l.lineaId)}>
                   Quitar
                 </button>
               </div>
               <div className="cf-linea-campo">
                 <label>Cantidad</label>
                 <div className="cf-stepper">
-                  <button type="button" onClick={() => sumarUno(l.id, -1)}>
+                  <button type="button" onClick={() => sumarUno(l.lineaId, -1)}>
                     −
                   </button>
                   <input
@@ -250,9 +254,9 @@ export default function ComprasFausto({ usuario }) {
                     inputMode="numeric"
                     value={l.qty}
                     onFocus={(e) => e.target.select()}
-                    onChange={(e) => cambiarCantidad(l.id, e.target.value)}
+                    onChange={(e) => cambiarCantidad(l.lineaId, e.target.value)}
                   />
-                  <button type="button" onClick={() => sumarUno(l.id, 1)}>
+                  <button type="button" onClick={() => sumarUno(l.lineaId, 1)}>
                     +
                   </button>
                 </div>
@@ -265,7 +269,7 @@ export default function ComprasFausto({ usuario }) {
                   inputMode="numeric"
                   value={l.costoUnitario}
                   onFocus={(e) => e.target.select()}
-                  onChange={(e) => cambiarCosto(l.id, e.target.value)}
+                  onChange={(e) => cambiarCosto(l.lineaId, e.target.value)}
                 />
               </div>
               <div className="cf-linea-campo">
@@ -275,10 +279,17 @@ export default function ComprasFausto({ usuario }) {
                   type="text"
                   placeholder=""
                   value={l.nota}
-                  onChange={(e) => cambiarNota(l.id, e.target.value)}
+                  onChange={(e) => cambiarNota(l.lineaId, e.target.value)}
                 />
               </div>
               <div className="cf-linea-total">Total: {fmt(l.total)}</div>
+              <button
+                className="cf-btn-secundario"
+                style={{ marginTop: 8, width: '100%' }}
+                onClick={() => agregarOtraLinea(l.lineaId)}
+              >
+                + Agregar otra línea de "{l.name}"
+              </button>
             </div>
           ))}
           <div className="cf-total-general">Total del pedido: {fmt(totalGeneral)}</div>
@@ -307,9 +318,7 @@ export default function ComprasFausto({ usuario }) {
             ) : (
               <div key={c.id} className="cf-pedido-row">
                 <div className="cf-pedido-top">
-                  <span>
-                    {c.fecha} · {c.proveedor}
-                  </span>
+                  <span>{c.fecha}</span>
                   <span className={`cf-estado ${c.estado}`}>
                     {c.estado === 'confirmada' ? 'CONFIRMADO' : 'PENDIENTE'}
                   </span>
@@ -332,7 +341,7 @@ export default function ComprasFausto({ usuario }) {
 function CorreccionSimple({ pedido, onCancelar, onListo }) {
   const [cantidades, setCantidades] = useState(() => {
     const ini = {};
-    pedido.items.forEach((i) => (ini[i.id] = String(i.cantidadPedida)));
+    pedido.items.forEach((i) => (ini[claveLinea(i)] = String(i.cantidadPedida)));
     return ini;
   });
   const [guardando, setGuardando] = useState(false);
@@ -344,9 +353,11 @@ function CorreccionSimple({ pedido, onCancelar, onListo }) {
     try {
       const itemsAjustados = pedido.items.map((i) => ({
         id: i.id,
+        lineaId: i.lineaId,
         name: i.name,
-        cantidadPedida: parseInt(cantidades[i.id]) || 0,
+        cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
         costoUnitario: i.costoUnitario,
+        nota: i.nota,
       }));
       await ajustarPedido(pedido.id, itemsAjustados);
       onListo();
@@ -361,14 +372,17 @@ function CorreccionSimple({ pedido, onCancelar, onListo }) {
     <div className="cf-correccion">
       <div className="cf-paso">Corrige la cantidad de cada prenda</div>
       {pedido.items.map((i) => (
-        <div key={i.id} className="cf-linea-campo">
-          <label>{i.name}</label>
+        <div key={claveLinea(i)} className="cf-linea-campo">
+          <label>
+            {i.name}
+            {i.nota ? ` (${i.nota})` : ''}
+          </label>
           <input
             type="number"
             inputMode="numeric"
-            value={cantidades[i.id]}
+            value={cantidades[claveLinea(i)]}
             onFocus={(e) => e.target.select()}
-            onChange={(e) => setCantidades((c) => ({ ...c, [i.id]: e.target.value }))}
+            onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
           />
         </div>
       ))}
