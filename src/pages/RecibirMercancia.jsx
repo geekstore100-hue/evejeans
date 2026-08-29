@@ -73,7 +73,7 @@ export default function RecibirMercancia({ usuario }) {
                   <div>
                     <div className="gasto-nombre">{p.fecha} {p.hora}</div>
                     <div className="gasto-sub">
-                      {p.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''} ×${i.cantidadPedida}`).join(', ')}
+                      {p.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''}`).join(', ')}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -93,19 +93,30 @@ export default function RecibirMercancia({ usuario }) {
 }
 
 function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
+  // Vacío a propósito: cuentan cuántas hay de verdad sin ver cuánto pidió
+  // Fausto, para que sea un conteo real y no solo confirmar el número que ya
+  // estaba escrito.
   const [cantidades, setCantidades] = useState(() => {
     const inicial = {};
-    pedido.items.forEach((i) => (inicial[claveLinea(i)] = String(i.cantidadPedida)));
+    pedido.items.forEach((i) => (inicial[claveLinea(i)] = ''));
     return inicial;
   });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
 
-  const diferencias = pedido.items
-    .map((i) => ({ ...i, cantidadIngresada: parseInt(cantidades[claveLinea(i)]) }))
-    .filter((i) => isNaN(i.cantidadIngresada) || i.cantidadIngresada !== i.cantidadPedida);
-
-  const todoCoincide = diferencias.length === 0;
+  // "vacío" (todavía no escribió nada ahí) es distinto de "distinto" (ya
+  // escribió un número, pero no coincide con lo pedido) — así el campo no se
+  // ve como un error antes de que alcance a contar esa referencia.
+  const items = pedido.items.map((i) => {
+    const crudo = cantidades[claveLinea(i)];
+    const vacio = crudo === '';
+    const valor = parseInt(crudo);
+    const distinto = !vacio && (isNaN(valor) || valor !== i.cantidadPedida);
+    return { ...i, vacio, distinto };
+  });
+  const faltan = items.some((i) => i.vacio);
+  const hayDiferencias = items.some((i) => i.distinto);
+  const todoCoincide = !faltan && !hayDiferencias;
 
   async function confirmar() {
     if (!todoCoincide) return;
@@ -131,27 +142,25 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
       <div style={{ fontWeight: 800, marginBottom: 8 }}>
         Confirmar recepción — {pedido.fecha}
       </div>
-      {pedido.items.map((i) => (
+      {items.map((i) => (
         <div className="field" key={claveLinea(i)} style={{ marginBottom: 8 }}>
           <label>
             {i.name}
-            {i.nota ? ` (${i.nota})` : ''} · pedido {i.cantidadPedida}
+            {i.nota ? ` (${i.nota})` : ''}
           </label>
           <input
             type="number"
             inputMode="numeric"
+            placeholder="0"
             value={cantidades[claveLinea(i)]}
+            onFocus={(e) => e.target.select()}
             onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
-            style={
-              diferencias.some((d) => claveLinea(d) === claveLinea(i))
-                ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' }
-                : {}
-            }
+            style={i.distinto ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' } : {}}
           />
         </div>
       ))}
 
-      {!todoCoincide && (
+      {hayDiferencias && (
         <div className="msg bad" style={{ textAlign: 'left' }}>
           No coincide con lo pedido. Vuelve a contar; si de verdad falta algo, dile a Nelson
           para que ajuste el pedido desde Compras — mientras tanto, no se puede confirmar.
