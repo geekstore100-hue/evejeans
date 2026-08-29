@@ -157,6 +157,33 @@ export default function Cierre({ usuario }) {
             ))
           )}
         </div>
+
+        {/* Entradas y salidas de mercancía: defectos, pérdidas, correcciones de
+            conteo, etc. — no son ventas, pero también hace falta verlas acá para
+            tener el cuadre completo de lo que se movió ese día. */}
+        <div className="kv" style={{ marginTop: 14 }}>
+          <span>Entradas y salidas de mercancía</span>
+          <span className="v">{resumen.movimientosLista.length}</span>
+        </div>
+        <div className="detalle-anidado">
+          {resumen.movimientosLista.length === 0 ? (
+            <div className="empty-lines">{esHoy ? 'Ningún movimiento hoy.' : 'Ningún movimiento ese día.'}</div>
+          ) : (
+            resumen.movimientosLista.map((m) => (
+              <div key={m.id} className="detalle-item">
+                <div className="detalle-item-top">
+                  <span className="detalle-item-titulo">
+                    {m.tipo === 'salida' ? 'Salida' : 'Entrada'} {m.hora} · {m.itemNombre}
+                  </span>
+                  <span className="detalle-item-monto">×{m.cantidad}</span>
+                </div>
+                <div className="detalle-item-sub">
+                  {m.categoria}{m.detalle ? ` · ${m.detalle}` : ''}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <div className="ticket">
