@@ -99,6 +99,19 @@ export async function resumenDia(fecha) {
   });
   comprasLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
 
+  // Entradas y salidas de mercancía del día (defectos, pérdidas, correcciones de
+  // conteo, etc. — no son ventas ni cambios, pero también hace falta verlas en
+  // el cierre para tener el cuadre completo de lo que se movió ese día).
+  const qMovimientos = query(collection(db, 'entradasSalidas'), where('fecha', '==', fecha));
+  const snapMovimientos = await getDocs(qMovimientos);
+  const todosMovimientos = snapMovimientos.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const movimientosLista = todosMovimientos
+    .filter((m) => !m.anulada)
+    .sort((a, b) => (a.hora < b.hora ? -1 : 1));
+  const movimientosAnuladosLista = todosMovimientos
+    .filter((m) => m.anulada)
+    .sort((a, b) => (a.hora < b.hora ? -1 : 1));
+
   const efectivoAEntregar = netoPorMedio['Efectivo'] || 0;
 
   // Lo que entró en total ese día, sumando todos los medios de pago — ventas más lo
@@ -142,6 +155,8 @@ export async function resumenDia(fecha) {
     gastosLista,
     prendas,
     cambiosLista,
+    movimientosLista,
+    movimientosAnuladosLista,
     efectivoAEntregar,
     anuladasLista,
     gastosAnuladosLista,
