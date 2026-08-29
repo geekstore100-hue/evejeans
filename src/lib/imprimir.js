@@ -137,6 +137,17 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
         .join('')
     : `<div class="pt-small">Ninguno.</div>`;
 
+  const movimientosLista = resumen.movimientosLista || [];
+  const movimientosHTML = movimientosLista.length
+    ? movimientosLista
+        .map(
+          (m) => `
+      <div class="pt-line"><span>${m.tipo === 'salida' ? 'Salida' : 'Entrada'} ${m.hora} · ${m.itemNombre}</span><span>×${m.cantidad}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;${m.categoria}${m.detalle ? ' · ' + m.detalle : ''}</div>`
+        )
+        .join('')
+    : `<div class="pt-small">Ninguno.</div>`;
+
   const gastosHTML = resumen.gastosLista.length
     ? resumen.gastosLista
         .map(
@@ -173,7 +184,8 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
   // pero si hubo alguno ese día se deja constancia — con motivo y quién lo anuló.
   const anuladasVC = resumen.anuladasLista || [];
   const anuladosG = resumen.gastosAnuladosLista || [];
-  const hayAnulaciones = anuladasVC.length > 0 || anuladosG.length > 0;
+  const anuladosM = resumen.movimientosAnuladosLista || [];
+  const hayAnulaciones = anuladasVC.length > 0 || anuladosG.length > 0 || anuladosM.length > 0;
   const anulacionesHTML = !hayAnulaciones
     ? ''
     : `
@@ -193,6 +205,14 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
       <div class="pt-line"><span>Gasto ${g.hora} · ${g.categoria}</span><span>${fmt(g.monto)}</span></div>
       <div class="pt-small">&nbsp;&nbsp;Motivo: ${g.motivoAnulacion || '—'}</div>
       <div class="pt-small">&nbsp;&nbsp;Anuló: ${g.anuladoPor || '—'}</div>`
+      )
+      .join('')}
+    ${anuladosM
+      .map(
+        (m) => `
+      <div class="pt-line"><span>${m.tipo === 'salida' ? 'Salida' : 'Entrada'} ${m.hora} · ${m.itemNombre}</span><span>×${m.cantidad}</span></div>
+      <div class="pt-small">&nbsp;&nbsp;Motivo: ${m.motivoAnulacion || '—'}</div>
+      <div class="pt-small">&nbsp;&nbsp;Anuló: ${m.anuladaPor || '—'}</div>`
       )
       .join('')}`;
 
@@ -214,12 +234,17 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
     <div class="pt-line"><span>Por</span><span>${usuario.nombreDefault}</span></div>
     <div class="pt-rule"></div>
 
-    <div class="pt-small"><b>PRENDAS VENDIDAS (${totalPrendas})</b></div>
+    <div class="pt-small"><b>PRENDAS VENDIDAS</b></div>
+    <div class="pt-line pt-total"><span>Total prendas</span><span>${totalPrendas}</span></div>
     ${prendasHTML}
 
     <div class="pt-rule"></div>
     <div class="pt-small"><b>CAMBIOS (${resumen.cambiosLista.length})</b></div>
     ${cambiosHTML}
+
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>ENTRADAS Y SALIDAS DE MERCANCÍA (${movimientosLista.length})</b></div>
+    ${movimientosHTML}
 
     <div class="pt-rule"></div>
     <div class="pt-small"><b>GASTOS DEL DÍA</b></div>
