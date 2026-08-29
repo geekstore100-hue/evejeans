@@ -3,12 +3,14 @@ import { suscribirInventario } from '../lib/inventario';
 import { crearPedidoCompra, comprasRecientes, ajustarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
-// paso a la vez, botones grandes con +/- para la cantidad (además de poder
-// escribirla directo, para pedidos grandes de una sola referencia), y sin nada
-// que no necesite (buscador, origen del dinero, historial completo, atajos de
-// teclado, etc.). El historial de TODOS los pedidos lo sigue viendo Nelson
-// desde su propia pantalla de Compras — acá solo se ven los últimos pedidos DE
-// FAUSTO, por si hay que corregir alguno.
+// paso a la vez (elegir prenda -> cantidad, costo y nota de esa prenda ->
+// ¿agregas otra? -> registrar), sin nada que no necesite (buscador, origen
+// del dinero, historial completo, atajos de teclado, etc.). El historial de
+// TODOS los pedidos lo sigue viendo Nelson desde su propia pantalla de
+// Compras — acá solo se ven los últimos pedidos DE FAUSTO, por si hay que
+// corregir alguno.
+
+const NOTAS_SUGERIDAS = ['Short', 'Blusa', 'Chaquetas', 'Faldas'];
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -17,7 +19,9 @@ function fmt(n) {
 export default function ComprasFausto({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [carrito, setCarrito] = useState({}); // {lineaId: {id, qty, costoUnitario, nota}}
+  const [paso, setPaso] = useState('elegir'); // 'elegir' | 'todo' | 'decidir'
+  const [pedido, setPedido] = useState([]); // [{lineaId, id, name, qty, costo, nota}]
+  const [actual, setActual] = useState(null); // {id, name, qty, costo, nota} — la prenda que se está agregando ahora
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [exito, setExito] = useState(null); // { total } | null
@@ -45,12 +49,6 @@ export default function ComprasFausto({ usuario }) {
     }
   }
 
-  const porId = useMemo(() => {
-    const m = {};
-    (inventario || []).forEach((i) => (m[i.id] = i));
-    return m;
-  }, [inventario]);
-
   // Primero las referencias "con nombre" (orden alfabético), y después las "por
   // precio" en orden ascendente — sin buscador: son pocas y así siempre están en
   // el mismo lugar, más fácil de recordar dónde está cada una.
@@ -69,89 +67,86 @@ export default function ComprasFausto({ usuario }) {
     [inventario]
   );
 
-  // Tocar una prenda agrega UNA línea de esa referencia (o mantiene la que ya
-  // había, no la duplica) — si hace falta otra línea de la MISMA referencia
-  // con otra nota (ej. 10 chaquetas y 20 pantalones, ambas a $60.000), se usa
-  // el botón "Agregar otra línea" que aparece dentro de cada línea, abajo.
-  function yaTieneReferencia(id) {
-    return Object.values(carrito).some((l) => l.id === id);
-  }
-  function agregar(id) {
-    if (yaTieneReferencia(id)) return;
-    const it = porId[id];
-    setCarrito((c) => ({
-      ...c,
-      [nuevaLineaId()]: { id, qty: 1, costoUnitario: it.costoCompra || 0, nota: '' },
-    }));
-  }
-  function agregarOtraLinea(lineaId) {
-    const base = carrito[lineaId];
-    if (!base) return;
-    setCarrito((c) => ({
-      ...c,
-      [nuevaLineaId()]: { id: base.id, qty: 1, costoUnitario: base.costoUnitario, nota: '' },
-    }));
-  }
-  function quitarLinea(lineaId) {
-    setCarrito((c) => {
-      const copia = { ...c };
-      delete copia[lineaId];
-      return copia;
-    });
-  }
-  function cambiarCantidad(lineaId, valor) {
-    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], qty: parseInt(valor) || 0 } }));
-  }
-  function sumarUno(lineaId, delta) {
-    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], qty: Math.max(0, (c[lineaId]?.qty || 0) + delta) } }));
-  }
-  function cambiarCosto(lineaId, valor) {
-    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], costoUnitario: parseInt(valor) || 0 } }));
-  }
-  function cambiarNota(lineaId, valor) {
-    setCarrito((c) => ({ ...c, [lineaId]: { ...c[lineaId], nota: valor } }));
+  // Tocar una prenda empieza a agregar UNA línea nueva de esa referencia — si
+  // la misma referencia llegó en más de un tipo (ej. 10 chaquetas y 20
+  // pantalones, ambas a $60.000), se toca la prenda otra vez más adelante y
+  // queda como otra línea aparte, cada una con su propia cantidad, costo y
+  // nota.
+  function elegir(it) {
+    setMsg({ tipo: '', texto: '' });
+    setActual({ id: it.id, name: it.name, qty: 1, costo: '', nota: '' });
+    setPaso('todo');
   }
 
-  const lineas = Object.entries(carrito).map(([lineaId, d]) => ({
-    lineaId,
-    id: d.id,
-    name: porId[d.id]?.name || d.id,
-    qty: d.qty,
-    costoUnitario: d.costoUnitario,
-    nota: d.nota || '',
-    total: d.qty * d.costoUnitario,
-  }));
-  const totalGeneral = lineas.reduce((s, l) => s + l.total, 0);
-
-  function vaciar() {
-    setCarrito({});
+  function sumarUno(delta) {
+    setActual((a) => ({ ...a, qty: Math.max(1, (a.qty || 1) + delta) }));
+  }
+  function cambiarCantidad(valor) {
+    setActual((a) => ({ ...a, qty: Math.max(1, parseInt(valor) || 1) }));
+  }
+  function cambiarCosto(valor) {
+    setActual((a) => ({ ...a, costo: valor }));
+  }
+  function cambiarNota(valor) {
+    setActual((a) => ({ ...a, nota: valor }));
+  }
+  function elegirNota(n) {
+    setActual((a) => ({ ...a, nota: n }));
   }
 
-  async function confirmar() {
+  function volverAElegir() {
+    setActual(null);
+    setPaso('elegir');
+  }
+
+  function agregarPrenda() {
+    setMsg({ tipo: '', texto: '' });
+    const costoNum = parseInt(actual.costo) || 0;
+    if (costoNum <= 0) {
+      setMsg({ tipo: 'bad', texto: 'Falta el precio de compra.' });
+      return;
+    }
+    setPedido((p) => [
+      ...p,
+      {
+        lineaId: nuevaLineaId(),
+        id: actual.id,
+        name: actual.name,
+        qty: actual.qty,
+        costo: costoNum,
+        nota: actual.nota.trim(),
+      },
+    ]);
+    setActual(null);
+    setPaso('decidir');
+  }
+
+  function otraPrenda() {
+    setPaso('elegir');
+  }
+
+  function eliminarLinea(lineaId) {
+    const nuevo = pedido.filter((l) => l.lineaId !== lineaId);
+    setPedido(nuevo);
+    if (nuevo.length === 0) setPaso('elegir');
+  }
+
+  const totalPedido = pedido.reduce((s, l) => s + l.qty * l.costo, 0);
+
+  async function registrar() {
     setMsg({ tipo: '', texto: '' });
     setExito(null);
-    if (lineas.length === 0) {
-      setMsg({ tipo: 'bad', texto: 'Toca al menos una prenda para agregarla al pedido.' });
-      return;
-    }
-    if (lineas.some((l) => !l.qty || l.qty <= 0)) {
-      setMsg({ tipo: 'bad', texto: 'Revisa la cantidad de alguna prenda, no puede quedar en cero.' });
-      return;
-    }
-    if (lineas.some((l) => !l.costoUnitario || l.costoUnitario <= 0)) {
-      setMsg({ tipo: 'bad', texto: 'Falta el costo de alguna prenda.' });
-      return;
-    }
+    if (pedido.length === 0) return;
     setGuardando(true);
     try {
       await crearPedidoCompra({
-        items: lineas.map((l) => ({
+        items: pedido.map((l) => ({
           id: l.id,
           lineaId: l.lineaId,
           name: l.name,
           cantidadPedida: l.qty,
-          costoUnitario: l.costoUnitario,
-          nota: l.nota.trim(),
+          costoUnitario: l.costo,
+          nota: l.nota,
         })),
         // Ya no se pregunta a quién se le compró — Nelson decidió quitar ese
         // paso de esta pantalla.
@@ -162,8 +157,9 @@ export default function ComprasFausto({ usuario }) {
         origen: 'Efectivo de la caja',
         usuario,
       });
-      setExito({ total: totalGeneral });
-      vaciar();
+      setExito({ total: totalPedido });
+      setPedido([]);
+      setPaso('elegir');
       cargarMisPedidos();
     } catch (e) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
@@ -195,111 +191,131 @@ export default function ComprasFausto({ usuario }) {
         </div>
       )}
 
-      <div className="cf-card">
-        <div className="cf-paso">1. ¿Qué compraste?</div>
-
-        <div className="cf-split-label">Con nombre</div>
-        <div className="cf-tiles">
-          {itemsNombre.map((it) => (
-            <button
-              key={it.id}
-              className={`cf-tile ${yaTieneReferencia(it.id) ? 'cf-tile-on' : ''}`}
-              onClick={() => agregar(it.id)}
-            >
-              {it.name}
-              {yaTieneReferencia(it.id) && <span className="cf-tile-check">✓ agregada</span>}
-            </button>
-          ))}
-        </div>
-
-        <div className="cf-split-label" style={{ marginTop: 16 }}>Por precio</div>
-        <div className="cf-tiles">
-          {itemsPrecio.map((it) => (
-            <button
-              key={it.id}
-              className={`cf-tile ${yaTieneReferencia(it.id) ? 'cf-tile-on' : ''}`}
-              onClick={() => agregar(it.id)}
-            >
-              {it.name}
-              {yaTieneReferencia(it.id) && <span className="cf-tile-check">✓ agregada</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {lineas.length > 0 && (
+      {paso === 'elegir' && (
         <div className="cf-card">
-          <div className="cf-paso">2. Cantidad y costo de cada una</div>
-          <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 0 }}>
-            Si de la MISMA prenda llegaron varios tipos (ej. unas chaquetas y unos pantalones al
-            mismo precio), usa "Agregar otra línea" para contarlos por separado, cada uno con su
-            propia nota.
-          </p>
-          {lineas.map((l) => (
-            <div key={l.lineaId} className="cf-linea">
-              <div className="cf-linea-top">
-                <span className="cf-linea-nombre">{l.name}</span>
-                <button className="cf-quitar" onClick={() => quitarLinea(l.lineaId)}>
-                  Quitar
-                </button>
-              </div>
-              <div className="cf-linea-campo">
-                <label>Cantidad</label>
-                <div className="cf-stepper">
-                  <button type="button" onClick={() => sumarUno(l.lineaId, -1)}>
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={l.qty}
-                    onFocus={(e) => e.target.select()}
-                    onChange={(e) => cambiarCantidad(l.lineaId, e.target.value)}
-                  />
-                  <button type="button" onClick={() => sumarUno(l.lineaId, 1)}>
-                    +
-                  </button>
-                </div>
-              </div>
-              <div className="cf-linea-campo">
-                <label>Costo de cada una</label>
-                <input
-                  className="cf-input cf-input-costo"
-                  type="number"
-                  inputMode="numeric"
-                  value={l.costoUnitario}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => cambiarCosto(l.lineaId, e.target.value)}
-                />
-              </div>
-              <div className="cf-linea-campo">
-                <label>Nota — opcional</label>
-                <input
-                  className="cf-input"
-                  type="text"
-                  placeholder=""
-                  value={l.nota}
-                  onChange={(e) => cambiarNota(l.lineaId, e.target.value)}
-                />
-              </div>
-              <div className="cf-linea-total">Total: {fmt(l.total)}</div>
-              <button
-                className="cf-btn-secundario"
-                style={{ marginTop: 8, width: '100%' }}
-                onClick={() => agregarOtraLinea(l.lineaId)}
-              >
-                + Agregar otra línea de "{l.name}"
+          <div className="cf-paso">¿Qué compraste?</div>
+
+          <div className="cf-split-label">Con nombre</div>
+          <div className="cf-tiles">
+            {itemsNombre.map((it) => (
+              <button key={it.id} className="cf-tile" onClick={() => elegir(it)}>
+                {it.name}
               </button>
-            </div>
-          ))}
-          <div className="cf-total-general">Total del pedido: {fmt(totalGeneral)}</div>
+            ))}
+          </div>
+
+          <div className="cf-split-label" style={{ marginTop: 16 }}>Por precio</div>
+          <div className="cf-tiles">
+            {itemsPrecio.map((it) => (
+              <button key={it.id} className="cf-tile" onClick={() => elegir(it)}>
+                {it.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <button className="cf-btn-registrar" disabled={guardando} onClick={confirmar}>
-        {guardando ? 'Guardando…' : 'Registrar pedido'}
-      </button>
-      {msg.texto && <div className={`msg ${msg.tipo}`} style={{ fontSize: 16 }}>{msg.texto}</div>}
+      {paso === 'todo' && actual && (
+        <div className="cf-card">
+          <button className="cf-volver" onClick={volverAElegir}>‹ Volver</button>
+          <div className="cf-paso">{actual.name}</div>
+
+          <div className="cf-linea-campo">
+            <label>¿Cuántas?</label>
+            <div className="cf-stepper">
+              <button type="button" onClick={() => sumarUno(-1)}>
+                −
+              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={actual.qty}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => cambiarCantidad(e.target.value)}
+              />
+              <button type="button" onClick={() => sumarUno(1)}>
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="cf-linea-campo">
+            <label>Precio de compra</label>
+            <input
+              className="cf-input cf-input-costo"
+              type="number"
+              inputMode="numeric"
+              placeholder="0"
+              value={actual.costo}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => cambiarCosto(e.target.value)}
+            />
+          </div>
+
+          <div className="cf-linea-campo">
+            <label>Nota — opcional</label>
+            <input
+              className="cf-input"
+              type="text"
+              value={actual.nota}
+              onChange={(e) => cambiarNota(e.target.value)}
+            />
+            <div className="cf-chips-nota">
+              {NOTAS_SUGERIDAS.map((n) => (
+                <button key={n} type="button" className="cf-chip-nota" onClick={() => elegirNota(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button className="cf-btn-registrar" onClick={agregarPrenda}>
+            Agregar esta prenda
+          </button>
+          {msg.texto && <div className={`msg ${msg.tipo}`} style={{ fontSize: 16 }}>{msg.texto}</div>}
+        </div>
+      )}
+
+      {paso === 'decidir' && (
+        <div className="cf-card">
+          <div className="cf-paso">¿Agregas otra prenda?</div>
+          <p style={{ fontSize: 14, color: 'var(--ink-soft)', marginTop: -6, marginBottom: 14 }}>
+            Llevas {pedido.length} {pedido.length === 1 ? 'prenda' : 'prendas'} en este pedido.
+          </p>
+
+          {pedido.map((l) => (
+            <div key={l.lineaId} className="cf-resumen-linea">
+              <div className="cf-resumen-info">
+                <div className="cf-resumen-izq">
+                  <div className="cf-resumen-nombre">
+                    {l.name}
+                    {l.nota ? ` (${l.nota})` : ''}
+                  </div>
+                  <div className="cf-resumen-detalle">
+                    {l.qty} × {fmt(l.costo)}
+                  </div>
+                </div>
+                <div className="cf-resumen-der">{fmt(l.qty * l.costo)}</div>
+              </div>
+              <button className="cf-resumen-quitar" title="Eliminar esta línea" onClick={() => eliminarLinea(l.lineaId)}>
+                ✕
+              </button>
+            </div>
+          ))}
+
+          <div className="cf-total-general">Total hasta ahora: {fmt(totalPedido)}</div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+            <button className="cf-btn-registrar" style={{ marginBottom: 0 }} onClick={otraPrenda}>
+              Agregar otra prenda
+            </button>
+            <button className="cf-btn-secundario" style={{ width: '100%' }} disabled={guardando} onClick={registrar}>
+              {guardando ? 'Guardando…' : 'Registrar pedido'}
+            </button>
+          </div>
+          {msg.texto && <div className={`msg ${msg.tipo}`} style={{ fontSize: 16 }}>{msg.texto}</div>}
+        </div>
+      )}
 
       {misPedidos && misPedidos.length > 0 && (
         <div className="cf-card">
