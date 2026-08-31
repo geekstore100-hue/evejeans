@@ -137,16 +137,22 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
         .join('')
     : `<div class="pt-small">Ninguno.</div>`;
 
+  // Solo se imprime esta sección si de verdad hubo algún movimiento ese día —
+  // la mayoría de los días no hay ninguno, y no vale la pena gastar papel en
+  // un título con "Ninguno." debajo.
   const movimientosLista = resumen.movimientosLista || [];
   const movimientosHTML = movimientosLista.length
-    ? movimientosLista
-        .map(
-          (m) => `
+    ? `
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>ENTRADAS Y SALIDAS DE MERCANCÍA (${movimientosLista.length})</b></div>
+    ${movimientosLista
+      .map(
+        (m) => `
       <div class="pt-line"><span>${m.tipo === 'salida' ? 'Salida' : 'Entrada'} ${m.hora} · ${m.itemNombre}</span><span>×${m.cantidad}</span></div>
       <div class="pt-small">&nbsp;&nbsp;${m.categoria}${m.detalle ? ' · ' + m.detalle : ''}</div>`
-        )
-        .join('')
-    : `<div class="pt-small">Ninguno.</div>`;
+      )
+      .join('')}`
+    : '';
 
   const gastosHTML = resumen.gastosLista.length
     ? resumen.gastosLista
@@ -176,7 +182,10 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
     }
     <div class="pt-line pt-total" style="margin-top:2px"><span>Total compras</span><span>${fmt(resumen.comprasTot)}</span></div>`;
 
-  const mediosHTML = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito']
+  // "Efectivo" no va aquí: ya sale más abajo como "Efectivo antes de gastos" y
+  // "EFECTIVO A ENTREGAR" — meterlo también aquí repetía el mismo número dos
+  // veces en la tirilla (igual que en pantalla, que tampoco lo repite).
+  const mediosHTML = ['Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito']
     .map((m) => medioLineaHTML(m, resumen, esNelson))
     .join('');
 
@@ -242,8 +251,6 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
     <div class="pt-small"><b>CAMBIOS (${resumen.cambiosLista.length})</b></div>
     ${cambiosHTML}
 
-    <div class="pt-rule"></div>
-    <div class="pt-small"><b>ENTRADAS Y SALIDAS DE MERCANCÍA (${movimientosLista.length})</b></div>
     ${movimientosHTML}
 
     <div class="pt-rule"></div>
