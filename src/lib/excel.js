@@ -399,28 +399,25 @@ export async function generarExcelHistorialItems() {
       };
     });
 
-    const stockActual = it.stock || 0;
     if (filas.length === 0) {
       filas.push({
         Fecha: '',
         Hora: '',
         Tipo: 'Sin movimientos registrados',
         Cantidad: '',
-        Saldo: stockActual,
+        Saldo: it.stock || 0,
         Detalle: '',
         Usuario: '',
         Anulado: '',
       });
-    } else if (saldo !== stockActual) {
-      // No debería pasar, pero si el historial no cuadra con lo que hoy
-      // muestra Ventas, se avisa aquí en vez de dejarlo pasar calladamente.
+    } else if (saldo !== (it.stock || 0)) {
       filas.push({
         Fecha: '',
         Hora: '',
         Tipo: '⚠ Diferencia con el sistema',
-        Cantidad: stockActual - saldo,
-        Saldo: stockActual,
-        Detalle: `El historial de arriba da ${saldo}, pero Ventas hoy muestra ${stockActual}. Puede haber un movimiento de antes de que existiera este historial.`,
+        Cantidad: '',
+        Saldo: it.stock || 0,
+        Detalle: `El saldo de este historial (${saldo}) no coincide con el stock actual (${it.stock || 0}). Lo más probable es que haya sido por una venta que ocurrió antes de registrar el conteo/ajuste inicial de esta referencia.`,
         Usuario: '',
         Anulado: '',
       });
