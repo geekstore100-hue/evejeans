@@ -3,6 +3,7 @@ import { doc, setDoc, updateDoc, writeBatch, collection, addDoc, getDocs, server
 import { db } from '../lib/firebase';
 import { suscribirInventario } from '../lib/inventario';
 import { suscribirConfig, guardarConfig } from '../lib/config';
+import { generarExcelHistorialItems } from '../lib/excel';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -40,6 +41,8 @@ export default function Inventario() {
   const [eligiendoConteo, setEligiendoConteo] = useState([]);
   const [guardandoEleccionConteo, setGuardandoEleccionConteo] = useState(false);
   const [msgEleccionConteo, setMsgEleccionConteo] = useState({ tipo: '', texto: '' });
+  const [generandoHistorial, setGenerandoHistorial] = useState(false);
+  const [errorHistorial, setErrorHistorial] = useState('');
 
   useEffect(() => {
     const quitar = suscribirConfig((c) => {
@@ -121,6 +124,18 @@ export default function Inventario() {
       setMsgEleccionConteo({ tipo: 'bad', texto: 'No se pudo guardar: ' + e.message });
     } finally {
       setGuardandoEleccionConteo(false);
+    }
+  }
+
+  async function descargarHistorial() {
+    setGenerandoHistorial(true);
+    setErrorHistorial('');
+    try {
+      await generarExcelHistorialItems();
+    } catch (e) {
+      setErrorHistorial('No se pudo generar el Excel: ' + e.message);
+    } finally {
+      setGenerandoHistorial(false);
     }
   }
 
@@ -438,13 +453,28 @@ export default function Inventario() {
       </div>
 
       <div className="card" style={{ maxWidth: 720, marginBottom: 12 }}>
-        <h2>
-          Inventario <span className="side">{items.reduce((s, i) => s + (i.stock || 0), 0)} prendas</span>
-        </h2>
-        <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>
+            Inventario <span className="side">{items.reduce((s, i) => s + (i.stock || 0), 0)} prendas</span>
+          </h2>
+          <button
+            className="btn ghost sm"
+            style={{ width: 'auto' }}
+            disabled={generandoHistorial}
+            onClick={descargarHistorial}
+          >
+            {generandoHistorial ? 'Generando…' : 'Descargar historial (Excel)'}
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 6 }}>
           Aquí solo se ajustan precio y costo. El stock (cuánto hay de cada una) se mueve desde
           la pestaña "Entradas y salidas" — deja motivo y queda agrupado por día.
         </p>
+        <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: -6 }}>
+          "Descargar historial" te da un Excel con una pestaña por cada referencia: cada venta,
+          cambio, compra recibida, entrada/salida manual y ajuste que la tocó.
+        </p>
+        {errorHistorial && <div className="msg bad">{errorHistorial}</div>}
 
         <TablaInventario titulo="Con nombre" lista={nombreItems} valorActual={valorActual} cambiar={cambiar} onOcultar={toggleOcultar} />
         <TablaInventario titulo="Por precio" lista={precioItems} valorActual={valorActual} cambiar={cambiar} onOcultar={toggleOcultar} />
