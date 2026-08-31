@@ -148,7 +148,7 @@ export async function generarExcel(config) {
   XLSX.writeFile(wb, `EveJeans_${fechaArchivo}.xlsx`);
 }
 
-const COLUMNAS_HISTORIAL = ['Fecha', 'Hora', 'Tipo', 'Cantidad', 'Detalle', 'Usuario', 'Anulado'];
+const COLUMNAS_HISTORIAL = ['Fecha', 'Hora', 'Tipo', 'Cantidad', 'Saldo', 'Detalle', 'Usuario', 'Anulado'];
 
 // "10:05 a. m." / "01:40 p. m." -> minutos desde medianoche, solo para poder
 // ORDENAR cronológicamente (el texto se sigue mostrando tal cual se guardó).
@@ -182,9 +182,12 @@ function anuladoTexto(anulada, motivo) {
 
 // Genera y descarga un Excel con UNA PESTAÑA POR REFERENCIA, con todo su
 // historial de movimientos: ventas y cambios, compras recibidas, entradas y
-// salidas manuales, y ajustes de inventario (precio, costo o stock). Se
-// incluye todo, incluso lo anulado (marcado como tal) — nada se esconde,
-// igual que en el resto de la app.
+// salidas manuales, y ajustes de inventario (precio, costo o stock) — cada
+// fila con el "Saldo" (cuánto quedaba en stock después de ESE movimiento),
+// para que al final coincida con lo que hoy muestra Ventas. Se incluye todo,
+// incluso lo anulado (marcado como tal, y con su reversión aparte, porque
+// anular sí repone el stock de verdad) — nada se esconde, igual que en el
+// resto de la app.
 export async function generarExcelHistorialItems() {
   const [ventasYCambios, compras, movimientos, ajustes, inventario] = await Promise.all([
     todasLasVentasYCambios(),
@@ -194,48 +197,88 @@ export async function generarExcelHistorialItems() {
     inventarioActual(),
   ]);
 
-  // {itemId: [fila, fila, ...]}
-  const filasPorId = {};
-  function filasDe(id) {
-    filasPorId[id] = filasPorId[id] || [];
-    return filasPorId[id];
+  // {itemId: [evento, evento, ...]} — "evento" es un objeto de trabajo interno
+  // (con campos que NO van al Excel, como si mueve stock o no); la fila final
+  // que sí se imprime se arma después, ya con el Saldo calculado.
+  const eventosPorId = {};
+  function eventosDe(id) {
+    eventosPorId[id] = eventosPorId[id] || [];
+    return eventosPorId[id];
+  }
+  function agregar(id, evento) {
+    eventosDe(id).push({ cantidad: null, esAjusteStock: false, ...evento });
   }
 
   ventasYCambios.forEach((v) => {
     if (v.tipo === 'venta') {
       (v.items || []).forEach((i) => {
-        filasDe(i.id).push({
-          Fecha: v.fecha,
-          Hora: v.hora,
-          Tipo: 'Venta',
-          Cantidad: -i.qty,
-          Detalle: `Venta N.º ${v.num}`,
-          Usuario: v.usuarioNombre,
-          Anulado: anuladoTexto(v.anulada, v.motivoAnulacion),
+        agregar(i.id, {
+          fecha: v.fecha,
+          hora: v.hora,
+          tipo: 'Venta',
+          cantidad: -i.qty,
+          detalle: `Venta N.º ${v.num}`,
+          usuario: v.usuarioNombre,
+          anulado: !!v.anulada,
+          motivoAnulacion: v.motivoAnulacion,
         });
+        // Anular una venta SÍ repone el stock de verdad (ver anularVenta en
+        // ventas.js) — se dejan las dos filas: lo que pasó, y la reversión.
+        if (v.anulada) {
+          agregar(i.id, {
+            fecha: v.fecha,
+            hora: v.hora,
+            tipo: 'Anulación de venta',
+            cantidad: i.qty,
+            detalle: `Repone lo vendido en la Venta N.º ${v.num} — motivo: ${v.motivoAnulacion || 'sin motivo registrado'}`,
+            usuario: v.anuladaPor || v.usuarioNombre,
+          });
+        }
       });
     } else if (v.tipo === 'cambio') {
       (v.devuelve || []).forEach((i) => {
-        filasDe(i.id).push({
-          Fecha: v.fecha,
-          Hora: v.hora,
-          Tipo: 'Cambio (entrada)',
-          Cantidad: i.qty,
-          Detalle: `Cambio N.º ${v.num} — el cliente la devuelve`,
-          Usuario: v.usuarioNombre,
-          Anulado: anuladoTexto(v.anulada, v.motivoAnulacion),
+        agregar(i.id, {
+          fecha: v.fecha,
+          hora: v.hora,
+          tipo: 'Cambio (entrada)',
+          cantidad: i.qty,
+          detalle: `Cambio N.º ${v.num} — el cliente la devuelve`,
+          usuario: v.usuarioNombre,
+          anulado: !!v.anulada,
+          motivoAnulacion: v.motivoAnulacion,
         });
+        if (v.anulada) {
+          agregar(i.id, {
+            fecha: v.fecha,
+            hora: v.hora,
+            tipo: 'Anulación de cambio',
+            cantidad: -i.qty,
+            detalle: `Deshace la devolución del Cambio N.º ${v.num} — motivo: ${v.motivoAnulacion || 'sin motivo registrado'}`,
+            usuario: v.anuladaPor || v.usuarioNombre,
+          });
+        }
       });
       (v.lleva || []).forEach((i) => {
-        filasDe(i.id).push({
-          Fecha: v.fecha,
-          Hora: v.hora,
-          Tipo: 'Cambio (salida)',
-          Cantidad: -i.qty,
-          Detalle: `Cambio N.º ${v.num} — el cliente se la lleva`,
-          Usuario: v.usuarioNombre,
-          Anulado: anuladoTexto(v.anulada, v.motivoAnulacion),
+        agregar(i.id, {
+          fecha: v.fecha,
+          hora: v.hora,
+          tipo: 'Cambio (salida)',
+          cantidad: -i.qty,
+          detalle: `Cambio N.º ${v.num} — el cliente se la lleva`,
+          usuario: v.usuarioNombre,
+          anulado: !!v.anulada,
+          motivoAnulacion: v.motivoAnulacion,
         });
+        if (v.anulada) {
+          agregar(i.id, {
+            fecha: v.fecha,
+            hora: v.hora,
+            tipo: 'Anulación de cambio',
+            cantidad: i.qty,
+            detalle: `Repone lo que se llevó el Cambio N.º ${v.num} — motivo: ${v.motivoAnulacion || 'sin motivo registrado'}`,
+            usuario: v.anuladaPor || v.usuarioNombre,
+          });
+        }
       });
     }
   });
@@ -246,31 +289,43 @@ export async function generarExcelHistorialItems() {
     .forEach((c) => {
       (c.items || []).forEach((i) => {
         if (!i.cantidadRecibida) return;
-        filasDe(i.id).push({
-          Fecha: c.confirmadoFecha || c.fecha,
-          Hora: '',
-          Tipo: 'Compra recibida',
-          Cantidad: i.cantidadRecibida,
-          Detalle:
+        agregar(i.id, {
+          fecha: c.confirmadoFecha || c.fecha,
+          hora: '',
+          tipo: 'Compra recibida',
+          cantidad: i.cantidadRecibida,
+          detalle:
             `Pedido del ${c.fecha}${c.proveedor ? ' a ' + c.proveedor : ''}` +
             (i.nota ? ` (${i.nota})` : '') +
             (i.cantidadRecibida !== i.cantidadPedida ? ` — pedidas ${i.cantidadPedida}` : ''),
-          Usuario: c.confirmadoPor || c.usuarioNombre,
-          Anulado: 'No',
+          usuario: c.confirmadoPor || c.usuarioNombre,
         });
       });
     });
 
   movimientos.forEach((m) => {
-    filasDe(m.itemId).push({
-      Fecha: m.fecha,
-      Hora: m.hora,
-      Tipo: m.tipo === 'entrada' ? 'Entrada manual' : 'Salida manual',
-      Cantidad: m.tipo === 'entrada' ? m.cantidad : -m.cantidad,
-      Detalle: `${m.categoria}${m.detalle ? ' · ' + m.detalle : ''}`,
-      Usuario: m.usuarioNombre,
-      Anulado: anuladoTexto(m.anulada, m.motivoAnulacion),
+    agregar(m.itemId, {
+      fecha: m.fecha,
+      hora: m.hora,
+      tipo: m.tipo === 'entrada' ? 'Entrada manual' : 'Salida manual',
+      cantidad: m.tipo === 'entrada' ? m.cantidad : -m.cantidad,
+      detalle: `${m.categoria}${m.detalle ? ' · ' + m.detalle : ''}`,
+      usuario: m.usuarioNombre,
+      anulado: !!m.anulada,
+      motivoAnulacion: m.motivoAnulacion,
     });
+    // Anular un movimiento también repone (o vuelve a descontar) el stock de
+    // verdad (ver anularMovimiento en entradasSalidas.js).
+    if (m.anulada) {
+      agregar(m.itemId, {
+        fecha: m.fecha,
+        hora: m.hora,
+        tipo: 'Anulación de movimiento',
+        cantidad: m.tipo === 'entrada' ? -m.cantidad : m.cantidad,
+        detalle: `Deshace el movimiento N.º ${m.num} — motivo: ${m.motivoAnulacion || 'sin motivo registrado'}`,
+        usuario: m.anuladaPor || m.usuarioNombre,
+      });
+    }
   });
 
   // Los ajustes de inventario no guardan el id de la referencia, solo el
@@ -284,24 +339,26 @@ export async function generarExcelHistorialItems() {
     (a.cambios || []).forEach((c) => {
       (idsPorNombre[c.nombre] || []).forEach((id) => {
         if (c.campo === 'Stock') {
-          filasDe(id).push({
-            Fecha: a.fecha,
-            Hora: a.hora,
-            Tipo: 'Ajuste de stock',
-            Cantidad: c.nuevo - c.anterior,
-            Detalle: `${c.anterior} → ${c.nuevo} (${a.motivo})`,
-            Usuario: a.usuarioNombre,
-            Anulado: 'No',
+          // El ajuste de stock deja el número EXACTO (no un delta) — se usa
+          // tal cual como el nuevo saldo, para que autocorrija cualquier
+          // desfase que se haya podido acumular antes de este punto.
+          agregar(id, {
+            fecha: a.fecha,
+            hora: a.hora,
+            tipo: 'Ajuste de stock',
+            cantidad: c.nuevo - c.anterior,
+            esAjusteStock: true,
+            stockAbsoluto: c.nuevo,
+            detalle: `${c.anterior} → ${c.nuevo} (${a.motivo})`,
+            usuario: a.usuarioNombre,
           });
         } else {
-          filasDe(id).push({
-            Fecha: a.fecha,
-            Hora: a.hora,
-            Tipo: c.campo === 'Precio' ? 'Ajuste de precio' : 'Ajuste de costo',
-            Cantidad: '',
-            Detalle: `${fmt(c.anterior)} → ${fmt(c.nuevo)} (${a.motivo})`,
-            Usuario: a.usuarioNombre,
-            Anulado: 'No',
+          agregar(id, {
+            fecha: a.fecha,
+            hora: a.hora,
+            tipo: c.campo === 'Precio' ? 'Ajuste de precio' : 'Ajuste de costo',
+            detalle: `${fmt(c.anterior)} → ${fmt(c.nuevo)} (${a.motivo})`,
+            usuario: a.usuarioNombre,
           });
         }
       });
@@ -319,14 +376,58 @@ export async function generarExcelHistorialItems() {
   const wb = XLSX.utils.book_new();
   const nombresUsados = new Set();
   itemsOrdenados.forEach((it) => {
-    const filas = (filasPorId[it.id] || []).sort((a, b) => {
-      if (a.Fecha !== b.Fecha) return a.Fecha < b.Fecha ? -1 : 1;
-      return minutosDeHora(a.Hora) - minutosDeHora(b.Hora);
+    // Todo nace en 0 (catálogo inicial y referencias nuevas siempre arrancan
+    // con stock 0), así que sumando cada movimiento en orden se debe llegar
+    // exactamente al stock que hoy muestra Ventas.
+    const eventos = (eventosPorId[it.id] || []).sort((a, b) => {
+      if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
+      return minutosDeHora(a.hora) - minutosDeHora(b.hora);
     });
-    const filasFinales =
-      filas.length > 0 ? filas : [{ Fecha: '', Hora: '', Tipo: 'Sin movimientos registrados', Cantidad: '', Detalle: '', Usuario: '', Anulado: '' }];
-    const ws = XLSX.utils.json_to_sheet(filasFinales, { header: COLUMNAS_HISTORIAL });
-    ws['!cols'] = [{ wch: 11 }, { wch: 13 }, { wch: 18 }, { wch: 10 }, { wch: 46 }, { wch: 14 }, { wch: 26 }];
+
+    let saldo = 0;
+    const filas = eventos.map((e) => {
+      saldo = e.esAjusteStock ? e.stockAbsoluto : saldo + (e.cantidad || 0);
+      return {
+        Fecha: e.fecha,
+        Hora: e.hora,
+        Tipo: e.tipo,
+        Cantidad: e.cantidad === null ? '' : e.cantidad,
+        Saldo: saldo,
+        Detalle: e.detalle,
+        Usuario: e.usuario,
+        Anulado: e.anulado !== undefined ? anuladoTexto(e.anulado, e.motivoAnulacion) : 'No',
+      };
+    });
+
+    const stockActual = it.stock || 0;
+    if (filas.length === 0) {
+      filas.push({
+        Fecha: '',
+        Hora: '',
+        Tipo: 'Sin movimientos registrados',
+        Cantidad: '',
+        Saldo: stockActual,
+        Detalle: '',
+        Usuario: '',
+        Anulado: '',
+      });
+    } else if (saldo !== stockActual) {
+      // No debería pasar, pero si el historial no cuadra con lo que hoy
+      // muestra Ventas, se avisa aquí en vez de dejarlo pasar calladamente.
+      filas.push({
+        Fecha: '',
+        Hora: '',
+        Tipo: '⚠ Diferencia con el sistema',
+        Cantidad: stockActual - saldo,
+        Saldo: stockActual,
+        Detalle: `El historial de arriba da ${saldo}, pero Ventas hoy muestra ${stockActual}. Puede haber un movimiento de antes de que existiera este historial.`,
+        Usuario: '',
+        Anulado: '',
+      });
+    }
+
+    const ws = XLSX.utils.json_to_sheet(filas, { header: COLUMNAS_HISTORIAL });
+    ws['!cols'] = [{ wch: 11 }, { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 8 }, { wch: 46 }, { wch: 14 }, { wch: 26 }];
     XLSX.utils.book_append_sheet(wb, ws, nombreHojaValido(it.name, nombresUsados));
   });
 
