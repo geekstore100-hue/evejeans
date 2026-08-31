@@ -5,7 +5,9 @@ import { imprimirTicketVenta } from '../lib/imprimir';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 import { resumenDia, hoyStr } from '../lib/cierre';
 import { suscribirConfig } from '../lib/config';
-import { tocaConteo, registrarConteo } from '../lib/conteo';
+import { tocaConteo, registrarConteo, elegirMuestraSemana } from '../lib/conteo';
+import { semanaDe } from '../lib/festivos';
+import { guardarConfig } from '../lib/config';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -64,7 +66,17 @@ export default function Vender({ usuario }) {
 
   function abrirConteo() {
     const disponibles = (inventario || []).filter((i) => !i.oculto);
-    const muestra = [...disponibles].sort(() => Math.random() - 0.5).slice(0, 2);
+    // Si Nelson eligió a mano qué contar esta vez, se usa eso en vez de las 2
+    // al azar de siempre.
+    const elegidas = config?.conteoReferenciasElegidas || [];
+    let muestra = elegidas.length > 0 ? elegidas.map((id) => disponibles.find((i) => i.id === id)).filter(Boolean) : [];
+    if (muestra.length === 0) {
+      // Sembrado con la semana (no con Math.random()): así, si le da "Ahora
+      // no" y vuelve a entrar más tarde (o al otro día), le sigue pidiendo
+      // contar las MISMAS 2 referencias — no otras cada vez — hasta que las
+      // cuente. La semana siguiente, al cambiar la semilla, salen otras.
+      muestra = elegirMuestraSemana(disponibles, 2, semanaDe(hoyStr()));
+    }
     setMuestraConteo(muestra);
     setCantidadesConteo({});
     setContando(true);
@@ -90,6 +102,11 @@ export default function Vender({ usuario }) {
         };
       });
       await registrarConteo({ usuario, referencias });
+      // Si esta vez se usó una elección manual de Nelson, se consume: la
+      // próxima semana vuelve a ser al azar a menos que él elija de nuevo.
+      if (config?.conteoReferenciasElegidas?.length > 0) {
+        guardarConfig({ ...config, conteoReferenciasElegidas: [] }).catch(() => {});
+      }
       setContando(false);
       setDebeContar(false);
       const conDiferencia = referencias.filter((r) => r.contado !== r.sistema);
@@ -321,8 +338,10 @@ export default function Vender({ usuario }) {
         <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ flex: 1, fontSize: 13 }}>
-              <b>Falta el conteo de inicio de semana.</b> Son solo 2 referencias. Puedes seguir
-              vendiendo, pero este aviso no se quita hasta que lo hagas.
+              <b>Falta el conteo de inicio de semana.</b> Son solo{' '}
+              {config?.conteoReferenciasElegidas?.length > 0 ? config.conteoReferenciasElegidas.length : 2}{' '}
+              referencia{(config?.conteoReferenciasElegidas?.length > 0 ? config.conteoReferenciasElegidas.length : 2) === 1 ? '' : 's'}. Puedes
+              seguir vendiendo, pero este aviso no se quita hasta que lo hagas.
             </span>
             <button className="btn sm" style={{ width: 'auto' }} onClick={abrirConteo}>
               Hacer conteo
