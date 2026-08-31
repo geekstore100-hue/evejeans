@@ -37,12 +37,16 @@ export default function Inventario() {
   const [cfgMin, setCfgMin] = useState('');
   const [cfgVal, setCfgVal] = useState('');
   const [guardandoCfg, setGuardandoCfg] = useState(false);
+  const [eligiendoConteo, setEligiendoConteo] = useState([]);
+  const [guardandoEleccionConteo, setGuardandoEleccionConteo] = useState(false);
+  const [msgEleccionConteo, setMsgEleccionConteo] = useState({ tipo: '', texto: '' });
 
   useEffect(() => {
     const quitar = suscribirConfig((c) => {
       setConfig(c);
       setCfgMin(String(c.comisionMinimo));
       setCfgVal(String(c.comisionValor));
+      setEligiendoConteo(c.conteoReferenciasElegidas || []);
     });
     return quitar;
   }, []);
@@ -92,6 +96,31 @@ export default function Inventario() {
       await guardarConfig({ ...config, conteoActivado: !config.conteoActivado });
     } catch (e) {
       setMsg({ tipo: 'bad', texto: 'No se pudo cambiar: ' + e.message });
+    }
+  }
+
+  // Elegir a mano qué referencias contar la próxima vez, en vez de las 2 al
+  // azar de siempre — se usa una sola vez y después vuelve a ser al azar.
+  function toggleEleccionConteo(id) {
+    setEligiendoConteo((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  }
+
+  async function guardarEleccionConteo() {
+    setGuardandoEleccionConteo(true);
+    setMsgEleccionConteo({ tipo: '', texto: '' });
+    try {
+      await guardarConfig({ ...config, conteoReferenciasElegidas: eligiendoConteo });
+      setMsgEleccionConteo({
+        tipo: 'good',
+        texto:
+          eligiendoConteo.length === 0
+            ? 'Listo, el próximo conteo vuelve a ser al azar.'
+            : 'Listo, la próxima vez le va a pedir a Blanca contar justo esas.',
+      });
+    } catch (e) {
+      setMsgEleccionConteo({ tipo: 'bad', texto: 'No se pudo guardar: ' + e.message });
+    } finally {
+      setGuardandoEleccionConteo(false);
     }
   }
 
@@ -317,8 +346,10 @@ export default function Inventario() {
       <div className="card" style={{ maxWidth: 460, marginBottom: 12 }}>
         <h2>Conteo de inicio de semana</h2>
         <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-          Le pide a Blanca contar 2 referencias al azar el primer día hábil de cada semana
-          (respetando festivos). Es solo un aviso — nunca bloquea la venta.
+          Le pide a Blanca contar{' '}
+          {config?.conteoReferenciasElegidas?.length > 0 ? config.conteoReferenciasElegidas.length : 2} referencias
+          {config?.conteoReferenciasElegidas?.length > 0 ? ' (las que elegiste abajo)' : ' al azar'} el primer día
+          hábil de cada semana (respetando festivos). Es solo un aviso — nunca bloquea la venta.
         </p>
         <div className="kv" style={{ borderBottom: 'none' }}>
           <span>Estado actual</span>
@@ -329,6 +360,48 @@ export default function Inventario() {
         <button className="btn ghost" style={{ marginTop: 8 }} onClick={toggleConteo}>
           {config?.conteoActivado === false ? 'Activar' : 'Desactivar'}
         </button>
+
+        <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Qué se cuenta la próxima vez</div>
+          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 0, marginBottom: 8 }}>
+            Por defecto elige 2 al azar. Si quieres, elige aquí cuáles quieres que cuente la
+            próxima vez — se usa una sola vez, y después vuelve a ser al azar solo.
+          </p>
+          <div className="chips">
+            {items
+              .filter((i) => !i.oculto)
+              .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+              .map((i) => (
+                <button
+                  key={i.id}
+                  className={`chip ${eligiendoConteo.includes(i.id) ? 'on' : ''}`}
+                  onClick={() => toggleEleccionConteo(i.id)}
+                >
+                  {i.name}
+                </button>
+              ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+            <button
+              className="btn ghost sm"
+              style={{ width: 'auto' }}
+              disabled={guardandoEleccionConteo}
+              onClick={guardarEleccionConteo}
+            >
+              {guardandoEleccionConteo ? 'Guardando…' : 'Guardar elección'}
+            </button>
+            {eligiendoConteo.length > 0 && (
+              <button
+                className="btn ghost sm"
+                style={{ width: 'auto' }}
+                onClick={() => setEligiendoConteo([])}
+              >
+                Quitar selección
+              </button>
+            )}
+          </div>
+          {msgEleccionConteo.texto && <div className={`msg ${msgEleccionConteo.tipo}`}>{msgEleccionConteo.texto}</div>}
+        </div>
       </div>
 
       <div className="card" style={{ maxWidth: 460, marginBottom: 12 }}>
