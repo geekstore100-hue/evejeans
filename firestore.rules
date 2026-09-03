@@ -12,12 +12,17 @@ service cloud.firestore {
     function esNelson() {
       return estaAutenticado() && miId() == 'nelson';
     }
+    // Fausto (compras) tiene su propia cuenta real, igual que Nelson — solo se
+    // encarga del módulo de Compras, nada más.
+    function esFausto() {
+      return estaAutenticado() && miId() == 'fausto';
+    }
     // Blanca y Sofía comparten una sola cuenta de acceso ("vendedoras"), así que el
     // nombre que va en cada documento es una etiqueta elegida en la pantalla, no algo
     // que se pueda verificar contra una identidad real distinta. Solo se valida que
     // sea uno de los nombres válidos.
     function usuarioIdValido(id) {
-      return id == 'blanca' || id == 'sofia' || id == 'nelson';
+      return id == 'blanca' || id == 'sofia' || id == 'nelson' || id == 'fausto';
     }
 
     // ---------- Inventario ----------
@@ -30,6 +35,12 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
                       && request.resource.data.stock is number
                       && request.resource.data.stock >= 0
+                    )
+                    // Fausto solo puede tocar el costo de compra (al registrar un pedido),
+                    // nunca el stock, el nombre, el precio de venta ni nada más.
+                    || (
+                      esFausto()
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costoCompra'])
                     );
     }
 
@@ -42,6 +53,9 @@ service cloud.firestore {
     }
 
     // ---------- Ventas ----------
+    // Una vez creada, una venta (o cambio) queda fija para siempre: lo único que se
+    // puede hacer después es anularla (marcarla, con motivo y quién lo hizo), nunca
+    // reescribir sus datos ni borrarla — ni siquiera Nelson, ni un bug del código.
     match /ventas/{ventaId} {
       allow read: if estaAutenticado();
       allow create: if estaAutenticado()
@@ -49,13 +63,63 @@ service cloud.firestore {
                     && request.resource.data.anulada == false
                     && request.resource.data.total is number
                     && request.resource.data.total >= 0;
-      allow update, delete: if esNelson();
+      allow update: if esNelson()
+                    && resource.data.anulada == false
+                    && request.resource.data.anulada == true
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['anulada', 'motivoAnulacion', 'anuladaPor']);
+      allow delete: if false;
+    }
+
+    // ---------- Entradas y salidas de mercancía (defectos, pérdidas, correcciones...) ----------
+    // Igual que ventas/gastos: una vez creado un movimiento queda fijo para siempre,
+    // nunca se edita ni se borra — si algo se anotó mal, se corrige con OTRO
+    // movimiento en sentido contrario, no reescribiendo el original.
+    match /entradasSalidas/{movId} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && (request.resource.data.tipo == 'entrada' || request.resource.data.tipo == 'salida')
+                    && request.resource.data.cantidad is number
+                    && request.resource.data.cantidad > 0
+                    && request.resource.data.anulada == false;
+      // Anular es solo de Nelson: revierte el movimiento con otro movimiento en
+      // sentido contrario a nivel de stock (eso lo hace el código, no esta regla),
+      // y aquí solo se permite marcar el original como anulado — nunca reescribir
+      // sus datos ni borrarlo.
+      allow update: if esNelson()
+                    // get(..., false) en vez de comparar directo: así también funciona con
+                    // movimientos viejos que se crearon antes de que existiera este campo
+                    // (leer un campo que no existe con "." da error y niega el permiso).
+                    && resource.data.get('anulada', false) != true
+                    && request.resource.data.anulada == true
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['anulada', 'motivoAnulacion', 'anuladaPor']);
+      allow delete: if false;
     }
 
     // ---------- Configuración general (comisiones, etc.) ----------
     match /config/{configId} {
-      allow read: if estaAutenticado();
-      allow write: if esNelson();
+      // "panico" se puede leer SIN estar autenticado, a propósito: es el único dato
+      // que hace falta consultar ANTES de que alguien entre a la app, para poder
+      // dejar la pantalla en blanco desde el principio si el bloqueo de emergencia
+      // está activo (sin eso, no habría forma de saberlo sin ya haber iniciado
+      // sesión). No expone nada del negocio: solo si está activo y quién lo
+      // activó o desactivó. El resto de la configuración sigue exigiendo sesión.
+      allow read: if configId == 'panico' || estaAutenticado();
+      allow write: if esNelson()
+                   // Excepción angosta: cualquiera autenticado puede VACIAR (nunca
+                   // llenar) "conteoReferenciasElegidas" — Nelson elige a mano qué
+                   // contar la próxima vez, pero es Blanca quien hace el conteo, y
+                   // al enviarlo se consume esa elección para que la semana
+                   // siguiente vuelva a ser al azar. No puede tocar ningún otro
+                   // campo de la configuración.
+                   || (
+                     configId == 'general'
+                     && estaAutenticado()
+                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['conteoReferenciasElegidas'])
+                     && request.resource.data.conteoReferenciasElegidas.size() == 0
+                   );
     }
 
     // ---------- Gastos ----------
@@ -66,7 +130,8 @@ service cloud.firestore {
                     && request.resource.data.anulado == false
                     && request.resource.data.monto is number
                     && request.resource.data.monto >= 0;
-      allow update: if estaAutenticado()
+      // Anular es solo de Nelson (igual que ventas y entradas/salidas).
+      allow update: if esNelson()
                     && resource.data.anulado == false
                     && request.resource.data.anulado == true
                     && request.resource.data.diff(resource.data).affectedKeys()
@@ -75,13 +140,51 @@ service cloud.firestore {
     }
 
     // ---------- Cierres del día ----------
+    // Ya no se crean (se quitó el botón de cerrar el día), pero los que quedaron de
+    // antes se dejan como registro fijo: nadie los edita ni los borra.
     match /cierres/{cierreId} {
       allow read: if estaAutenticado();
       allow create: if estaAutenticado()
                     && usuarioIdValido(request.resource.data.usuarioId)
                     && request.resource.data.contado is number
                     && request.resource.data.contado >= 0;
-      allow update, delete: if esNelson();
+      allow update, delete: if false;
+    }
+
+    // ---------- Planillas de efectivo por entregar (Cierre del día -> Fausto) ----------
+    // El monto "pendiente" es un cálculo automático (el mismo efectivo a entregar
+    // del Cierre de ese día) — no mueve plata, así que cualquiera autenticado lo
+    // puede crear con solo abrir la pantalla, para no calcularlo de nuevo cada
+    // vez. Confirmar que se recibió DE VERDAD sí es dinero: eso solo lo pueden
+    // hacer Nelson o Fausto, una sola vez, y nunca se puede editar ni borrar
+    // después.
+    match /planillas/{fecha} {
+      allow read: if estaAutenticado();
+      allow create: if estaAutenticado()
+                    && request.resource.data.efectivoAEntregar is number
+                    && request.resource.data.efectivoAEntregar > 0
+                    && request.resource.data.estado == 'pendiente'
+                    && request.resource.data.recibido == null;
+      allow update: if (
+                      (esNelson() || esFausto())
+                      && resource.data.estado == 'pendiente'
+                      && request.resource.data.estado == 'recibido'
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['estado', 'recibido', 'difEntrega', 'entregoNombre', 'recibidoPorId', 'recibidoPorNombre', 'recibidoFecha', 'notaRecibo'])
+                    )
+                    || (
+                      // La vendedora "habilita" la entrega (avisa que ya tiene ese
+                      // efectivo listo para que lo recojan) — no mueve plata, solo dice
+                      // que está lista. Se queda en estado "pendiente" igual, así que es
+                      // una excepción aparte de la de arriba (que sí confirma de verdad).
+                      estaAutenticado()
+                      && resource.data.estado == 'pendiente'
+                      && request.resource.data.estado == 'pendiente'
+                      && request.resource.data.habilitada == true
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['habilitada', 'habilitadaPorId', 'habilitadaPorNombre', 'habilitadaFecha', 'habilitadaHora'])
+                    );
+      allow delete: if false;
     }
 
     // ---------- Ajustes de inventario (el registro que reemplaza el Excel) ----------
@@ -92,13 +195,27 @@ service cloud.firestore {
     }
 
     // ---------- Compras de mercancía ----------
-    // Nelson hace el pedido (fija el costo, elige el proveedor). Cualquiera autenticado
-    // puede leer, y puede CONFIRMAR la recepción (pasar de "pendiente" a "confirmada"),
-    // pero solo tocando esos campos — nunca puede crear un pedido nuevo ni cambiar el costo.
+    // Nelson o Fausto (compras) hacen el pedido (fijan el costo, eligen el proveedor).
+    // Cualquiera autenticado puede leer, y puede CONFIRMAR la recepción (pasar de
+    // "pendiente" a "confirmada"), pero solo tocando esos campos — nunca puede crear
+    // un pedido nuevo ni cambiar el costo.
+    // Nelson sigue pudiendo editar o borrar cualquier compra en cualquier momento.
+    // Fausto solo puede corregir ("Ajustar") sus PROPIOS pedidos, y solo mientras
+    // sigan "pendientes" — nunca los de Nelson, ni uno ya confirmado, ni puede borrar.
     match /compras/{compraId} {
       allow read: if estaAutenticado();
-      allow create: if esNelson();
+      allow create: if (esNelson() || esFausto())
+                    && usuarioIdValido(request.resource.data.usuarioId)
+                    && request.resource.data.estado == 'pendiente';
       allow update: if esNelson()
+                    || (
+                      esFausto()
+                      && resource.data.usuarioId == 'fausto'
+                      && resource.data.estado == 'pendiente'
+                      && request.resource.data.estado == 'pendiente'
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['items', 'totalGeneral'])
+                    )
                     || (
                       estaAutenticado()
                       && resource.data.estado == 'pendiente'
@@ -115,6 +232,32 @@ service cloud.firestore {
     match /conteos/{conteoId} {
       allow read, create: if estaAutenticado();
       allow update, delete: if false;
+    }
+
+    // ---------- Conciliación de medios de pago (Nequi, Addi, Datáfono, Sistecrédito...) ----------
+    // Compara lo que el sistema calculó contra el extracto real de cada entidad, mes
+    // a mes. Es revisión financiera, solo Nelson la hace y la ve — no es algo
+    // operativo del día a día como las otras pestañas. Es un historial: nunca se
+    // edita ni se borra.
+    match /conciliaciones/{id} {
+      allow read, create: if esNelson();
+      allow update, delete: if false;
+    }
+
+    // ---------- Capital disponible (punto de partida para efectivo/Nequi/banco) ----------
+    // Solo Nelson lo ve y lo registra. Es un historial de "puntos de partida"
+    // (conteos reales que él hizo): nunca se edita ni se borra — si algo cambió,
+    // se guarda un punto de partida NUEVO, y el más reciente es el que se usa.
+    match /capitalInicial/{id} {
+      allow read, create: if esNelson();
+      allow update, delete: if false;
+    }
+
+    // ---------- Observaciones de Cierre del día ----------
+    // Una nota de texto libre por fecha (no es un dato financiero, por eso se puede
+    // corregir libremente). El id del documento es la fecha (AAAA-MM-DD).
+    match /observacionesCierre/{fecha} {
+      allow read, write: if estaAutenticado();
     }
   }
 }
