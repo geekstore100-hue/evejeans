@@ -123,16 +123,19 @@ export default function Sobres({ usuario }) {
                     <div className="gasto-sub">
                       {p.habilitada
                         ? `Avisado por ${p.habilitadaPorNombre} a las ${p.habilitadaHora}`
-                        : 'del Cierre de ese día'}
+                        : 'Todavía no se ha avisado que está lista para entregar'}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span className="gasto-monto">{fmt(p.efectivoAEntregar)}</span>
-                    {usuario.id === 'nelson' && (
-                      <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.fecha)}>
-                        Recibir
-                      </button>
-                    )}
+                    {usuario.id === 'nelson' &&
+                      (p.habilitada ? (
+                        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.fecha)}>
+                          Recibir
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>Esperando aviso</span>
+                      ))}
                   </div>
                 </div>
               )
