@@ -8,6 +8,7 @@ import { suscribirConfig } from '../lib/config';
 import { tocaConteo, registrarConteo, elegirMuestraSemana } from '../lib/conteo';
 import { semanaDe } from '../lib/festivos';
 import { guardarConfig } from '../lib/config';
+import { hayBorradorEnCurso } from '../lib/recepcionBorrador';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -44,6 +45,14 @@ export default function Vender({ usuario }) {
   const [cantidadesConteo, setCantidadesConteo] = useState({});
   const [guardandoConteo, setGuardandoConteo] = useState(false);
   const [sembrando, setSembrando] = useState(false);
+  const [recepcionAMedias, setRecepcionAMedias] = useState(false);
+
+  // Se revisa cada vez que se entra a Ventas (esta pantalla se vuelve a montar
+  // al cambiar de pestaña) — si alguien dejó a medias el conteo al confirmar
+  // un pedido de mercancía, se recuerda acá hasta que lo termine o lo cancele.
+  useEffect(() => {
+    setRecepcionAMedias(hayBorradorEnCurso());
+  }, []);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) => {
@@ -334,6 +343,18 @@ export default function Vender({ usuario }) {
 
   return (
     <div className="vender-shell">
+      {recepcionAMedias && (
+        <div className="card modo-prueba" style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, fontSize: 13 }}>
+              <b>Dejaste una confirmación de mercancía a medias.</b> Cuando puedas, vuelve a
+              "Recibir mercancía" y sigue contando donde lo dejaste — lo que ya escribiste
+              sigue guardado.
+            </span>
+          </div>
+        </div>
+      )}
+
       {debeContar && !contando && (
         <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
