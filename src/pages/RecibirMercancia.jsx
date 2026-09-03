@@ -93,12 +93,36 @@ export default function RecibirMercancia({ usuario }) {
 }
 
 function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
+  // Se agrupa por referencia + nota, no por línea: si Fausto registró la
+  // misma prenda en más de una línea (por ejemplo, porque llegó a distintos
+  // costos de compra), a quien recibe le llega todo mezclado físicamente y no
+  // tiene cómo distinguir una línea de otra con solo mirarla — pedirle un
+  // número por línea la obligaría a adivinar cómo repartirlo. Por eso cuenta
+  // el total de esa prenda UNA sola vez, y si coincide con la suma de lo
+  // pedido en esas líneas, se reparte tal cual estaba registrado cada línea
+  // (cada una conserva su propio costo para la contabilidad).
+  const grupos = useMemo(() => {
+    const mapa = {};
+    const orden = [];
+    pedido.items.forEach((i) => {
+      const clave = `${i.id}|${i.nota || ''}`;
+      if (!mapa[clave]) {
+        mapa[clave] = { clave, name: i.name, nota: i.nota, lineas: [], cantidadPedida: 0 };
+        orden.push(clave);
+      }
+      mapa[clave].lineas.push(i);
+      mapa[clave].cantidadPedida += i.cantidadPedida;
+    });
+    return orden.map((clave) => mapa[clave]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedido]);
+
   // Vacío a propósito: cuentan cuántas hay de verdad sin ver cuánto pidió
   // Fausto, para que sea un conteo real y no solo confirmar el número que ya
   // estaba escrito.
   const [cantidades, setCantidades] = useState(() => {
     const inicial = {};
-    pedido.items.forEach((i) => (inicial[claveLinea(i)] = ''));
+    grupos.forEach((g) => (inicial[g.clave] = ''));
     return inicial;
   });
   const [guardando, setGuardando] = useState(false);
@@ -107,15 +131,15 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
   // "vacío" (todavía no escribió nada ahí) es distinto de "distinto" (ya
   // escribió un número, pero no coincide con lo pedido) — así el campo no se
   // ve como un error antes de que alcance a contar esa referencia.
-  const items = pedido.items.map((i) => {
-    const crudo = cantidades[claveLinea(i)];
+  const gruposConEstado = grupos.map((g) => {
+    const crudo = cantidades[g.clave];
     const vacio = crudo === '';
     const valor = parseInt(crudo);
-    const distinto = !vacio && (isNaN(valor) || valor !== i.cantidadPedida);
-    return { ...i, vacio, distinto };
+    const distinto = !vacio && (isNaN(valor) || valor !== g.cantidadPedida);
+    return { ...g, vacio, distinto };
   });
-  const faltan = items.some((i) => i.vacio);
-  const hayDiferencias = items.some((i) => i.distinto);
+  const faltan = gruposConEstado.some((g) => g.vacio);
+  const hayDiferencias = gruposConEstado.some((g) => g.distinto);
   const todoCoincide = !faltan && !hayDiferencias;
 
   async function confirmar() {
@@ -123,11 +147,18 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
     setMsg('');
     setGuardando(true);
     try {
-      const itemsConfirmados = pedido.items.map((i) => ({
-        lineaId: claveLinea(i),
-        cantidadRecibida: parseInt(cantidades[claveLinea(i)]) || 0,
-        stockActual: porId[i.id]?.stock || 0,
-      }));
+      // El grupo ya coincidió con el total pedido en esas líneas, así que
+      // cada línea recibe exactamente lo que tenía registrado.
+      const itemsConfirmados = [];
+      grupos.forEach((g) => {
+        g.lineas.forEach((i) => {
+          itemsConfirmados.push({
+            lineaId: claveLinea(i),
+            cantidadRecibida: i.cantidadPedida,
+            stockActual: porId[i.id]?.stock || 0,
+          });
+        });
+      });
       await confirmarRecepcion(pedido.id, pedido, itemsConfirmados, usuario);
       onListo();
     } catch (e) {
@@ -142,20 +173,20 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
       <div style={{ fontWeight: 800, marginBottom: 8 }}>
         Confirmar recepción — {pedido.fecha}
       </div>
-      {items.map((i) => (
-        <div className="field" key={claveLinea(i)} style={{ marginBottom: 8 }}>
+      {gruposConEstado.map((g) => (
+        <div className="field" key={g.clave} style={{ marginBottom: 8 }}>
           <label>
-            {i.name}
-            {i.nota ? ` (${i.nota})` : ''}
+            {g.name}
+            {g.nota ? ` (${g.nota})` : ''}
           </label>
           <input
             type="number"
             inputMode="numeric"
             placeholder="0"
-            value={cantidades[claveLinea(i)]}
+            value={cantidades[g.clave]}
             onFocus={(e) => e.target.select()}
-            onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
-            style={i.distinto ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' } : {}}
+            onChange={(e) => setCantidades((c) => ({ ...c, [g.clave]: e.target.value }))}
+            style={g.distinto ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' } : {}}
           />
         </div>
       ))}
