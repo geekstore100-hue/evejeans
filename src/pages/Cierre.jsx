@@ -19,7 +19,6 @@ export default function Cierre({ usuario }) {
   const [resumen, setResumen] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
   const [verGastos, setVerGastos] = useState(false);
-  const [verCompras, setVerCompras] = useState(false);
   const [obs, setObs] = useState('');
   const [obsGuardada, setObsGuardada] = useState('');
   const [guardandoObs, setGuardandoObs] = useState(false);
@@ -241,46 +240,11 @@ export default function Cierre({ usuario }) {
             </div>
           )}
 
-          {usuario.id === 'nelson' && (
-            <>
-              {/* Compras: un solo renglón, con el desplegable como texto sutil */}
-              <div className="kv">
-                <span>
-                  Compras del día{' '}
-                  <button className="link-toggle" onClick={() => setVerCompras((v) => !v)}>
-                    {verCompras ? 'ocultar' : 'ver'}
-                  </button>
-                </span>
-                <span className="v">{fmt(resumen.comprasTot)}</span>
-              </div>
-              {verCompras && (
-                <div className="detalle-anidado">
-                  {resumen.comprasLista.length === 0 ? (
-                    <div className="empty-lines">{esHoy ? 'Ninguna compra hoy.' : 'Ninguna compra ese día.'}</div>
-                  ) : (
-                    resumen.comprasLista.map((c) => (
-                      <div key={c.id} className="detalle-item">
-                        <div className="detalle-item-top">
-                          <span className="detalle-item-titulo">{c.proveedor || 'Sin proveedor'}</span>
-                          <span className="detalle-item-monto">{fmt(c.totalGeneral)}</span>
-                        </div>
-                        <div className="detalle-item-sub">
-                          {c.hora} · {c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')} · {c.origen}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
           <div className="split-label" style={{ marginTop: 16 }}>Por medio de pago</div>
           {['Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'].map((m) => {
             const entro = resumen.porPago[m] || 0;
             const salioGastos = resumen.gastosMedio[m] || 0;
-            const salioCompras = resumen.comprasMedio[m] || 0;
-            if (entro === 0 && salioGastos === 0 && salioCompras === 0) return null;
+            if (entro === 0 && salioGastos === 0) return null;
             return (
               <div className="kv" key={m}>
                 <span>
@@ -289,12 +253,6 @@ export default function Cierre({ usuario }) {
                     <>
                       <br />
                       <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salioGastos)} en gastos</span>
-                    </>
-                  )}
-                  {usuario.id === 'nelson' && salioCompras > 0 && (
-                    <>
-                      <br />
-                      <span style={{ fontSize: 12, color: '#b8874a' }}>salieron {fmt(salioCompras)} en compras</span>
                     </>
                   )}
                 </span>
@@ -311,7 +269,7 @@ export default function Cierre({ usuario }) {
             <span style={{ fontSize: 18, fontWeight: 800 }}>Efectivo a entregar</span>
             <span className="v" style={{ fontSize: 22 }}>{fmt(resumen.efectivoAEntregar)}</span>
           </div>
-          <div className="hint" style={{ fontSize: 12 }}>Ventas en efectivo menos los gastos y compras que salieron de la caja.</div>
+          <div className="hint" style={{ fontSize: 12 }}>Ventas en efectivo menos los gastos que salieron de la caja.</div>
         </div>
 
         <div className="card" style={{ marginTop: 12 }}>
