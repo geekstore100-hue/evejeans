@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasRecientes, ajustarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
+import { crearPedidoCompra, comprasRecientes, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
 // paso a la vez (elegir prenda -> cantidad, costo y nota de esa prenda ->
@@ -27,6 +27,8 @@ export default function ComprasFausto({ usuario }) {
   const [exito, setExito] = useState(null); // { total } | null
   const [misPedidos, setMisPedidos] = useState(null);
   const [corrigiendo, setCorrigiendo] = useState(null);
+  const [eliminando, setEliminando] = useState(null);
+  const [msgEliminar, setMsgEliminar] = useState('');
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -74,7 +76,11 @@ export default function ComprasFausto({ usuario }) {
   // nota.
   function elegir(it) {
     setMsg({ tipo: '', texto: '' });
-    setActual({ id: it.id, name: it.name, qty: 1, costo: '', nota: '' });
+    // La nota queda precargada con la última que se usó para esta misma
+    // referencia — para que si es lo mismo de siempre, no toque volver a
+    // escribirla (y así no queda un poco distinta cada vez, por ejemplo
+    // "Chaquetas jean" una vez y "Chaqueta de jean" la siguiente).
+    setActual({ id: it.id, name: it.name, qty: 1, costo: '', nota: it.ultimaNota || '' });
     setPaso('todo');
   }
 
@@ -123,6 +129,23 @@ export default function ComprasFausto({ usuario }) {
 
   function otraPrenda() {
     setPaso('elegir');
+  }
+
+  async function eliminar(c) {
+    const ok = window.confirm(
+      `¿Eliminar este pedido de ${fmt(c.totalGeneral)}? No se puede deshacer.`
+    );
+    if (!ok) return;
+    setMsgEliminar('');
+    setEliminando(c.id);
+    try {
+      await eliminarPedido(c.id);
+      await cargarMisPedidos();
+    } catch (e) {
+      setMsgEliminar('No se pudo eliminar: ' + e.message);
+    } finally {
+      setEliminando(null);
+    }
   }
 
   function eliminarLinea(lineaId) {
@@ -258,6 +281,7 @@ export default function ComprasFausto({ usuario }) {
               className="cf-input"
               type="text"
               value={actual.nota}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => cambiarNota(e.target.value)}
             />
             <div className="cf-chips-nota">
@@ -325,6 +349,8 @@ export default function ComprasFausto({ usuario }) {
               <CorreccionSimple
                 key={c.id}
                 pedido={c}
+                itemsNombre={itemsNombre}
+                itemsPrecio={itemsPrecio}
                 onCancelar={() => setCorrigiendo(null)}
                 onListo={async () => {
                   setCorrigiendo(null);
@@ -341,40 +367,67 @@ export default function ComprasFausto({ usuario }) {
                 </div>
                 <div className="cf-pedido-total">{fmt(c.totalGeneral)}</div>
                 {c.estado === 'pendiente' && (
-                  <button className="cf-btn-corregir" onClick={() => setCorrigiendo(c.id)}>
-                    Corregir este pedido
-                  </button>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="cf-btn-corregir" onClick={() => setCorrigiendo(c.id)}>
+                      Corregir este pedido
+                    </button>
+                    <button
+                      className="cf-btn-corregir"
+                      style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                      disabled={eliminando === c.id}
+                      onClick={() => eliminar(c)}
+                    >
+                      {eliminando === c.id ? 'Eliminando…' : 'Eliminar pedido'}
+                    </button>
+                  </div>
                 )}
               </div>
             )
           )}
+          {msgEliminar && <div className="msg bad">{msgEliminar}</div>}
         </div>
       )}
     </div>
   );
 }
 
-function CorreccionSimple({ pedido, onCancelar, onListo }) {
+function CorreccionSimple({ pedido, itemsNombre, itemsPrecio, onCancelar, onListo }) {
   const [cantidades, setCantidades] = useState(() => {
     const ini = {};
     pedido.items.forEach((i) => (ini[claveLinea(i)] = String(i.cantidadPedida)));
     return ini;
   });
+  // Qué referencia de inventario quedó elegida para cada línea — por defecto
+  // la misma con la que se registró, pero se puede cambiar por si se tocó la
+  // categoría equivocada al hacer el pedido.
+  const [prendas, setPrendas] = useState(() => {
+    const ini = {};
+    pedido.items.forEach((i) => (ini[claveLinea(i)] = i.id));
+    return ini;
+  });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
+
+  const todasLasPrendas = [...(itemsNombre || []), ...(itemsPrecio || [])];
+  function nombreDe(id) {
+    return todasLasPrendas.find((it) => it.id === id)?.name || id;
+  }
 
   async function guardar() {
     setMsg('');
     setGuardando(true);
     try {
-      const itemsAjustados = pedido.items.map((i) => ({
-        id: i.id,
-        lineaId: i.lineaId,
-        name: i.name,
-        cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
-        costoUnitario: i.costoUnitario,
-        nota: i.nota,
-      }));
+      const itemsAjustados = pedido.items.map((i) => {
+        const nuevoId = prendas[claveLinea(i)];
+        return {
+          id: nuevoId,
+          lineaId: i.lineaId,
+          name: nombreDe(nuevoId),
+          cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
+          costoUnitario: i.costoUnitario,
+          nota: i.nota,
+        };
+      });
       await ajustarPedido(pedido.id, itemsAjustados);
       onListo();
     } catch (e) {
@@ -386,7 +439,7 @@ function CorreccionSimple({ pedido, onCancelar, onListo }) {
 
   return (
     <div className="cf-correccion">
-      <div className="cf-paso">Corrige la cantidad de cada prenda</div>
+      <div className="cf-paso">Corrige cada prenda de este pedido</div>
       {pedido.items.map((i) => (
         <div key={claveLinea(i)} className="cf-linea-campo">
           <label>
@@ -397,6 +450,28 @@ function CorreccionSimple({ pedido, onCancelar, onListo }) {
                 se ven idénticas y parece que solo hay una para corregir. */}
             <span style={{ fontWeight: 400, color: 'var(--ink-soft)' }}> — costo {fmt(i.costoUnitario)}</span>
           </label>
+          <select
+            className="cf-input"
+            value={prendas[claveLinea(i)]}
+            onChange={(e) => setPrendas((p) => ({ ...p, [claveLinea(i)]: e.target.value }))}
+            style={{ marginBottom: 8 }}
+          >
+            <optgroup label="Con nombre">
+              {(itemsNombre || []).map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Por precio">
+              {(itemsPrecio || []).map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.name}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+          <label style={{ fontSize: 12 }}>Cantidad</label>
           <input
             type="number"
             inputMode="numeric"
