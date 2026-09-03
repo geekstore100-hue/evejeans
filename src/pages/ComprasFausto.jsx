@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasRecientes, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
+import { crearPedidoCompra, comprasDeUsuario, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
 // paso a la vez (elegir prenda -> cantidad, costo y nota de esa prenda ->
@@ -44,8 +44,15 @@ export default function ComprasFausto({ usuario }) {
 
   async function cargarMisPedidos() {
     try {
-      const todos = await comprasRecientes(50);
-      setMisPedidos(todos.filter((c) => c.usuarioId === usuario.id).slice(0, 5));
+      const mios = await comprasDeUsuario(usuario.id);
+      // TODOS los pendientes se muestran siempre, sin importar cuántos haya
+      // — si no, uno viejo se puede quedar sin poder corregirse ni
+      // eliminarse solo porque hubo varios pedidos después (de él mismo o de
+      // Nelson). De los ya confirmados, con los últimos 5 basta (son solo
+      // para mirar, ya no se pueden tocar).
+      const pendientes = mios.filter((c) => c.estado === 'pendiente');
+      const confirmadas = mios.filter((c) => c.estado !== 'pendiente').slice(0, 5);
+      setMisPedidos([...pendientes, ...confirmadas]);
     } catch (e) {
       setMisPedidos([]);
     }
@@ -343,7 +350,7 @@ export default function ComprasFausto({ usuario }) {
 
       {misPedidos && misPedidos.length > 0 && (
         <div className="cf-card">
-          <div className="cf-paso">Tus últimos pedidos</div>
+          <div className="cf-paso">Tus pedidos</div>
           {misPedidos.map((c) =>
             corrigiendo === c.id ? (
               <CorreccionSimple
