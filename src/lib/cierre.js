@@ -81,23 +81,10 @@ export async function resumenDia(fecha) {
     netoPorMedio[m] = (porPago[m] || 0) - (gastosMedio[m] || 0);
   });
 
-  // Compras de mercancía del día: también salen de algún medio, igual que los gastos.
-  const qCompras = query(collection(db, 'compras'), where('fecha', '==', fecha));
-  const snapCompras = await getDocs(qCompras);
-  const comprasLista = [];
-  const comprasMedio = {};
-  let comprasTot = 0;
-  snapCompras.docs.forEach((d) => {
-    const c = d.data();
-    comprasLista.push({ id: d.id, ...c });
-    comprasTot += c.totalGeneral;
-    const medio = ORIGEN_A_MEDIO[c.origen];
-    if (medio) {
-      comprasMedio[medio] = (comprasMedio[medio] || 0) + c.totalGeneral;
-      netoPorMedio[medio] = (netoPorMedio[medio] || 0) - c.totalGeneral;
-    }
-  });
-  comprasLista.sort((a, b) => (a.hora < b.hora ? -1 : 1));
+  // Las compras de mercancía (lo que gasta Fausto) NO se incluyen en el cierre:
+  // él las paga con efectivo que ya recogió antes por aparte (ver "Entrega de
+  // dinero"), así que para cuando se hace el cierre esa plata ya salió de la
+  // caja de otra forma — restarla acá otra vez la descontaría dos veces.
 
   // Entradas y salidas de mercancía del día (defectos, pérdidas, correcciones de
   // conteo, etc. — no son ventas ni cambios, pero también hace falta verlas en
@@ -146,9 +133,6 @@ export async function resumenDia(fecha) {
     porPago,
     totalVendido,
     gastosMedio,
-    comprasMedio,
-    comprasLista,
-    comprasTot,
     netoPorMedio,
     descuentos,
     gastosTot,
