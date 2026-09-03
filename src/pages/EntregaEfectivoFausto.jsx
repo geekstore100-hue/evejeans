@@ -115,15 +115,25 @@ export default function EntregaEfectivoFausto({ usuario }) {
                 <div className="cf-pedido-top">
                   <span>{p.fecha}</span>
                 </div>
-                {p.habilitada && (
+                {p.habilitada ? (
                   <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>
                     ✔ Avisado por {p.habilitadaPorNombre} a las {p.habilitadaHora}
                   </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 4 }}>
+                    Todavía no te han avisado que está lista
+                  </div>
                 )}
                 <div className="cf-pedido-total">{fmt(p.efectivoAEntregar)}</div>
-                <button className="cf-btn-corregir" onClick={() => setAbierto(p.fecha)}>
-                  Recibir este efectivo
-                </button>
+                {p.habilitada ? (
+                  <button className="cf-btn-corregir" onClick={() => setAbierto(p.fecha)}>
+                    Recibir este efectivo
+                  </button>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontStyle: 'italic' }}>
+                    Espera a que avisen para poder recibirlo
+                  </div>
+                )}
               </div>
             )
           )
