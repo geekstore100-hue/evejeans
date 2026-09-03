@@ -200,4 +200,17 @@ export async function comprasRecientes(limite = 25) {
     .slice(0, limite);
 }
 
+// Todos los pedidos de UN usuario (sin importar cuántos haya de otros usuarios
+// de por medio) — a diferencia de comprasRecientes, que trae los últimos de
+// TODOS mezclados y por eso, si hay varios pedidos seguidos de otra persona,
+// puede dejar afuera uno pendiente de este usuario que todavía necesita
+// corregirse o eliminarse.
+export async function comprasDeUsuario(usuarioId) {
+  const q = query(collection(db, 'compras'), where('usuarioId', '==', usuarioId));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
+}
+
 export { hoyStr, ahoraStr };
