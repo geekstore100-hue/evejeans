@@ -97,25 +97,22 @@ function fechaBonitaLarga(fechaStr) {
   return dt.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function medioLineaHTML(medio, resumen, esNelson) {
+function medioLineaHTML(medio, resumen) {
   const entro = resumen.porPago[medio] || 0;
   const salioGastos = resumen.gastosMedio[medio] || 0;
-  const salioCompras = resumen.comprasMedio[medio] || 0;
-  if (entro === 0 && salioGastos === 0 && salioCompras === 0) return '';
+  if (entro === 0 && salioGastos === 0) return '';
   let extra = '';
   if (salioGastos > 0) extra += `<div class="pt-small">&nbsp;&nbsp;−${fmt(salioGastos)} en gastos</div>`;
-  if (esNelson && salioCompras > 0) extra += `<div class="pt-small">&nbsp;&nbsp;−${fmt(salioCompras)} en compras</div>`;
   return `<div class="pt-line"><span>${medio}</span><span>${fmt(resumen.netoPorMedio[medio])}</span></div>${extra}`;
 }
 
 // Cierre del día completo, para dejar un comprobante físico de todo lo que se
-// vendió, cambió, gastó y compró ese día, junto con el efectivo a entregar.
-// Las compras solo se incluyen si quien imprime es Nelson (mismo criterio que en
-// pantalla: es información de costos, no la ven las vendedoras).
+// vendió, cambió y gastó ese día, junto con el efectivo a entregar. Las
+// compras de mercancía NO van acá: Fausto las paga con efectivo que ya
+// recogió por aparte (ver "Entrega de dinero"), así que no afectan este cuadre.
 export function imprimirCierre({ fecha, resumen, usuario, obs }) {
   const area = document.getElementById('print-area');
   if (!area) return;
-  const esNelson = usuario.id === 'nelson';
   const totalPrendas = resumen.prendas.reduce((s, p) => s + p.qty, 0);
 
   const prendasHTML = resumen.prendas.length
@@ -164,29 +161,11 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
         .join('')
     : `<div class="pt-small">Ninguno.</div>`;
 
-  const comprasHTML = !esNelson
-    ? ''
-    : `
-    <div class="pt-rule"></div>
-    <div class="pt-small"><b>COMPRAS DEL DÍA</b></div>
-    ${
-      resumen.comprasLista.length
-        ? resumen.comprasLista
-            .map(
-              (c) => `
-      <div class="pt-line"><span>${c.proveedor || 'Sin proveedor'}</span><span>${fmt(c.totalGeneral)}</span></div>
-      <div class="pt-small">&nbsp;&nbsp;${c.hora} · ${c.items.map((i) => `${i.name} ×${i.qty}`).join(', ')}</div>`
-            )
-            .join('')
-        : `<div class="pt-small">Ninguna.</div>`
-    }
-    <div class="pt-line pt-total" style="margin-top:2px"><span>Total compras</span><span>${fmt(resumen.comprasTot)}</span></div>`;
-
   // "Efectivo" no va aquí: ya sale más abajo como "Efectivo antes de gastos" y
   // "EFECTIVO A ENTREGAR" — meterlo también aquí repetía el mismo número dos
   // veces en la tirilla (igual que en pantalla, que tampoco lo repite).
   const mediosHTML = ['Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito']
-    .map((m) => medioLineaHTML(m, resumen, esNelson))
+    .map((m) => medioLineaHTML(m, resumen))
     .join('');
 
   // Ventas, cambios y gastos anulados: no se cuentan en ningún total de arriba,
@@ -257,7 +236,6 @@ export function imprimirCierre({ fecha, resumen, usuario, obs }) {
     <div class="pt-small"><b>GASTOS DEL DÍA</b></div>
     ${gastosHTML}
     <div class="pt-line pt-total" style="margin-top:2px"><span>Total gastos</span><span>${fmt(resumen.gastosTot)}</span></div>
-    ${comprasHTML}
 
     <div class="pt-rule"></div>
     <div class="pt-small"><b>POR MEDIO DE PAGO</b></div>
