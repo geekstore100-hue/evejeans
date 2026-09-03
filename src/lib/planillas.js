@@ -4,6 +4,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  writeBatch,
   query,
   where,
   documentId,
@@ -36,6 +37,9 @@ function fechaAStr(d) {
 }
 function hoyStr() {
   return fechaAStr(new Date());
+}
+function ahoraStr() {
+  return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 }
 
 // Revisa los últimos DIAS_HACIA_ATRAS días (sin contar hoy) y crea la planilla
@@ -87,6 +91,14 @@ export async function asegurarPlanillasPendientes() {
           fecha,
           efectivoAEntregar,
           estado: 'pendiente', // pendiente | recibido
+          // "Habilitada": la vendedora avisó que ya tiene ese efectivo listo
+          // para entregar (ver habilitarTodoPendiente). No es lo mismo que
+          // "recibido" — solo dice que está lista para que la recojan.
+          habilitada: false,
+          habilitadaPorId: null,
+          habilitadaPorNombre: null,
+          habilitadaFecha: null,
+          habilitadaHora: null,
           recibido: null,
           difEntrega: null,
           entregoNombre: null,
@@ -105,6 +117,50 @@ export async function planillasPendientes() {
   const q = query(collection(db, 'planillas'), where('estado', '==', 'pendiente'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+}
+
+// La vendedora avisa que YA tiene lista para entregar toda la plata que esté
+// pendiente en este momento (todos los días juntos de una vez, no uno por
+// uno) — Fausto (o Nelson) la sigue viendo en "pendiente" hasta que la reciba
+// de verdad, pero ahora queda marcada como "habilitada" para que se sepa que
+// ya está lista y no solo calculada.
+export async function habilitarTodoPendiente(usuario) {
+  const pendientes = await planillasPendientes();
+  const faltantes = pendientes.filter((p) => !p.habilitada);
+  if (faltantes.length === 0) return { cantidad: 0 };
+
+  const fecha = hoyStr();
+  const hora = ahoraStr();
+  const batch = writeBatch(db);
+  faltantes.forEach((p) => {
+    batch.update(doc(db, 'planillas', p.fecha), {
+      habilitada: true,
+      habilitadaPorId: usuario.id,
+      habilitadaPorNombre: usuario.nombreDefault,
+      habilitadaFecha: fecha,
+      habilitadaHora: hora,
+    });
+  });
+  await batch.commit();
+  return { cantidad: faltantes.length };
+}
+
+// Resumen de lo habilitado-pero-todavía-no-recibido, para el aviso en Ventas
+// y en la pantalla de Fausto. null si no hay nada avisado en este momento.
+export async function entregaHabilitadaInfo() {
+  const pendientes = await planillasPendientes();
+  const habilitadas = pendientes.filter((p) => p.habilitada);
+  if (habilitadas.length === 0) return null;
+  const total = habilitadas.reduce((s, p) => s + (p.efectivoAEntregar || 0), 0);
+  // El aviso más reciente, por si se avisó más de una vez, para mostrar quién
+  // y a qué hora.
+  const masReciente = habilitadas.reduce((a, b) => ((a.habilitadaHora || '') >= (b.habilitadaHora || '') ? a : b));
+  return {
+    cantidad: habilitadas.length,
+    total,
+    porNombre: masReciente.habilitadaPorNombre,
+    hora: masReciente.habilitadaHora,
+  };
 }
 
 export async function planillasRecibidas(limite = 20) {
@@ -151,6 +207,11 @@ export async function confirmarPlanillaHoy({ recibido, entregoNombre, nota }, us
       fecha,
       efectivoAEntregar,
       estado: 'pendiente',
+      habilitada: false,
+      habilitadaPorId: null,
+      habilitadaPorNombre: null,
+      habilitadaFecha: null,
+      habilitadaHora: null,
       recibido: null,
       difEntrega: null,
       entregoNombre: null,
