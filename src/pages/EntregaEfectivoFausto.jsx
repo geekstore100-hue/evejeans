@@ -147,7 +147,11 @@ function ChipsVendedoras({ quien, setQuien }) {
 }
 
 function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
-  const [recibido, setRecibido] = useState('');
+  // Precargado con lo calculado ese día: casi siempre coincide con lo que
+  // cuenta, así que no tiene que volver a escribirlo día por día — si de
+  // verdad contó otra cosa, toca el campo (se selecciona todo solo) y lo
+  // corrige.
+  const [recibido, setRecibido] = useState(() => String(Math.round(planilla.efectivoAEntregar || 0)));
   const [quien, setQuien] = useState(null);
   const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -229,7 +233,12 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
-    calcularEfectivoHoy().then(setCalculado);
+    calcularEfectivoHoy().then((valor) => {
+      setCalculado(valor);
+      // Mismo precargado que en el formulario de días anteriores — así no
+      // toca escribirlo si lo que contó coincide.
+      setRecibido(String(Math.round(valor || 0)));
+    });
   }, []);
 
   async function confirmar() {
