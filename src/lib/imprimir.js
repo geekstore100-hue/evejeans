@@ -47,6 +47,66 @@ export function imprimirComprobantePago(gasto) {
   window.print();
 }
 
+function copiaEntregaGlobalHTML(entrega, rotulo) {
+  const nombresUnicos = [...new Set((entrega.dias || []).map((d) => d.entregoNombre).filter(Boolean))];
+  const totalGeneral = (entrega.dias || []).reduce((s, d) => s + d.monto, 0);
+  const diasHTML = (entrega.dias || [])
+    .map(
+      (d) =>
+        `<div class="pt-line"><span>${d.fecha}${d.entregoNombre ? ' · ' + d.entregoNombre : ''}</span><span>${fmt(d.monto)}</span></div>`
+    )
+    .join('');
+  return `
+    <div class="pt-center pt-small">${rotulo}</div>
+    <div class="pt-center pt-big">COMPROBANTE DE ENTREGA DE EFECTIVO</div>
+    <div class="pt-center pt-small">Eve Jeans</div>
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>Fecha</span><span><b>${entrega.fecha} ${entrega.hora}</b></span></div>
+    <div class="pt-rule"></div>
+    <div class="pt-line"><span>Entrega</span><span><b>${nombresUnicos.join(', ') || '—'}</b></span></div>
+    <div class="pt-line"><span>Recibe</span><span><b>${entrega.recibioNombre}</b></span></div>
+    <div class="pt-rule"></div>
+    <div class="pt-small"><b>DÍAS INCLUIDOS (${(entrega.dias || []).length})</b></div>
+    ${diasHTML}
+    <div class="pt-rule"></div>
+    <div class="pt-line pt-total"><span>VALOR TOTAL</span><span>${fmt(totalGeneral)}</span></div>
+    <div class="pt-rule"></div>
+    <div class="pt-small" style="margin-top:6px">
+      Declaramos que el efectivo indicado, correspondiente a los días señalados, fue entregado y
+      recibido de conformidad en la fecha y hora indicadas.
+    </div>
+    <div style="margin-top:26px;border-top:1px solid #000;padding-top:3px">
+      <div class="pt-center pt-small">Firma de quien entrega</div>
+    </div>
+    <div style="margin-top:6px" class="pt-small">C.C. ____________________</div>
+    <div style="margin-top:16px;border-top:1px solid #000;padding-top:3px">
+      <div class="pt-center pt-small">Firma de quien recibe</div>
+    </div>
+    <div class="pt-center pt-small" style="margin-top:8px">C.C. ____________________</div>`;
+}
+
+// Comprobante de la entrega física de efectivo de una vendedora a Fausto (o a
+// Nelson) — misma idea que el comprobante de pago de gastos: dos copias, cada
+// una se queda con una parte, ambas firmadas a mano en el momento de la
+// entrega. Uno solo puede cubrir varios días juntos (cuando se acumularon
+// varios sin recoger) — se firma una sola vez por todo, con el desglose de
+// cada día adentro. Así, si algún día sale una diferencia, la vendedora tiene
+// con qué demostrar que sí entregó ese efectivo.
+// entrega: { fecha, hora, recibioNombre, dias: [{fecha, monto, entregoNombre}] }
+export function imprimirComprobanteEntregaGlobal(entrega) {
+  const area = document.getElementById('print-area');
+  if (!area) return;
+  area.className = '';
+  area.innerHTML = `
+    ${copiaEntregaGlobalHTML(entrega, '— ORIGINAL: queda con quien recibe —')}
+    <div style="margin:14px 0;border-top:2px dashed #000"></div>
+    <div class="pt-center pt-small">✂ cortar aquí</div>
+    <div style="margin:8px 0"></div>
+    ${copiaEntregaGlobalHTML(entrega, '— COPIA: queda con quien entrega —')}
+    <div class="pt-center pt-small" style="margin-top:8px">.</div>`;
+  window.print();
+}
+
 function encabezadoTicket(num, fecha, hora, usuarioNombre) {
   return `
     <img src="/logo.png" alt="Eve Jeans" class="pt-logo" />
