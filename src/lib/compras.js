@@ -4,6 +4,7 @@ import {
   writeBatch,
   increment,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   query,
   where,
@@ -56,9 +57,21 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
   // el mismo documento dos veces en un solo batch — por eso se agrupa por id
   // primero, y solo se escribe una vez cada uno (con el último costo escrito).
   const costoPorId = {};
-  items.forEach((i) => (costoPorId[i.id] = i.costoUnitario));
+  // También se recuerda la última nota escrita para cada referencia — así la
+  // próxima vez que se compre lo mismo, el campo de nota ya viene lleno con
+  // ese mismo texto en vez de en blanco, y no toca volver a escribirlo desde
+  // cero (que es justo lo que generaba variaciones tipo "Chaquetas jean" vs
+  // "Chaqueta de jean": el mismo item con la nota escrita un poco distinto
+  // cada vez).
+  const notaPorId = {};
+  items.forEach((i) => {
+    costoPorId[i.id] = i.costoUnitario;
+    if (i.nota && i.nota.trim()) notaPorId[i.id] = i.nota.trim();
+  });
   Object.entries(costoPorId).forEach(([id, costoUnitario]) => {
-    batch.update(doc(db, 'inventario', id), { costoCompra: costoUnitario });
+    const cambios = { costoCompra: costoUnitario };
+    if (notaPorId[id]) cambios.ultimaNota = notaPorId[id];
+    batch.update(doc(db, 'inventario', id), cambios);
   });
 
   const itemsConTotal = items.map((i) => ({
@@ -167,6 +180,16 @@ export async function ajustarPedido(compraId, itemsAjustados) {
   }));
   const totalGeneral = nuevosItems.reduce((s, i) => s + i.total, 0);
   await updateDoc(doc(db, 'compras', compraId), { items: nuevosItems, totalGeneral });
+}
+
+// Elimina un pedido que sigue PENDIENTE — nunca llegó a subir el stock de
+// nada (eso solo pasa al confirmar), así que no hay nada que revertir en el
+// inventario. Sirve para cuando se registró por error, o para empezar de
+// cero en vez de corregirlo si quedó muy mal armado. Nelson puede borrar
+// cualquier pedido pendiente; Fausto solo los suyos (lo exigen las reglas de
+// Firestore, no solo esta función).
+export async function eliminarPedido(compraId) {
+  await deleteDoc(doc(db, 'compras', compraId));
 }
 
 export async function comprasRecientes(limite = 25) {
