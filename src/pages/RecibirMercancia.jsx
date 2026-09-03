@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
 import { pedidosPendientes, confirmarRecepcion, claveLinea } from '../lib/compras';
+import { leerBorrador, guardarBorrador, borrarBorrador } from '../lib/recepcionBorrador';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -119,14 +120,23 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
 
   // Vacío a propósito: cuentan cuántas hay de verdad sin ver cuánto pidió
   // Fausto, para que sea un conteo real y no solo confirmar el número que ya
-  // estaba escrito.
+  // estaba escrito. Si ya había un borrador guardado de este pedido (porque
+  // lo dejó a medias antes), se recupera en vez de empezar en blanco.
   const [cantidades, setCantidades] = useState(() => {
+    const borrador = leerBorrador(pedido.id);
     const inicial = {};
-    grupos.forEach((g) => (inicial[g.clave] = ''));
+    grupos.forEach((g) => (inicial[g.clave] = borrador?.[g.clave] ?? ''));
     return inicial;
   });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
+
+  // Cada vez que escribe algo, se guarda de una vez como borrador — así, si
+  // llega una venta y toca cambiar de pestaña a medio conteo, no se pierde.
+  useEffect(() => {
+    guardarBorrador(pedido.id, cantidades);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cantidades]);
 
   // "vacío" (todavía no escribió nada ahí) es distinto de "distinto" (ya
   // escribió un número, pero no coincide con lo pedido) — así el campo no se
@@ -160,12 +170,20 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
         });
       });
       await confirmarRecepcion(pedido.id, pedido, itemsConfirmados, usuario);
+      borrarBorrador(pedido.id);
       onListo();
     } catch (e) {
       setMsg('No se pudo confirmar: ' + e.message);
     } finally {
       setGuardando(false);
     }
+  }
+
+  // Cancelar sí es una decisión de descartar el conteo — ahí sí se borra el
+  // borrador, para que la próxima vez empiece limpio.
+  function cancelar() {
+    borrarBorrador(pedido.id);
+    onCancelar();
   }
 
   return (
@@ -199,7 +217,7 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={onCancelar}>Cancelar</button>
+        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={cancelar}>Cancelar</button>
         <button className="btn sm" style={{ width: 'auto' }} disabled={guardando || !todoCoincide} onClick={confirmar}>
           {guardando ? 'Guardando…' : 'Confirmar entrada'}
         </button>
