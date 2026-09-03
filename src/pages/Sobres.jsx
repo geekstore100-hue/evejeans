@@ -7,8 +7,14 @@ import {
   confirmarPlanilla,
   confirmarPlanillaHoy,
   calcularEfectivoHoy,
+  habilitarTodoPendiente,
   hoyStr,
 } from '../lib/planillas';
+import { imprimirComprobanteEntregaGlobal } from '../lib/imprimir';
+
+function horaAhora() {
+  return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -20,6 +26,12 @@ export default function Sobres({ usuario }) {
   const [abierto, setAbierto] = useState(null); // fecha de la planilla que se está recibiendo
   const [hoyAbierto, setHoyAbierto] = useState(false);
   const [errorCarga, setErrorCarga] = useState('');
+  const [avisando, setAvisando] = useState(false);
+  const [msgAviso, setMsgAviso] = useState('');
+  // Lo que se va confirmando en esta visita (no se guarda en la base de
+  // datos) — para imprimir UN comprobante global al final en vez de uno por
+  // cada día.
+  const [sesionConfirmadas, setSesionConfirmadas] = useState([]);
 
   useEffect(() => {
     cargar();
@@ -51,6 +63,20 @@ export default function Sobres({ usuario }) {
   }
 
   const totalPendiente = (pendientes || []).reduce((s, p) => s + p.efectivoAEntregar, 0);
+  const faltaAvisar = (pendientes || []).some((p) => !p.habilitada);
+
+  async function avisar() {
+    setMsgAviso('');
+    setAvisando(true);
+    try {
+      await habilitarTodoPendiente(usuario);
+      await cargar();
+    } catch (e) {
+      setMsgAviso('No se pudo avisar: ' + e.message);
+    } finally {
+      setAvisando(false);
+    }
+  }
 
   return (
     <div className="sale-grid">
@@ -70,35 +96,48 @@ export default function Sobres({ usuario }) {
         ) : pendientes.length === 0 ? (
           <div className="empty-lines">No hay efectivo pendiente de entregar.</div>
         ) : (
-          pendientes.map((p) =>
-            abierto === p.fecha ? (
-              <FormularioRecibir
-                key={p.fecha}
-                planilla={p}
-                usuario={usuario}
-                onCancelar={() => setAbierto(null)}
-                onListo={async () => {
-                  setAbierto(null);
-                  await cargar();
-                }}
-              />
-            ) : (
-              <div className="gasto-item" key={p.fecha}>
-                <div>
-                  <div className="gasto-nombre">{p.fecha}</div>
-                  <div className="gasto-sub">del Cierre de ese día</div>
+          <>
+            {faltaAvisar && (
+              <button className="btn sm" style={{ width: 'auto', marginBottom: 10 }} disabled={avisando} onClick={avisar}>
+                {avisando ? 'Avisando…' : 'Avisar a Fausto que tengo esto listo para entregar'}
+              </button>
+            )}
+            {msgAviso && <div className="msg bad">{msgAviso}</div>}
+            {pendientes.map((p) =>
+              abierto === p.fecha ? (
+                <FormularioRecibir
+                  key={p.fecha}
+                  planilla={p}
+                  usuario={usuario}
+                  onCancelar={() => setAbierto(null)}
+                  onListo={async (info) => {
+                    setAbierto(null);
+                    setSesionConfirmadas((s) => [...s, info]);
+                    await cargar();
+                  }}
+                />
+              ) : (
+                <div className="gasto-item" key={p.fecha}>
+                  <div>
+                    <div className="gasto-nombre">{p.fecha}</div>
+                    <div className="gasto-sub">
+                      {p.habilitada
+                        ? `Avisado por ${p.habilitadaPorNombre} a las ${p.habilitadaHora}`
+                        : 'del Cierre de ese día'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="gasto-monto">{fmt(p.efectivoAEntregar)}</span>
+                    {usuario.id === 'nelson' && (
+                      <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.fecha)}>
+                        Recibir
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span className="gasto-monto">{fmt(p.efectivoAEntregar)}</span>
-                  {usuario.id === 'nelson' && (
-                    <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.fecha)}>
-                      Recibir
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          )
+              )
+            )}
+          </>
         )}
 
         {usuario.id === 'nelson' && (
@@ -111,12 +150,43 @@ export default function Sobres({ usuario }) {
               <FormularioHoy
                 usuario={usuario}
                 onCancelar={() => setHoyAbierto(false)}
-                onListo={async () => {
+                onListo={async (info) => {
                   setHoyAbierto(false);
+                  setSesionConfirmadas((s) => [...s, info]);
                   await cargar();
                 }}
               />
             )}
+          </div>
+        )}
+
+        {sesionConfirmadas.length > 0 && (
+          <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>Comprobante de lo que confirmaste ahora</div>
+            <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+              Llevas {sesionConfirmadas.length} {sesionConfirmadas.length === 1 ? 'día' : 'días'} confirmados en esta
+              visita, por {fmt(sesionConfirmadas.reduce((s, c) => s + c.monto, 0))} en total. Imprime un solo
+              comprobante con todo y fírmenlo entre los dos.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                className="btn sm"
+                style={{ width: 'auto' }}
+                onClick={() =>
+                  imprimirComprobanteEntregaGlobal({
+                    fecha: hoyStr(),
+                    hora: horaAhora(),
+                    recibioNombre: usuario.nombreDefault,
+                    dias: sesionConfirmadas,
+                  })
+                }
+              >
+                Imprimir comprobante
+              </button>
+              <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setSesionConfirmadas([])}>
+                Ya firmamos, ocultar
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -199,7 +269,7 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
           } ${fmt(Math.abs(res.difEntrega))}`
         );
       }
-      onListo();
+      onListo({ monto, fecha: planilla.fecha, entregoNombre: quien.nombreDefault });
     } catch (e) {
       setMsg('No se pudo registrar: ' + e.message);
     } finally {
@@ -271,7 +341,7 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
           } ${fmt(Math.abs(res.difEntrega))}`
         );
       }
-      onListo();
+      onListo({ monto, fecha: hoyStr(), entregoNombre: quien.nombreDefault });
     } catch (e) {
       setMsg('No se pudo registrar: ' + e.message);
     } finally {
