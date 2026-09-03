@@ -18,6 +18,7 @@ import Ganancia from './pages/Ganancia';
 import Movimientos from './pages/Movimientos';
 import Conciliacion from './pages/Conciliacion';
 import Capital from './pages/Capital';
+import Nequi from './pages/Nequi';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -231,6 +232,11 @@ export default function App() {
             Capital disponible
           </button>
         )}
+        {usuario.id === 'nelson' && (
+          <button className={vista === 'nequi' ? 'on' : ''} onClick={() => setVista('nequi')}>
+            Nequi
+          </button>
+        )}
       </nav>
 
       <main>
@@ -247,6 +253,7 @@ export default function App() {
         {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
         {vista === 'conciliacion' && usuario.id === 'nelson' && <Conciliacion usuario={usuario} />}
         {vista === 'capital' && usuario.id === 'nelson' && <Capital usuario={usuario} />}
+        {vista === 'nequi' && usuario.id === 'nelson' && <Nequi usuario={usuario} />}
       </main>
     </div>
   );
