@@ -9,6 +9,7 @@ import { tocaConteo, registrarConteo, elegirMuestraSemana } from '../lib/conteo'
 import { semanaDe } from '../lib/festivos';
 import { guardarConfig } from '../lib/config';
 import { hayBorradorEnCurso } from '../lib/recepcionBorrador';
+import { entregaHabilitadaInfo } from '../lib/planillas';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -46,12 +47,19 @@ export default function Vender({ usuario }) {
   const [guardandoConteo, setGuardandoConteo] = useState(false);
   const [sembrando, setSembrando] = useState(false);
   const [recepcionAMedias, setRecepcionAMedias] = useState(false);
+  const [entregaHabilitada, setEntregaHabilitada] = useState(null);
 
   // Se revisa cada vez que se entra a Ventas (esta pantalla se vuelve a montar
   // al cambiar de pestaña) — si alguien dejó a medias el conteo al confirmar
   // un pedido de mercancía, se recuerda acá hasta que lo termine o lo cancele.
   useEffect(() => {
     setRecepcionAMedias(hayBorradorEnCurso());
+  }, []);
+
+  // Igual, pero para el efectivo que la vendedora ya avisó que tiene listo
+  // para Fausto y todavía nadie ha confirmado que lo recibió.
+  useEffect(() => {
+    entregaHabilitadaInfo().then(setEntregaHabilitada).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -343,6 +351,19 @@ export default function Vender({ usuario }) {
 
   return (
     <div className="vender-shell">
+      {entregaHabilitada && (
+        <div className="card modo-prueba" style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ flex: 1, fontSize: 13 }}>
+              <b>Hay una entrega de dinero pendiente por confirmar.</b> {entregaHabilitada.porNombre} avisó a las{' '}
+              {entregaHabilitada.hora} que tiene {fmt(entregaHabilitada.total)} listos
+              {entregaHabilitada.cantidad > 1 ? ` (de ${entregaHabilitada.cantidad} días)` : ''} — falta que Fausto (o
+              alguien) lo recoja y lo confirme en "Entrega de dinero".
+            </span>
+          </div>
+        </div>
+      )}
+
       {recepcionAMedias && (
         <div className="card modo-prueba" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
