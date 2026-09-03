@@ -392,6 +392,10 @@ function CorreccionSimple({ pedido, onCancelar, onListo }) {
           <label>
             {i.name}
             {i.nota ? ` (${i.nota})` : ''}
+            {/* Si la misma prenda quedó en más de una línea (ej. llegó a distinto
+                costo cada vez), el costo es lo único que las distingue — sin esto
+                se ven idénticas y parece que solo hay una para corregir. */}
+            <span style={{ fontWeight: 400, color: 'var(--ink-soft)' }}> — costo {fmt(i.costoUnitario)}</span>
           </label>
           <input
             type="number"
