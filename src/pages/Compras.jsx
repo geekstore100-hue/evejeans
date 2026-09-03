@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasRecientes, ajustarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
+import { crearPedidoCompra, comprasRecientes, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria'];
@@ -20,6 +20,8 @@ export default function Compras({ usuario }) {
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [historial, setHistorial] = useState(null);
   const [editando, setEditando] = useState(null);
+  const [eliminando, setEliminando] = useState(null);
+  const [msgEliminar, setMsgEliminar] = useState('');
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -87,6 +89,21 @@ export default function Compras({ usuario }) {
     total: d.qty * d.costoUnitario,
   }));
   const totalGeneral = lineas.reduce((s, l) => s + l.total, 0);
+
+  async function eliminarDelHistorial(c) {
+    const ok = window.confirm(`¿Eliminar este pedido de ${fmt(c.totalGeneral)}? No se puede deshacer.`);
+    if (!ok) return;
+    setMsgEliminar('');
+    setEliminando(c.id);
+    try {
+      await eliminarPedido(c.id);
+      await cargarHistorial();
+    } catch (e) {
+      setMsgEliminar('No se pudo eliminar: ' + e.message);
+    } finally {
+      setEliminando(null);
+    }
+  }
 
   function vaciar() {
     setCarrito({});
@@ -281,6 +298,8 @@ export default function Compras({ usuario }) {
               <FormularioAjuste
                 key={c.id}
                 pedido={c}
+                itemsNombre={nombreItemsTodos}
+                itemsPrecio={precioItemsTodos}
                 onCancelar={() => setEditando(null)}
                 onListo={async () => {
                   setEditando(null);
@@ -312,6 +331,16 @@ export default function Compras({ usuario }) {
                         Ajustar
                       </button>
                     )}
+                    {c.estado === 'pendiente' && (usuario.id === 'nelson' || c.usuarioId === usuario.id) && (
+                      <button
+                        className="btn ghost sm"
+                        style={{ width: 'auto', color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                        disabled={eliminando === c.id}
+                        onClick={() => eliminarDelHistorial(c)}
+                      >
+                        {eliminando === c.id ? 'Eliminando…' : 'Eliminar'}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
@@ -325,32 +354,49 @@ export default function Compras({ usuario }) {
             )
           )
         )}
+        {msgEliminar && <div className="msg bad">{msgEliminar}</div>}
       </div>
     </div>
   );
 }
 
-function FormularioAjuste({ pedido, onCancelar, onListo }) {
+function FormularioAjuste({ pedido, itemsNombre, itemsPrecio, onCancelar, onListo }) {
   const [cantidades, setCantidades] = useState(() => {
     const ini = {};
     pedido.items.forEach((i) => (ini[claveLinea(i)] = String(i.cantidadPedida)));
     return ini;
   });
+  // Qué referencia de inventario quedó elegida para cada línea — por defecto
+  // la misma con la que se registró, pero se puede cambiar por si se eligió
+  // la categoría equivocada al hacer el pedido.
+  const [prendas, setPrendas] = useState(() => {
+    const ini = {};
+    pedido.items.forEach((i) => (ini[claveLinea(i)] = i.id));
+    return ini;
+  });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
+
+  const todasLasPrendas = [...(itemsNombre || []), ...(itemsPrecio || [])];
+  function nombreDe(id) {
+    return todasLasPrendas.find((it) => it.id === id)?.name || id;
+  }
 
   async function guardar() {
     setMsg('');
     setGuardando(true);
     try {
-      const itemsAjustados = pedido.items.map((i) => ({
-        id: i.id,
-        lineaId: i.lineaId,
-        name: i.name,
-        cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
-        costoUnitario: i.costoUnitario,
-        nota: i.nota,
-      }));
+      const itemsAjustados = pedido.items.map((i) => {
+        const nuevoId = prendas[claveLinea(i)];
+        return {
+          id: nuevoId,
+          lineaId: i.lineaId,
+          name: nombreDe(nuevoId),
+          cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
+          costoUnitario: i.costoUnitario,
+          nota: i.nota,
+        };
+      });
       await ajustarPedido(pedido.id, itemsAjustados);
       onListo();
     } catch (e) {
@@ -366,8 +412,8 @@ function FormularioAjuste({ pedido, onCancelar, onListo }) {
         Ajustar pedido{pedido.proveedor ? ` — ${pedido.proveedor}` : ''}
       </div>
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-        Cambia la cantidad pedida al número real que va a llegar, para que se pueda confirmar
-        sin quedar trabado por un descuadre.
+        Cambia la cantidad pedida al número real que va a llegar, o la referencia si se eligió
+        la prenda equivocada, para que se pueda confirmar sin quedar trabado por un descuadre.
       </p>
       {pedido.items.map((i) => (
         <div className="field" key={claveLinea(i)} style={{ marginBottom: 8 }}>
@@ -375,6 +421,26 @@ function FormularioAjuste({ pedido, onCancelar, onListo }) {
             {i.name}
             {i.nota ? ` (${i.nota})` : ''} · costo {fmt(i.costoUnitario)}
           </label>
+          <select
+            value={prendas[claveLinea(i)]}
+            onChange={(e) => setPrendas((p) => ({ ...p, [claveLinea(i)]: e.target.value }))}
+            style={{ marginBottom: 6 }}
+          >
+            <optgroup label="Con nombre">
+              {(itemsNombre || []).map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Por precio">
+              {(itemsPrecio || []).map((it) => (
+                <option key={it.id} value={it.id}>
+                  {it.name}
+                </option>
+              ))}
+            </optgroup>
+          </select>
           <input
             type="number"
             inputMode="numeric"
