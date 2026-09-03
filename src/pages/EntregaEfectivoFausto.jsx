@@ -7,7 +7,13 @@ import {
   confirmarPlanilla,
   confirmarPlanillaHoy,
   calcularEfectivoHoy,
+  hoyStr,
 } from '../lib/planillas';
+import { imprimirComprobanteEntregaGlobal } from '../lib/imprimir';
+
+function horaAhora() {
+  return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
 
 // Versión simple para Fausto: ve los días de efectivo pendientes (calculados
 // solos, igual que el Cierre del día impreso), los cuenta de verdad y confirma
@@ -24,6 +30,10 @@ export default function EntregaEfectivoFausto({ usuario }) {
   const [hoyAbierto, setHoyAbierto] = useState(false);
   const [exito, setExito] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
+  // Lo que se va confirmando en esta visita (no se guarda en la base de
+  // datos, solo mientras esté abierta la pantalla) — para poder imprimir UN
+  // comprobante global al final, en vez de uno por cada día.
+  const [sesionConfirmadas, setSesionConfirmadas] = useState([]);
 
   useEffect(() => {
     cargar();
@@ -54,6 +64,9 @@ export default function EntregaEfectivoFausto({ usuario }) {
 
   if (!pendientes) return <div className="loading">Cargando…</div>;
 
+  const habilitadas = pendientes.filter((p) => p.habilitada);
+  const totalHabilitado = habilitadas.reduce((s, p) => s + p.efectivoAEntregar, 0);
+
   return (
     <div className="cf-page">
       {exito && (
@@ -62,6 +75,19 @@ export default function EntregaEfectivoFausto({ usuario }) {
           <button className="cf-exito-cerrar" onClick={() => setExito(null)}>
             Entendido
           </button>
+        </div>
+      )}
+
+      {habilitadas.length > 0 && (
+        <div className="cf-card" style={{ background: 'var(--danger-soft)', borderColor: 'var(--danger)' }}>
+          <div className="cf-paso" style={{ marginBottom: 4 }}>
+            💵 Ya te tienen {fmt(totalHabilitado)} listos para recoger
+          </div>
+          <p style={{ fontSize: 14, margin: 0 }}>
+            {habilitadas.length === 1
+              ? `Avisó ${habilitadas[0].habilitadaPorNombre} a las ${habilitadas[0].habilitadaHora} (${habilitadas[0].fecha}).`
+              : `Avisaron de ${habilitadas.length} días distintos. Ve a "Efectivo pendiente de recoger" abajo.`}
+          </p>
         </div>
       )}
 
@@ -80,6 +106,7 @@ export default function EntregaEfectivoFausto({ usuario }) {
                 onListo={async (info) => {
                   setAbierto(null);
                   setExito(info);
+                  setSesionConfirmadas((s) => [...s, info]);
                   await cargar();
                 }}
               />
@@ -88,6 +115,11 @@ export default function EntregaEfectivoFausto({ usuario }) {
                 <div className="cf-pedido-top">
                   <span>{p.fecha}</span>
                 </div>
+                {p.habilitada && (
+                  <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>
+                    ✔ Avisado por {p.habilitadaPorNombre} a las {p.habilitadaHora}
+                  </div>
+                )}
                 <div className="cf-pedido-total">{fmt(p.efectivoAEntregar)}</div>
                 <button className="cf-btn-corregir" onClick={() => setAbierto(p.fecha)}>
                   Recibir este efectivo
@@ -110,11 +142,42 @@ export default function EntregaEfectivoFausto({ usuario }) {
             onListo={async (info) => {
               setHoyAbierto(false);
               setExito(info);
+              setSesionConfirmadas((s) => [...s, info]);
               await cargar();
             }}
           />
         )}
       </div>
+
+      {sesionConfirmadas.length > 0 && (
+        <div className="cf-card">
+          <div className="cf-paso">Comprobante de lo que confirmaste ahora</div>
+          <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+            Llevas {sesionConfirmadas.length} {sesionConfirmadas.length === 1 ? 'día' : 'días'} confirmados en esta
+            visita, por {fmt(sesionConfirmadas.reduce((s, c) => s + c.monto, 0))} en total. Cuando termines de recibir,
+            imprime UN solo comprobante con todo y fírmenlo entre los dos.
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              className="cf-btn-registrar"
+              style={{ marginBottom: 0 }}
+              onClick={() =>
+                imprimirComprobanteEntregaGlobal({
+                  fecha: hoyStr(),
+                  hora: horaAhora(),
+                  recibioNombre: usuario.nombreDefault,
+                  dias: sesionConfirmadas,
+                })
+              }
+            >
+              Imprimir comprobante
+            </button>
+            <button className="cf-btn-secundario" onClick={() => setSesionConfirmadas([])}>
+              Ya firmamos, ocultar
+            </button>
+          </div>
+        </div>
+      )}
 
       {recibidas && recibidas.length > 0 && (
         <div className="cf-card">
@@ -177,7 +240,7 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
           } ${fmt(Math.abs(res.difEntrega))}`
         );
       }
-      onListo({ monto, fecha: planilla.fecha });
+      onListo({ monto, fecha: planilla.fecha, entregoNombre: quien.nombreDefault });
     } catch (e) {
       setMsg('No se pudo registrar: ' + e.message);
     } finally {
@@ -211,7 +274,7 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
         <label>Nota — opcional</label>
         <input className="cf-input" type="text" value={nota} onChange={(e) => setNota(e.target.value)} />
       </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
         <button className="cf-btn-secundario" onClick={onCancelar}>
           Cancelar
         </button>
@@ -261,7 +324,7 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
           } ${fmt(Math.abs(res.difEntrega))}`
         );
       }
-      onListo({ monto, fecha: 'hoy' });
+      onListo({ monto, fecha: hoyStr(), entregoNombre: quien.nombreDefault });
     } catch (e) {
       setMsg('No se pudo registrar: ' + e.message);
     } finally {
@@ -299,7 +362,7 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
         <label>Nota — opcional</label>
         <input className="cf-input" type="text" value={nota} onChange={(e) => setNota(e.target.value)} />
       </div>
-      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
         <button className="cf-btn-secundario" onClick={onCancelar}>
           Cancelar
         </button>
