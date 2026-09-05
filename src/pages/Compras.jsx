@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
 import { crearPedidoCompra, comprasRecientes, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
+import { soloDigitos, formatoPesos } from '../lib/formatoDinero';
 
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria'];
 
@@ -245,11 +246,13 @@ export default function Compras({ usuario }) {
                     />
                     <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Costo c/u</label>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="numeric"
-                      value={l.costoUnitario}
-                      onChange={(e) => cambiarCosto(l.id, e.target.value)}
-                      style={{ padding: 8, fontSize: 14, width: 100 }}
+                      placeholder="$0"
+                      value={formatoPesos(l.costoUnitario)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => cambiarCosto(l.id, soloDigitos(e.target.value))}
+                      style={{ padding: 8, fontSize: 14, width: 110 }}
                     />
                     <span style={{ fontFamily: 'monospace', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(l.total)}</span>
                   </div>
