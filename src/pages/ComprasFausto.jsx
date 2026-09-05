@@ -48,10 +48,10 @@ export default function ComprasFausto({ usuario }) {
       // TODOS los pendientes se muestran siempre, sin importar cuántos haya
       // — si no, uno viejo se puede quedar sin poder corregirse ni
       // eliminarse solo porque hubo varios pedidos después (de él mismo o de
-      // Nelson). De los ya confirmados, con los últimos 5 basta (son solo
+      // Nelson). De los ya confirmados, con los últimos 8 basta (son solo
       // para mirar, ya no se pueden tocar).
       const pendientes = mios.filter((c) => c.estado === 'pendiente');
-      const confirmadas = mios.filter((c) => c.estado !== 'pendiente').slice(0, 5);
+      const confirmadas = mios.filter((c) => c.estado !== 'pendiente').slice(0, 8);
       setMisPedidos([...pendientes, ...confirmadas]);
     } catch (e) {
       setMisPedidos([]);
@@ -366,21 +366,28 @@ export default function ComprasFausto({ usuario }) {
               />
             ) : (
               <div key={c.id} className="cf-pedido-row">
-                <div className="cf-pedido-top">
-                  <span>{c.fecha}</span>
-                  <span className={`cf-estado ${c.estado}`}>
-                    {c.estado === 'confirmada' ? 'CONFIRMADO' : 'PENDIENTE'}
+                <div className="cf-pedido-top" style={{ flexWrap: 'wrap' }}>
+                  <span>
+                    {c.fecha} {c.hora}{' '}
+                    <span className={`cf-estado ${c.estado}`}>
+                      {c.estado === 'confirmada' ? 'CONFIRMADO' : 'PENDIENTE'}
+                    </span>
+                  </span>
+                  <span className="cf-pedido-total" style={{ marginTop: 0 }}>
+                    {fmt(c.totalGeneral)}
                   </span>
                 </div>
-                <div className="cf-pedido-total">{fmt(c.totalGeneral)}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
+                  {c.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''} ×${i.cantidadPedida}`).join(', ')}
+                </div>
                 {c.estado === 'pendiente' && (
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button className="cf-btn-corregir" onClick={() => setCorrigiendo(c.id)}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+                    <button className="cf-btn-corregir" style={{ marginTop: 0 }} onClick={() => setCorrigiendo(c.id)}>
                       Corregir este pedido
                     </button>
                     <button
                       className="cf-btn-corregir"
-                      style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                      style={{ marginTop: 0, color: 'var(--danger)', borderColor: 'var(--danger)' }}
                       disabled={eliminando === c.id}
                       onClick={() => eliminar(c)}
                     >
