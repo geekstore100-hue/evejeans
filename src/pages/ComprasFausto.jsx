@@ -29,6 +29,7 @@ export default function ComprasFausto({ usuario }) {
   const [corrigiendo, setCorrigiendo] = useState(null);
   const [eliminando, setEliminando] = useState(null);
   const [msgEliminar, setMsgEliminar] = useState('');
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(null);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -139,10 +140,7 @@ export default function ComprasFausto({ usuario }) {
   }
 
   async function eliminar(c) {
-    const ok = window.confirm(
-      `¿Eliminar este pedido de ${fmt(c.totalGeneral)}? No se puede deshacer.`
-    );
-    if (!ok) return;
+    setConfirmandoEliminar(null);
     setMsgEliminar('');
     setEliminando(c.id);
     try {
@@ -314,13 +312,16 @@ export default function ComprasFausto({ usuario }) {
             Llevas {pedido.length} {pedido.length === 1 ? 'prenda' : 'prendas'} en este pedido.
           </p>
 
-          {pedido.map((l) => (
+          {pedido.map((l, idx) => (
             <div key={l.lineaId} className="cf-resumen-linea">
               <div className="cf-resumen-info">
                 <div className="cf-resumen-izq">
                   <div className="cf-resumen-nombre">
                     {l.name}
                     {l.nota ? ` (${l.nota})` : ''}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--rosa-fuerte)' }}>
+                    Factura #{idx + 1}
                   </div>
                   <div className="cf-resumen-detalle">
                     {l.qty} × {fmt(l.costo)}
@@ -334,7 +335,7 @@ export default function ComprasFausto({ usuario }) {
             </div>
           ))}
 
-          <div className="cf-total-general">Total hasta ahora: {fmt(totalPedido)}</div>
+          <div className="cf-total-general">Total de grupo de facturas: {fmt(totalPedido)}</div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
             <button className="cf-btn-registrar" style={{ marginBottom: 0 }} onClick={otraPrenda}>
@@ -380,7 +381,39 @@ export default function ComprasFausto({ usuario }) {
                 <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 4 }}>
                   {c.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''} ×${i.cantidadPedida}`).join(', ')}
                 </div>
-                {c.estado === 'pendiente' && (
+                {c.estado === 'pendiente' && confirmandoEliminar === c.id && (
+                  <div
+                    style={{
+                      background: 'var(--danger-soft)',
+                      border: '2px solid var(--danger)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      marginTop: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: 'var(--danger)', marginBottom: 8 }}>
+                      ¿Seguro que quieres eliminar este pedido?
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button
+                        className="cf-btn-corregir"
+                        style={{ marginTop: 0, background: 'var(--danger)', borderColor: 'var(--danger)', color: '#fff' }}
+                        disabled={eliminando === c.id}
+                        onClick={() => eliminar(c)}
+                      >
+                        {eliminando === c.id ? 'Eliminando…' : 'Sí, eliminar'}
+                      </button>
+                      <button
+                        className="cf-btn-corregir"
+                        style={{ marginTop: 0 }}
+                        onClick={() => setConfirmandoEliminar(null)}
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {c.estado === 'pendiente' && confirmandoEliminar !== c.id && (
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
                     <button className="cf-btn-corregir" style={{ marginTop: 0 }} onClick={() => setCorrigiendo(c.id)}>
                       Corregir este pedido
@@ -388,10 +421,9 @@ export default function ComprasFausto({ usuario }) {
                     <button
                       className="cf-btn-corregir"
                       style={{ marginTop: 0, color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                      disabled={eliminando === c.id}
-                      onClick={() => eliminar(c)}
+                      onClick={() => setConfirmandoEliminar(c.id)}
                     >
-                      {eliminando === c.id ? 'Eliminando…' : 'Eliminar pedido'}
+                      Eliminar pedido
                     </button>
                   </div>
                 )}
