@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
 import { crearPedidoCompra, comprasDeUsuario, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
+import { soloDigitos, formatoPesos } from '../lib/formatoDinero';
 
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
 // paso a la vez (elegir prenda -> cantidad, costo y nota de esa prenda ->
@@ -10,7 +11,7 @@ import { crearPedidoCompra, comprasDeUsuario, ajustarPedido, eliminarPedido, nue
 // Compras — acá solo se ven los últimos pedidos DE FAUSTO, por si hay que
 // corregir alguno.
 
-const NOTAS_SUGERIDAS = ['Short', 'Blusa', 'Chaquetas', 'Faldas'];
+const NOTAS_SUGERIDAS = ['Short', 'Blusa', 'Faldas', 'Chaquetas de jean', 'Chaquetas de cuerina'];
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -294,12 +295,12 @@ export default function ComprasFausto({ usuario }) {
             <label>Precio de compra</label>
             <input
               className="cf-input cf-input-costo"
-              type="number"
+              type="text"
               inputMode="numeric"
-              placeholder="0"
-              value={actual.costo}
+              placeholder="$0"
+              value={formatoPesos(actual.costo)}
               onFocus={(e) => e.target.select()}
-              onChange={(e) => cambiarCosto(e.target.value)}
+              onChange={(e) => cambiarCosto(soloDigitos(e.target.value))}
             />
           </div>
 
@@ -333,7 +334,7 @@ export default function ComprasFausto({ usuario }) {
               }}
             >
               <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--danger)' }}>
-                ⚠️ ¿{fmt(parseInt(actual.costo) || 0)} de verdad?
+                ⚠️ ¿Seguro que el precio de compra es {fmt(parseInt(actual.costo) || 0)}?
               </div>
               <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 4, marginBottom: 10 }}>
                 Se ve muy bajo — revisa que no te haya faltado escribir uno o más ceros.
@@ -366,11 +367,6 @@ export default function ComprasFausto({ usuario }) {
 
       {paso === 'decidir' && (
         <div className="cf-card">
-          <div className="cf-paso">¿Agregas otra prenda?</div>
-          <p style={{ fontSize: 14, color: 'var(--ink-soft)', marginTop: -6, marginBottom: 14 }}>
-            Llevas {pedido.length} {pedido.length === 1 ? 'factura' : 'facturas'} en este pedido.
-          </p>
-
           {pedido.map((l, idx) => (
             <div key={l.lineaId} className="cf-resumen-linea">
               <div className="cf-resumen-info">
@@ -510,6 +506,13 @@ function CorreccionSimple({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
     pedido.items.forEach((i) => (ini[claveLinea(i)] = i.id));
     return ini;
   });
+  // El precio de compra también se puede corregir — por defecto el mismo con
+  // el que se registró.
+  const [costos, setCostos] = useState(() => {
+    const ini = {};
+    pedido.items.forEach((i) => (ini[claveLinea(i)] = String(i.costoUnitario || '')));
+    return ini;
+  });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -529,7 +532,7 @@ function CorreccionSimple({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
           lineaId: i.lineaId,
           name: nombreDe(nuevoId),
           cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
-          costoUnitario: i.costoUnitario,
+          costoUnitario: parseInt(costos[claveLinea(i)]) || 0,
           nota: i.nota,
         };
       });
@@ -544,46 +547,65 @@ function CorreccionSimple({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
 
   return (
     <div className="cf-correccion">
-      <div className="cf-paso">Corrige cada prenda de este pedido</div>
-      {pedido.items.map((i) => (
-        <div key={claveLinea(i)} className="cf-linea-campo">
-          <label>
-            {i.name}
-            {i.nota ? ` (${i.nota})` : ''}
-            {/* Si la misma prenda quedó en más de una línea (ej. llegó a distinto
-                costo cada vez), el costo es lo único que las distingue — sin esto
-                se ven idénticas y parece que solo hay una para corregir. */}
-            <span style={{ fontWeight: 400, color: 'var(--ink-soft)' }}> — costo {fmt(i.costoUnitario)}</span>
-          </label>
-          <select
-            className="cf-input"
-            value={prendas[claveLinea(i)]}
-            onChange={(e) => setPrendas((p) => ({ ...p, [claveLinea(i)]: e.target.value }))}
-            style={{ marginBottom: 8 }}
-          >
-            <optgroup label="Con nombre">
-              {(itemsNombre || []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Por precio">
-              {(itemsPrecio || []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-          <label style={{ fontSize: 12 }}>Cantidad</label>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={cantidades[claveLinea(i)]}
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
-          />
+      <div className="cf-paso">Corrige cada factura de este pedido</div>
+      {pedido.items.map((i, idx) => (
+        <div key={claveLinea(i)} className="cf-correccion-linea">
+          <div className="cf-correccion-factura">
+            Factura #{idx + 1}
+            {i.nota ? ` — ${i.nota}` : ''}
+          </div>
+
+          <div className="cf-linea-campo">
+            <label>Prenda</label>
+            <select
+              className="cf-input"
+              value={prendas[claveLinea(i)]}
+              onChange={(e) => setPrendas((p) => ({ ...p, [claveLinea(i)]: e.target.value }))}
+            >
+              <optgroup label="Con nombre">
+                {(itemsNombre || []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Por precio">
+                {(itemsPrecio || []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="cf-linea-campo" style={{ flex: 1, marginBottom: 0 }}>
+              <label>Precio de compra</label>
+              <input
+                className="cf-input"
+                type="text"
+                inputMode="numeric"
+                placeholder="$0"
+                value={formatoPesos(costos[claveLinea(i)])}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) =>
+                  setCostos((c) => ({ ...c, [claveLinea(i)]: soloDigitos(e.target.value) }))
+                }
+              />
+            </div>
+            <div className="cf-linea-campo" style={{ flex: 1, marginBottom: 0 }}>
+              <label>Cantidad</label>
+              <input
+                className="cf-input"
+                type="number"
+                inputMode="numeric"
+                value={cantidades[claveLinea(i)]}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
+              />
+            </div>
+          </div>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
