@@ -30,6 +30,7 @@ export default function ComprasFausto({ usuario }) {
   const [eliminando, setEliminando] = useState(null);
   const [msgEliminar, setMsgEliminar] = useState('');
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(null);
+  const [costoSospechoso, setCostoSospechoso] = useState(false);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -89,6 +90,7 @@ export default function ComprasFausto({ usuario }) {
     // escribirla (y así no queda un poco distinta cada vez, por ejemplo
     // "Chaquetas jean" una vez y "Chaqueta de jean" la siguiente).
     setActual({ id: it.id, name: it.name, qty: 1, costo: '', nota: it.ultimaNota || '' });
+    setCostoSospechoso(false);
     setPaso('todo');
   }
 
@@ -100,6 +102,9 @@ export default function ComprasFausto({ usuario }) {
   }
   function cambiarCosto(valor) {
     setActual((a) => ({ ...a, costo: valor }));
+    // Si ya había salido la advertencia de precio muy bajo y vuelve a tocar el
+    // campo, se quita — el número cambió, así que hay que revisarlo de nuevo.
+    setCostoSospechoso(false);
   }
   function cambiarNota(valor) {
     setActual((a) => ({ ...a, nota: valor }));
@@ -113,6 +118,11 @@ export default function ComprasFausto({ usuario }) {
     setPaso('elegir');
   }
 
+  // Por debajo de esto casi seguro es que faltó escribir uno o más ceros (ej.
+  // "40" en vez de "40.000") — ninguna prenda de verdad cuesta tan poco. No se
+  // bloquea del todo por si alguna vez sí es así, pero toca confirmarlo aparte.
+  const UMBRAL_COSTO_BAJO = 5000;
+
   function agregarPrenda() {
     setMsg({ tipo: '', texto: '' });
     const costoNum = parseInt(actual.costo) || 0;
@@ -120,6 +130,14 @@ export default function ComprasFausto({ usuario }) {
       setMsg({ tipo: 'bad', texto: 'Falta el precio de compra.' });
       return;
     }
+    if (costoNum < UMBRAL_COSTO_BAJO) {
+      setCostoSospechoso(true);
+      return;
+    }
+    agregarPrendaDefinitivo(costoNum);
+  }
+
+  function agregarPrendaDefinitivo(costoNum) {
     setPedido((p) => [
       ...p,
       {
@@ -132,7 +150,12 @@ export default function ComprasFausto({ usuario }) {
       },
     ]);
     setActual(null);
+    setCostoSospechoso(false);
     setPaso('decidir');
+  }
+
+  function confirmarCostoBajo() {
+    agregarPrendaDefinitivo(parseInt(actual.costo) || 0);
   }
 
   function otraPrenda() {
@@ -298,6 +321,42 @@ export default function ComprasFausto({ usuario }) {
             </div>
           </div>
 
+          {costoSospechoso && (
+            <div
+              style={{
+                background: 'var(--danger-soft)',
+                border: '2px solid var(--danger)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 10,
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--danger)' }}>
+                ⚠️ ¿{fmt(parseInt(actual.costo) || 0)} de verdad?
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 4, marginBottom: 10 }}>
+                Se ve muy bajo — revisa que no te haya faltado escribir uno o más ceros.
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="cf-btn-corregir"
+                  style={{ marginTop: 0 }}
+                  onClick={() => setCostoSospechoso(false)}
+                >
+                  No, corregirlo
+                </button>
+                <button
+                  className="cf-btn-corregir"
+                  style={{ marginTop: 0, background: 'var(--danger)', borderColor: 'var(--danger)', color: '#fff' }}
+                  onClick={confirmarCostoBajo}
+                >
+                  Sí, es correcto
+                </button>
+              </div>
+            </div>
+          )}
+
           <button className="cf-btn-registrar" onClick={agregarPrenda}>
             Agregar esta prenda
           </button>
@@ -309,7 +368,7 @@ export default function ComprasFausto({ usuario }) {
         <div className="cf-card">
           <div className="cf-paso">¿Agregas otra prenda?</div>
           <p style={{ fontSize: 14, color: 'var(--ink-soft)', marginTop: -6, marginBottom: 14 }}>
-            Llevas {pedido.length} {pedido.length === 1 ? 'prenda' : 'prendas'} en este pedido.
+            Llevas {pedido.length} {pedido.length === 1 ? 'factura' : 'facturas'} en este pedido.
           </p>
 
           {pedido.map((l, idx) => (
@@ -339,7 +398,7 @@ export default function ComprasFausto({ usuario }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
             <button className="cf-btn-registrar" style={{ marginBottom: 0 }} onClick={otraPrenda}>
-              Agregar otra prenda
+              Agregar otra factura
             </button>
             <button className="cf-btn-secundario" style={{ width: '100%' }} disabled={guardando} onClick={registrar}>
               {guardando ? 'Guardando…' : 'Registrar pedido'}
