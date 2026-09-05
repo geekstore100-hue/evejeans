@@ -106,7 +106,12 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
     const mapa = {};
     const orden = [];
     pedido.items.forEach((i) => {
-      const clave = `${i.id}|${i.nota || ''}`;
+      // La nota se normaliza (sin mayúsculas/minúsculas ni espacios de más)
+      // solo para AGRUPAR — así "Chaqueta jean" y "chaqueta jean " quedan en
+      // el mismo cuadro. Para el texto que se muestra se usa la nota tal cual
+      // se escribió la primera vez.
+      const notaNormalizada = (i.nota || '').trim().toLowerCase();
+      const clave = `${i.id}|${notaNormalizada}`;
       if (!mapa[clave]) {
         mapa[clave] = { clave, name: i.name, nota: i.nota, lineas: [], cantidadPedida: 0 };
         orden.push(clave);
@@ -210,9 +215,23 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
       ))}
 
       {hayDiferencias && (
-        <div className="msg bad" style={{ textAlign: 'left' }}>
-          No coincide con lo pedido. Vuelve a contar; si de verdad falta algo, dile a Nelson
-          para que ajuste el pedido desde Compras — mientras tanto, no se puede confirmar.
+        <div
+          style={{
+            background: 'var(--danger-soft)',
+            border: '2px solid var(--danger)',
+            borderRadius: 10,
+            padding: '12px 14px',
+            marginTop: 8,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 19, fontWeight: 900, color: 'var(--danger)', textTransform: 'uppercase' }}>
+            ⚠️ La cantidad no coincide
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 4 }}>
+            Vuelve a contar; si de verdad falta algo, dile a Nelson para que ajuste el pedido
+            desde Compras — mientras tanto, no se puede confirmar.
+          </div>
         </div>
       )}
 
