@@ -449,6 +449,13 @@ td.dim { color: var(--ink-soft); font-size: 12.5px; }
   border: 2px solid var(--rosa); background: var(--rosa-suave); color: var(--rosa-fuerte);
 }
 .cf-correccion { border-top: 2px solid var(--line); padding-top: 12px; }
+.cf-correccion-linea {
+  border: 2px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; background: #fff;
+}
+.cf-correccion-factura {
+  font-size: 12px; font-weight: 900; color: var(--rosa-fuerte); text-transform: uppercase;
+  letter-spacing: 0.3px; margin-bottom: 10px;
+}
 
 .cf-volver {
   background: none; border: none; color: var(--ink-soft); font-size: 14px; font-weight: 700;
