@@ -159,7 +159,11 @@ export default function App() {
                     'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
                   );
                   if (!ok) return;
-                  await desactivarPanico(usuario);
+                  try {
+                    await desactivarPanico(usuario);
+                  } catch (e) {
+                    alert('No se pudo desactivar: ' + e.message);
+                  }
                 }}
               >
                 🔓 Desbloquear tienda
@@ -172,7 +176,11 @@ export default function App() {
                     'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
                   );
                   if (!ok) return;
-                  await activarPanico(usuario);
+                  try {
+                    await activarPanico(usuario);
+                  } catch (e) {
+                    alert('No se pudo activar: ' + e.message);
+                  }
                 }}
               >
                 🔒 Bloquear tienda
