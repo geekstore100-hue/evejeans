@@ -23,6 +23,12 @@ export default function Compras({ usuario }) {
   const [editando, setEditando] = useState(null);
   const [eliminando, setEliminando] = useState(null);
   const [msgEliminar, setMsgEliminar] = useState('');
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(null);
+  // Por debajo de esto casi seguro faltó escribir uno o más ceros (ej. "40" en
+  // vez de "40.000") — igual que en la pantalla de Fausto, no se bloquea del
+  // todo, pero toca confirmarlo aparte antes de poder registrar el pedido.
+  const UMBRAL_COSTO_BAJO = 5000;
+  const [costoBajoConfirmado, setCostoBajoConfirmado] = useState(false);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -75,6 +81,9 @@ export default function Compras({ usuario }) {
   }
   function cambiarCosto(id, valor) {
     setCarrito((c) => ({ ...c, [id]: { ...c[id], costoUnitario: parseInt(valor) || 0 } }));
+    // Si ya se había confirmado que los costos bajos estaban bien y vuelve a
+    // tocar un costo, se pide confirmar de nuevo — el número cambió.
+    setCostoBajoConfirmado(false);
   }
   // Para pedidos grandes de una sola referencia (ej. 80 unidades) no hace falta tocar
   // 80 veces la referencia: se toca una vez y de ahí se escribe la cantidad de una.
@@ -90,10 +99,10 @@ export default function Compras({ usuario }) {
     total: d.qty * d.costoUnitario,
   }));
   const totalGeneral = lineas.reduce((s, l) => s + l.total, 0);
+  const lineasCostoBajo = lineas.filter((l) => l.costoUnitario > 0 && l.costoUnitario < UMBRAL_COSTO_BAJO);
 
   async function eliminarDelHistorial(c) {
-    const ok = window.confirm(`¿Eliminar este pedido de ${fmt(c.totalGeneral)}? No se puede deshacer.`);
-    if (!ok) return;
+    setConfirmandoEliminar(null);
     setMsgEliminar('');
     setEliminando(c.id);
     try {
@@ -112,6 +121,7 @@ export default function Compras({ usuario }) {
     setOrigen(null);
     setNota('');
     setMsg({ tipo: '', texto: '' });
+    setCostoBajoConfirmado(false);
     buscadorRef.current?.focus();
   }
 
@@ -135,6 +145,9 @@ export default function Compras({ usuario }) {
     }
     if (!origen) {
       setMsg({ tipo: 'bad', texto: 'Falta decir de dónde sale la plata.' });
+      return;
+    }
+    if (lineasCostoBajo.length > 0 && !costoBajoConfirmado) {
       return;
     }
     setGuardando(true);
@@ -229,12 +242,13 @@ export default function Compras({ usuario }) {
             {lineas.length === 0 ? (
               <div className="empty-lines">Toca una referencia para empezar.</div>
             ) : (
-              lineas.map((l) => (
+              lineas.map((l, idx) => (
                 <div key={l.id} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontWeight: 700 }}>{l.name}</span>
                     <button tabIndex={-1} onClick={() => quitarLinea(l.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 18 }}>✕</button>
                   </div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--rosa-fuerte)' }}>Factura #{idx + 1}</div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
                     <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Cantidad</label>
                     <input
@@ -263,7 +277,7 @@ export default function Compras({ usuario }) {
 
           <div className="totals">
             <div className="trow big">
-              <span>Total pedido</span>
+              <span>Total de grupo de facturas</span>
               <span className="v">{fmt(totalGeneral)}</span>
             </div>
           </div>
@@ -281,7 +295,36 @@ export default function Compras({ usuario }) {
             <input type="text" value={nota} onChange={(e) => setNota(e.target.value)} />
           </div>
 
-          <button className="btn" disabled={guardando} onClick={confirmar}>
+          {lineasCostoBajo.length > 0 && !costoBajoConfirmado && (
+            <div
+              style={{
+                background: 'var(--danger-soft)',
+                border: '2px solid var(--danger)',
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--danger)' }}>
+                ⚠️ ¿Seguro que el costo está bien?
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 4, marginBottom: 10 }}>
+                {lineasCostoBajo.map((l) => `${l.name} a ${fmt(l.costoUnitario)}`).join(', ')} — se ve muy bajo,
+                revisa que no falten ceros.
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setCostoBajoConfirmado(true)}>
+                  Sí, está correcto
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button
+            className="btn"
+            disabled={guardando || (lineasCostoBajo.length > 0 && !costoBajoConfirmado)}
+            onClick={confirmar}
+          >
             {guardando ? 'Guardando…' : 'Registrar pedido'}
           </button>
           <button className="btn ghost" onClick={vaciar}>Vaciar</button>
@@ -334,14 +377,13 @@ export default function Compras({ usuario }) {
                         Ajustar
                       </button>
                     )}
-                    {c.estado === 'pendiente' && (usuario.id === 'nelson' || c.usuarioId === usuario.id) && (
+                    {c.estado === 'pendiente' && (usuario.id === 'nelson' || c.usuarioId === usuario.id) && confirmandoEliminar !== c.id && (
                       <button
                         className="btn ghost sm"
                         style={{ width: 'auto', color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                        disabled={eliminando === c.id}
-                        onClick={() => eliminarDelHistorial(c)}
+                        onClick={() => setConfirmandoEliminar(c.id)}
                       >
-                        {eliminando === c.id ? 'Eliminando…' : 'Eliminar'}
+                        Eliminar
                       </button>
                     )}
                   </div>
@@ -353,6 +395,34 @@ export default function Compras({ usuario }) {
                   {c.nota ? ` · ${c.nota}` : ''}
                   {c.estado === 'confirmada' && ` · confirmó ${c.confirmadoPor} el ${c.confirmadoFecha}`}
                 </div>
+                {confirmandoEliminar === c.id && (
+                  <div
+                    style={{
+                      background: 'var(--danger-soft)',
+                      border: '2px solid var(--danger)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      marginTop: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: 'var(--danger)', marginBottom: 8 }}>
+                      ¿Seguro que quieres eliminar este pedido?
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button
+                        className="btn sm"
+                        style={{ width: 'auto', background: 'var(--danger)', borderColor: 'var(--danger)' }}
+                        disabled={eliminando === c.id}
+                        onClick={() => eliminarDelHistorial(c)}
+                      >
+                        {eliminando === c.id ? 'Eliminando…' : 'Sí, eliminar'}
+                      </button>
+                      <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setConfirmandoEliminar(null)}>
+                        No
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           )
@@ -377,6 +447,13 @@ function FormularioAjuste({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
     pedido.items.forEach((i) => (ini[claveLinea(i)] = i.id));
     return ini;
   });
+  // El precio de compra también se puede corregir — por defecto el mismo con
+  // el que se registró.
+  const [costos, setCostos] = useState(() => {
+    const ini = {};
+    pedido.items.forEach((i) => (ini[claveLinea(i)] = String(i.costoUnitario || '')));
+    return ini;
+  });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -396,7 +473,7 @@ function FormularioAjuste({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
           lineaId: i.lineaId,
           name: nombreDe(nuevoId),
           cantidadPedida: parseInt(cantidades[claveLinea(i)]) || 0,
-          costoUnitario: i.costoUnitario,
+          costoUnitario: parseInt(costos[claveLinea(i)]) || 0,
           nota: i.nota,
         };
       });
@@ -415,41 +492,63 @@ function FormularioAjuste({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
         Ajustar pedido{pedido.proveedor ? ` — ${pedido.proveedor}` : ''}
       </div>
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-        Cambia la cantidad pedida al número real que va a llegar, o la referencia si se eligió
-        la prenda equivocada, para que se pueda confirmar sin quedar trabado por un descuadre.
+        Cambia la cantidad, el precio de compra, o la referencia si se eligió la prenda
+        equivocada, para que se pueda confirmar sin quedar trabado por un descuadre.
       </p>
-      {pedido.items.map((i) => (
-        <div className="field" key={claveLinea(i)} style={{ marginBottom: 8 }}>
-          <label>
-            {i.name}
-            {i.nota ? ` (${i.nota})` : ''} · costo {fmt(i.costoUnitario)}
-          </label>
-          <select
-            value={prendas[claveLinea(i)]}
-            onChange={(e) => setPrendas((p) => ({ ...p, [claveLinea(i)]: e.target.value }))}
-            style={{ marginBottom: 6 }}
-          >
-            <optgroup label="Con nombre">
-              {(itemsNombre || []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Por precio">
-              {(itemsPrecio || []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={cantidades[claveLinea(i)]}
-            onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
-          />
+      {pedido.items.map((i, idx) => (
+        <div
+          key={claveLinea(i)}
+          style={{ border: '2px solid var(--line)', borderRadius: 12, padding: 12, marginBottom: 12 }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--rosa-fuerte)', textTransform: 'uppercase', marginBottom: 8 }}>
+            Factura #{idx + 1}
+            {i.nota ? ` — ${i.nota}` : ''}
+          </div>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label>Prenda</label>
+            <select
+              value={prendas[claveLinea(i)]}
+              onChange={(e) => setPrendas((p) => ({ ...p, [claveLinea(i)]: e.target.value }))}
+            >
+              <optgroup label="Con nombre">
+                {(itemsNombre || []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Por precio">
+                {(itemsPrecio || []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+              <label>Precio de compra</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="$0"
+                value={formatoPesos(costos[claveLinea(i)])}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setCostos((c) => ({ ...c, [claveLinea(i)]: soloDigitos(e.target.value) }))}
+              />
+            </div>
+            <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+              <label>Cantidad</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={cantidades[claveLinea(i)]}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setCantidades((c) => ({ ...c, [claveLinea(i)]: e.target.value }))}
+              />
+            </div>
+          </div>
         </div>
       ))}
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
