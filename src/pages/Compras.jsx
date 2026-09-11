@@ -4,7 +4,16 @@ import { crearPedidoCompra, comprasRecientes, ajustarPedido, eliminarPedido, nue
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 import { soloDigitos, formatoPesos } from '../lib/formatoDinero';
 
+// Igual que la pantalla de Fausto: un asistente paso a paso (elegir prenda ->
+// cantidad/costo/nota de esa prenda -> ¿agregas otra factura? -> registrar),
+// en vez del carrito de antes. A diferencia de la de Fausto, acá sí se pide
+// proveedor y de dónde sale la plata (Fausto no lo necesita), y se conserva
+// el buscador y el detalle de precio/stock en cada prenda, porque Nelson
+// maneja muchas más referencias. El historial de abajo sigue mostrando los
+// pedidos de TODOS los usuarios, como siempre.
+
 const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria'];
+const NOTAS_SUGERIDAS = ['Short', 'Blusa', 'Faldas', 'Chaquetas de jean', 'Chaquetas de cuerina'];
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -13,10 +22,11 @@ function fmt(n) {
 export default function Compras({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [errorCarga, setErrorCarga] = useState('');
-  const [carrito, setCarrito] = useState({}); // {id: {qty, costoUnitario}}
+  const [paso, setPaso] = useState('elegir'); // 'elegir' | 'todo' | 'decidir'
+  const [pedido, setPedido] = useState([]); // [{lineaId, id, name, qty, costo, nota}]
+  const [actual, setActual] = useState(null); // {id, name, qty, costo, nota} — la prenda que se está agregando ahora
   const [proveedor, setProveedor] = useState('');
   const [origen, setOrigen] = useState(null);
-  const [nota, setNota] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState({ tipo: '', texto: '' });
   const [historial, setHistorial] = useState(null);
@@ -24,11 +34,10 @@ export default function Compras({ usuario }) {
   const [eliminando, setEliminando] = useState(null);
   const [msgEliminar, setMsgEliminar] = useState('');
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(null);
+  const [costoSospechoso, setCostoSospechoso] = useState(false);
   // Por debajo de esto casi seguro faltó escribir uno o más ceros (ej. "40" en
-  // vez de "40.000") — igual que en la pantalla de Fausto, no se bloquea del
-  // todo, pero toca confirmarlo aparte antes de poder registrar el pedido.
+  // vez de "40.000") — no se bloquea del todo, pero toca confirmarlo aparte.
   const UMBRAL_COSTO_BAJO = 5000;
-  const [costoBajoConfirmado, setCostoBajoConfirmado] = useState(false);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario, (err) =>
@@ -49,57 +58,162 @@ export default function Compras({ usuario }) {
     }
   }
 
-  const porId = useMemo(() => {
-    const m = {};
-    (inventario || []).forEach((i) => (m[i.id] = i));
-    return m;
-  }, [inventario]);
+  // Primero las referencias "con nombre" (orden alfabético), y después las
+  // "por precio" en orden ascendente.
+  const itemsNombre = useMemo(
+    () =>
+      (inventario || [])
+        .filter((i) => i.tipo === 'nombre' && !i.oculto)
+        .sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [inventario]
+  );
+  const itemsPrecio = useMemo(
+    () =>
+      (inventario || [])
+        .filter((i) => i.tipo === 'precio' && !i.oculto)
+        .sort((a, b) => (a.price || 0) - (b.price || 0)),
+    [inventario]
+  );
 
-  const nombreItemsTodos = (inventario || [])
-    .filter((i) => i.tipo === 'nombre' && !i.oculto)
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  const precioItemsTodos = (inventario || [])
-    .filter((i) => i.tipo === 'precio' && !i.oculto)
-    .sort((a, b) => a.price - b.price);
-
-  function agregar(id) {
-    const it = porId[id];
-    setCarrito((c) => ({
-      ...c,
-      [id]: { qty: (c[id]?.qty || 0) + 1, costoUnitario: c[id]?.costoUnitario ?? (it.costoCompra || 0) },
-    }));
-  }
-
-  const busc = useBuscadorFiltro(nombreItemsTodos, precioItemsTodos);
+  const busc = useBuscadorFiltro(itemsNombre, itemsPrecio);
   const buscadorRef = useRef(null);
-  function quitarLinea(id) {
-    setCarrito((c) => {
-      const copia = { ...c };
-      delete copia[id];
-      return copia;
-    });
-  }
-  function cambiarCosto(id, valor) {
-    setCarrito((c) => ({ ...c, [id]: { ...c[id], costoUnitario: parseInt(valor) || 0 } }));
-    // Si ya se había confirmado que los costos bajos estaban bien y vuelve a
-    // tocar un costo, se pide confirmar de nuevo — el número cambió.
-    setCostoBajoConfirmado(false);
-  }
-  // Para pedidos grandes de una sola referencia (ej. 80 unidades) no hace falta tocar
-  // 80 veces la referencia: se toca una vez y de ahí se escribe la cantidad de una.
-  function cambiarCantidad(id, valor) {
-    setCarrito((c) => ({ ...c, [id]: { ...c[id], qty: parseInt(valor) || 0 } }));
+
+  // Tocar una prenda (o buscarla y darle Enter) empieza a agregar UNA línea
+  // nueva de esa referencia — si la misma referencia se compra más de una vez
+  // en el mismo pedido (ej. dos facturas distintas del mismo proveedor), se
+  // vuelve a elegir más adelante y queda como otra línea aparte.
+  function elegir(it) {
+    setMsg({ tipo: '', texto: '' });
+    // La nota queda precargada con la última que se usó para esta misma
+    // referencia, para que no quede escrita un poco distinta cada vez.
+    setActual({ id: it.id, name: it.name, qty: 1, costo: '', nota: it.ultimaNota || '' });
+    setCostoSospechoso(false);
+    setPaso('todo');
   }
 
-  const lineas = Object.entries(carrito).map(([id, d]) => ({
-    id,
-    name: porId[id]?.name || id,
-    qty: d.qty,
-    costoUnitario: d.costoUnitario,
-    total: d.qty * d.costoUnitario,
-  }));
-  const totalGeneral = lineas.reduce((s, l) => s + l.total, 0);
-  const lineasCostoBajo = lineas.filter((l) => l.costoUnitario > 0 && l.costoUnitario < UMBRAL_COSTO_BAJO);
+  function sumarUno(delta) {
+    setActual((a) => ({ ...a, qty: Math.max(1, (a.qty || 1) + delta) }));
+  }
+  function cambiarCantidad(valor) {
+    setActual((a) => ({ ...a, qty: Math.max(1, parseInt(valor) || 1) }));
+  }
+  function cambiarCosto(valor) {
+    setActual((a) => ({ ...a, costo: valor }));
+    // Si ya había salido la advertencia de precio muy bajo y vuelve a tocar el
+    // campo, se quita — el número cambió, toca revisarlo de nuevo.
+    setCostoSospechoso(false);
+  }
+  function cambiarNota(valor) {
+    setActual((a) => ({ ...a, nota: valor }));
+  }
+  function elegirNota(n) {
+    setActual((a) => ({ ...a, nota: n }));
+  }
+
+  function volverAElegir() {
+    setActual(null);
+    setPaso('elegir');
+  }
+
+  function agregarPrenda() {
+    setMsg({ tipo: '', texto: '' });
+    const costoNum = parseInt(actual.costo) || 0;
+    if (costoNum <= 0) {
+      setMsg({ tipo: 'bad', texto: 'Falta el precio de compra.' });
+      return;
+    }
+    if (costoNum < UMBRAL_COSTO_BAJO) {
+      setCostoSospechoso(true);
+      return;
+    }
+    agregarPrendaDefinitivo(costoNum);
+  }
+
+  function agregarPrendaDefinitivo(costoNum) {
+    setPedido((p) => [
+      ...p,
+      {
+        lineaId: nuevaLineaId(),
+        id: actual.id,
+        name: actual.name,
+        qty: actual.qty,
+        costo: costoNum,
+        nota: actual.nota.trim(),
+      },
+    ]);
+    setActual(null);
+    setCostoSospechoso(false);
+    setPaso('decidir');
+  }
+
+  function confirmarCostoBajo() {
+    agregarPrendaDefinitivo(parseInt(actual.costo) || 0);
+  }
+
+  function otraFactura() {
+    setPaso('elegir');
+  }
+
+  function eliminarLinea(lineaId) {
+    const nuevo = pedido.filter((l) => l.lineaId !== lineaId);
+    setPedido(nuevo);
+    if (nuevo.length === 0) setPaso('elegir');
+  }
+
+  const totalPedido = pedido.reduce((s, l) => s + l.qty * l.costo, 0);
+
+  function cancelarPedido() {
+    setPedido([]);
+    setActual(null);
+    setProveedor('');
+    setOrigen(null);
+    setPaso('elegir');
+    setMsg({ tipo: '', texto: '' });
+    buscadorRef.current?.focus();
+  }
+
+  async function registrar() {
+    setMsg({ tipo: '', texto: '' });
+    if (pedido.length === 0) return;
+    if (!proveedor.trim()) {
+      setMsg({ tipo: 'bad', texto: 'Falta el proveedor.' });
+      return;
+    }
+    if (!origen) {
+      setMsg({ tipo: 'bad', texto: 'Falta decir de dónde sale la plata.' });
+      return;
+    }
+    setGuardando(true);
+    try {
+      await crearPedidoCompra({
+        items: pedido.map((l) => ({
+          id: l.id,
+          lineaId: l.lineaId,
+          name: l.name,
+          cantidadPedida: l.qty,
+          costoUnitario: l.costo,
+          nota: l.nota,
+        })),
+        proveedor,
+        origen,
+        usuario,
+      });
+      setMsg({
+        tipo: 'good',
+        texto: `Pedido registrado con ${proveedor}: ${fmt(totalPedido)}. El stock sube cuando confirmen que llegó, en "Recibir mercancía".`,
+      });
+      setPedido([]);
+      setProveedor('');
+      setOrigen(null);
+      setPaso('elegir');
+      cargarHistorial();
+    } catch (e) {
+      setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
+    } finally {
+      setGuardando(false);
+      buscadorRef.current?.focus();
+    }
+  }
 
   async function eliminarDelHistorial(c) {
     setConfirmandoEliminar(null);
@@ -112,64 +226,6 @@ export default function Compras({ usuario }) {
       setMsgEliminar('No se pudo eliminar: ' + e.message);
     } finally {
       setEliminando(null);
-    }
-  }
-
-  function vaciar() {
-    setCarrito({});
-    setProveedor('');
-    setOrigen(null);
-    setNota('');
-    setMsg({ tipo: '', texto: '' });
-    setCostoBajoConfirmado(false);
-    buscadorRef.current?.focus();
-  }
-
-  async function confirmar() {
-    setMsg({ tipo: '', texto: '' });
-    if (lineas.length === 0) {
-      setMsg({ tipo: 'bad', texto: 'Agrega al menos una referencia.' });
-      return;
-    }
-    if (!proveedor.trim()) {
-      setMsg({ tipo: 'bad', texto: 'Falta el proveedor.' });
-      return;
-    }
-    if (lineas.some((l) => !l.qty || l.qty <= 0)) {
-      setMsg({ tipo: 'bad', texto: 'Revisa la cantidad de alguna referencia — no puede ser cero.' });
-      return;
-    }
-    if (lineas.some((l) => !l.costoUnitario || l.costoUnitario <= 0)) {
-      setMsg({ tipo: 'bad', texto: 'Falta el costo unitario de alguna referencia.' });
-      return;
-    }
-    if (!origen) {
-      setMsg({ tipo: 'bad', texto: 'Falta decir de dónde sale la plata.' });
-      return;
-    }
-    if (lineasCostoBajo.length > 0 && !costoBajoConfirmado) {
-      return;
-    }
-    setGuardando(true);
-    try {
-      await crearPedidoCompra({
-        items: lineas.map((l) => ({ id: l.id, name: l.name, cantidadPedida: l.qty, costoUnitario: l.costoUnitario })),
-        proveedor,
-        origen,
-        nota: nota.trim(),
-        usuario,
-      });
-      setMsg({
-        tipo: 'good',
-        texto: `Pedido registrado con ${proveedor}: ${fmt(totalGeneral)}. El stock sube cuando confirmen que llegó, en "Recibir mercancía".`,
-      });
-      vaciar();
-      cargarHistorial();
-    } catch (e) {
-      setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
-    } finally {
-      setGuardando(false);
-      buscadorRef.current?.focus();
     }
   }
 
@@ -187,115 +243,107 @@ export default function Compras({ usuario }) {
 
   return (
     <div className="sale-grid">
-      <div className="card">
-        <h2>Qué se pidió</h2>
-        <CuadroBusqueda
-          ref={buscadorRef}
-          busqueda={busc.busqueda}
-          setBusqueda={busc.setBusqueda}
-          busquedaMsg={busc.busquedaMsg}
-          setBusquedaMsg={busc.setBusquedaMsg}
-          onKeyDown={(e) => busc.manejarTecla(e, (item) => agregar(item.id))}
-          autoFocus
-        />
-        <div className="cat-split">
-          <div>
-            <div className="split-label">Con nombre</div>
-            <div className="tiles">
-              {busc.nombreItems.map((it) => (
-                <TileCompra
-                  key={it.id}
-                  item={it}
-                  enCarrito={carrito[it.id]?.qty || 0}
-                  onClick={() => agregar(it.id)}
-                  seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
-                />
-              ))}
+      {paso === 'elegir' && (
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <h2>Nuevo pedido — ¿qué compraste?</h2>
+          <CuadroBusqueda
+            ref={buscadorRef}
+            busqueda={busc.busqueda}
+            setBusqueda={busc.setBusqueda}
+            busquedaMsg={busc.busquedaMsg}
+            setBusquedaMsg={busc.setBusquedaMsg}
+            onKeyDown={(e) => busc.manejarTecla(e, (item) => elegir(item))}
+            autoFocus
+          />
+          <div className="cat-split">
+            <div>
+              <div className="split-label">Con nombre</div>
+              <div className="tiles">
+                {busc.nombreItems.map((it) => (
+                  <TileCompra
+                    key={it.id}
+                    item={it}
+                    onClick={() => elegir(it)}
+                    seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="split-label">Por precio</div>
+              <div className="tiles">
+                {busc.precioItems.map((it) => (
+                  <TileCompra
+                    key={it.id}
+                    item={it}
+                    onClick={() => elegir(it)}
+                    seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-          <div>
-            <div className="split-label">Por precio</div>
-            <div className="tiles">
-              {busc.precioItems.map((it) => (
-                <TileCompra
-                  key={it.id}
-                  item={it}
-                  enCarrito={carrito[it.id]?.qty || 0}
-                  onClick={() => agregar(it.id)}
-                  seleccionado={busc.combinados[busc.selIndex]?.id === it.id}
-                />
-              ))}
-            </div>
-          </div>
+          {pedido.length > 0 && (
+            <button className="btn ghost sm" style={{ width: 'auto', marginTop: 12 }} onClick={() => setPaso('decidir')}>
+              Volver al pedido en curso ({pedido.length})
+            </button>
+          )}
+          {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
         </div>
-      </div>
+      )}
 
-      <div className="ticket">
-        <div className="card">
-          <h2>Nuevo pedido</h2>
+      {paso === 'todo' && actual && (
+        <div className="card" style={{ gridColumn: '1 / -1', maxWidth: 460 }}>
+          <button className="btn ghost sm" style={{ width: 'auto', marginBottom: 10 }} onClick={volverAElegir}>
+            ‹ Volver
+          </button>
+          <h2>{actual.name}</h2>
+
           <div className="field">
-            <label>Proveedor</label>
-            <input type="text" placeholder="Nombre del proveedor" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
-          </div>
-
-          <div className="lines">
-            {lineas.length === 0 ? (
-              <div className="empty-lines">Toca una referencia para empezar.</div>
-            ) : (
-              lineas.map((l, idx) => (
-                <div key={l.id} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 700 }}>{l.name}</span>
-                    <button tabIndex={-1} onClick={() => quitarLinea(l.id)} style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 18 }}>✕</button>
-                  </div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--rosa-fuerte)' }}>Factura #{idx + 1}</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-                    <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Cantidad</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      value={l.qty}
-                      onChange={(e) => cambiarCantidad(l.id, e.target.value)}
-                      style={{ padding: 8, fontSize: 14, width: 70 }}
-                    />
-                    <label style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>Costo c/u</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="$0"
-                      value={formatoPesos(l.costoUnitario)}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => cambiarCosto(l.id, soloDigitos(e.target.value))}
-                      style={{ padding: 8, fontSize: 14, width: 110 }}
-                    />
-                    <span style={{ fontFamily: 'monospace', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmt(l.total)}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="totals">
-            <div className="trow big">
-              <span>Total de grupo de facturas</span>
-              <span className="v">{fmt(totalGeneral)}</span>
+            <label>¿Cuántas?</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button className="btn ghost sm" style={{ width: 44 }} type="button" onClick={() => sumarUno(-1)}>
+                −
+              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={actual.qty}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => cambiarCantidad(e.target.value)}
+                style={{ textAlign: 'center', width: 80 }}
+              />
+              <button className="btn ghost sm" style={{ width: 44 }} type="button" onClick={() => sumarUno(1)}>
+                +
+              </button>
             </div>
           </div>
 
           <div className="field">
-            <label>¿De dónde sale la plata?</label>
-            <div className="chips">
-              {ORIGENES.map((o) => (
-                <button key={o} className={`chip ${origen === o ? 'on' : ''}`} onClick={() => setOrigen(o)}>{o}</button>
-              ))}
-            </div>
+            <label>Precio de compra</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="$0"
+              value={formatoPesos(actual.costo)}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => cambiarCosto(soloDigitos(e.target.value))}
+            />
           </div>
+
           <div className="field">
             <label>Nota (opcional)</label>
-            <input type="text" value={nota} onChange={(e) => setNota(e.target.value)} />
+            <input type="text" value={actual.nota} onFocus={(e) => e.target.select()} onChange={(e) => cambiarNota(e.target.value)} />
+            <div className="chips" style={{ marginTop: 6 }}>
+              {NOTAS_SUGERIDAS.map((n) => (
+                <button key={n} type="button" className="chip" onClick={() => elegirNota(n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {lineasCostoBajo.length > 0 && !costoBajoConfirmado && (
+          {costoSospechoso && (
             <div
               style={{
                 background: 'var(--danger-soft)',
@@ -303,34 +351,105 @@ export default function Compras({ usuario }) {
                 borderRadius: 10,
                 padding: '12px 14px',
                 marginBottom: 12,
+                textAlign: 'center',
               }}
             >
-              <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--danger)' }}>
-                ⚠️ ¿Seguro que el costo está bien?
+              <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--danger)' }}>
+                ⚠️ ¿Seguro que el precio de compra es {fmt(parseInt(actual.costo) || 0)}?
               </div>
               <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 4, marginBottom: 10 }}>
-                {lineasCostoBajo.map((l) => `${l.name} a ${fmt(l.costoUnitario)}`).join(', ')} — se ve muy bajo,
-                revisa que no falten ceros.
+                Se ve muy bajo — revisa que no falten ceros.
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setCostoBajoConfirmado(true)}>
-                  Sí, está correcto
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setCostoSospechoso(false)}>
+                  No, corregirlo
+                </button>
+                <button
+                  className="btn sm"
+                  style={{ width: 'auto', background: 'var(--danger)', borderColor: 'var(--danger)' }}
+                  onClick={confirmarCostoBajo}
+                >
+                  Sí, es correcto
                 </button>
               </div>
             </div>
           )}
 
-          <button
-            className="btn"
-            disabled={guardando || (lineasCostoBajo.length > 0 && !costoBajoConfirmado)}
-            onClick={confirmar}
-          >
-            {guardando ? 'Guardando…' : 'Registrar pedido'}
+          <button className="btn" onClick={agregarPrenda}>
+            Agregar esta prenda
           </button>
-          <button className="btn ghost" onClick={vaciar}>Vaciar</button>
           {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
         </div>
-      </div>
+      )}
+
+      {paso === 'decidir' && (
+        <div className="card" style={{ gridColumn: '1 / -1', maxWidth: 520 }}>
+          <h2>Nuevo pedido</h2>
+          {pedido.map((l, idx) => (
+            <div key={l.lineaId} style={{ border: '2px solid var(--line)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>
+                    {l.name}
+                    {l.nota ? ` (${l.nota})` : ''}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--rosa-fuerte)', marginTop: 2 }}>
+                    Factura #{idx + 1}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 4 }}>
+                    {l.qty} × {fmt(l.costo)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{fmt(l.qty * l.costo)}</span>
+                  <button
+                    title="Eliminar esta línea"
+                    onClick={() => eliminarLinea(l.lineaId)}
+                    style={{ border: 'none', background: 'none', color: 'var(--danger)', fontSize: 18 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div className="totals">
+            <div className="trow big">
+              <span>Total de grupo de facturas</span>
+              <span className="v">{fmt(totalPedido)}</span>
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Proveedor</label>
+            <input type="text" placeholder="Nombre del proveedor" value={proveedor} onChange={(e) => setProveedor(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>¿De dónde sale la plata?</label>
+            <div className="chips">
+              {ORIGENES.map((o) => (
+                <button key={o} className={`chip ${origen === o ? 'on' : ''}`} onClick={() => setOrigen(o)}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+            <button className="btn ghost" onClick={otraFactura}>
+              Agregar otra factura
+            </button>
+            <button className="btn" disabled={guardando} onClick={registrar}>
+              {guardando ? 'Guardando…' : 'Registrar pedido'}
+            </button>
+            <button className="btn ghost sm" style={{ width: 'auto', alignSelf: 'center' }} onClick={cancelarPedido}>
+              Cancelar pedido
+            </button>
+          </div>
+          {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
+        </div>
+      )}
 
       <div className="card" style={{ gridColumn: '1 / -1' }}>
         <h2>Historial de pedidos</h2>
@@ -344,8 +463,8 @@ export default function Compras({ usuario }) {
               <FormularioAjuste
                 key={c.id}
                 pedido={c}
-                itemsNombre={nombreItemsTodos}
-                itemsPrecio={precioItemsTodos}
+                itemsNombre={itemsNombre}
+                itemsPrecio={itemsPrecio}
                 onCancelar={() => setEditando(null)}
                 onListo={async () => {
                   setEditando(null);
@@ -392,7 +511,6 @@ export default function Compras({ usuario }) {
                   {c.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''} ×${i.cantidadPedida}`).join(', ')}
                   {c.origen ? ` · ${c.origen}` : ''}
                   {c.usuarioNombre ? ` · pidió ${c.usuarioNombre}` : ''}
-                  {c.nota ? ` · ${c.nota}` : ''}
                   {c.estado === 'confirmada' && ` · confirmó ${c.confirmadoPor} el ${c.confirmadoFecha}`}
                 </div>
                 {confirmandoEliminar === c.id && (
@@ -562,7 +680,7 @@ function FormularioAjuste({ pedido, itemsNombre, itemsPrecio, onCancelar, onList
   );
 }
 
-function TileCompra({ item, enCarrito, onClick, seleccionado }) {
+function TileCompra({ item, onClick, seleccionado }) {
   return (
     <button className={`tile ${seleccionado ? 'tile-sel' : ''}`} onClick={onClick} tabIndex={-1}>
       <div>
@@ -575,7 +693,6 @@ function TileCompra({ item, enCarrito, onClick, seleccionado }) {
         {item.stock || 0}
         <small>EN STOCK</small>
       </div>
-      {enCarrito > 0 && <div className="tile-inbag">{enCarrito} pidiendo</div>}
     </button>
   );
 }
