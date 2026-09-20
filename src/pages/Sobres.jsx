@@ -65,6 +65,18 @@ export default function Sobres({ usuario }) {
   const totalPendiente = (pendientes || []).reduce((s, p) => s + p.efectivoAEntregar, 0);
   const faltaAvisar = (pendientes || []).some((p) => !p.habilitada);
 
+  // Cuando ya no queda nada pendiente por entregar, la vendedora (Blanca o
+  // Sofía) puede imprimir un resumen de lo que Fausto (o Nelson) le recibió
+  // HOY, para que lo firme y ella se quede con su copia — sin depender de
+  // haber estado presente en el momento exacto en que se confirmó cada día
+  // (eso puede pasar en otra sesión, en el celular de quien recibe).
+  const esVendedora = usuario.id === 'blanca' || usuario.id === 'sofia';
+  const entregasHoyMias = esVendedora
+    ? (recibidas || []).filter((p) => p.recibidoFecha === hoyStr() && p.entregoNombre === usuario.nombreDefault)
+    : [];
+  const totalEntregadoHoy = entregasHoyMias.reduce((s, p) => s + (p.recibido ?? p.efectivoAEntregar), 0);
+  const recibioNombreHoy = entregasHoyMias.length ? entregasHoyMias[0].recibidoPorNombre : null;
+
   async function avisar() {
     setMsgAviso('');
     setAvisando(true);
@@ -141,6 +153,35 @@ export default function Sobres({ usuario }) {
               )
             )}
           </>
+        )}
+
+        {esVendedora && pendientes && pendientes.length === 0 && entregasHoyMias.length > 0 && (
+          <div style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>Ya no queda nada pendiente por entregar</div>
+            <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
+              {recibioNombreHoy ? `${recibioNombreHoy} recibió` : 'Ya recibieron'} hoy{' '}
+              {entregasHoyMias.length === 1 ? 'lo del día que entregaste' : `los ${entregasHoyMias.length} días que entregaste`}, por{' '}
+              {fmt(totalEntregadoHoy)} en total. Imprime el resumen para que lo firme y te quede tu copia.
+            </p>
+            <button
+              className="btn sm"
+              style={{ width: 'auto' }}
+              onClick={() =>
+                imprimirComprobanteEntregaGlobal({
+                  fecha: hoyStr(),
+                  hora: horaAhora(),
+                  recibioNombre: recibioNombreHoy || '—',
+                  dias: entregasHoyMias.map((p) => ({
+                    fecha: p.fecha,
+                    monto: p.recibido ?? p.efectivoAEntregar,
+                    entregoNombre: p.entregoNombre,
+                  })),
+                })
+              }
+            >
+              Imprimir resumen para firmar
+            </button>
+          </div>
         )}
 
         {usuario.id === 'nelson' && (
