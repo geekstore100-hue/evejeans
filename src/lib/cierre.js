@@ -9,6 +9,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { ORIGEN_FUERA_DE_CAJA } from './gastos';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -69,6 +70,10 @@ export async function resumenDia(fecha) {
   let gastosTot = 0;
   snapGastos.docs.forEach((d) => {
     const g = d.data();
+    // Lo "fuera de caja" (plata de Nelson, nunca de la caja de la tienda) no
+    // entra al cuadre del día — no hay nada que reconciliar contra la caja, y
+    // mostrarlo acá solo confundiría a quien esté revisando su turno.
+    if (g.origen === ORIGEN_FUERA_DE_CAJA) return;
     gastosLista.push({ id: d.id, ...g });
     gastosTot += g.monto;
     const medio = ORIGEN_A_MEDIO[g.origen];
@@ -127,6 +132,7 @@ export async function resumenDia(fecha) {
   const snapGastosAnulados = await getDocs(qGastosAnulados);
   const gastosAnuladosLista = snapGastosAnulados.docs
     .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((g) => g.origen !== ORIGEN_FUERA_DE_CAJA)
     .sort((a, b) => (a.hora < b.hora ? -1 : 1));
 
   return {

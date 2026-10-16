@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { USUARIOS_BASE } from '../lib/usuarios';
 import { suscribirConfig } from '../lib/config';
-import { registrarGasto, anularGasto, comisionDeHoy, gastosDeHoy, esNomina } from '../lib/gastos';
+import { registrarGasto, anularGasto, comisionDeHoy, gastosDeHoy, esNomina, ORIGEN_FUERA_DE_CAJA } from '../lib/gastos';
 import { imprimirComprobantePago } from '../lib/imprimir';
 
 const CATEGORIAS_TODOS = ['Comisión', 'Sueldo', 'Recibos', 'Otro'];
@@ -27,6 +27,9 @@ export default function Gastos({ usuario }) {
   const vendedoras = USUARIOS_BASE.filter((u) => u.id !== 'nelson');
   const nomina = esNomina(cat);
   const CATEGORIAS = usuario.id === 'nelson' ? CATEGORIAS_NELSON : CATEGORIAS_TODOS;
+  // Solo Nelson ve la opción de "fuera de caja" — es la única que puede pagar
+  // algo con plata que no es la de la tienda.
+  const origenesDisponibles = usuario.id === 'nelson' ? [...ORIGENES, ORIGEN_FUERA_DE_CAJA] : ORIGENES;
 
   useEffect(() => suscribirConfig(setConfig), []);
   useEffect(() => {
@@ -123,20 +126,28 @@ export default function Gastos({ usuario }) {
 
   const totalHoy = (lista || []).filter((g) => !g.anulado).reduce((s, g) => s + g.monto, 0);
 
+  // Los gastos "fuera de caja" (ver ORIGEN_FUERA_DE_CAJA) son plata de Nelson,
+  // no de la caja de la tienda — las vendedoras ni los ven ni se cuentan en su
+  // total, para no confundir con algo que ellas nunca manejaron.
+  const listaVisible =
+    usuario.id === 'nelson' ? lista || [] : (lista || []).filter((g) => g.origen !== ORIGEN_FUERA_DE_CAJA);
+  const totalHoyVisible =
+    usuario.id === 'nelson' ? totalHoy : listaVisible.filter((g) => !g.anulado).reduce((s, g) => s + g.monto, 0);
+
   return (
     <div className="sale-grid">
       <div className="card">
         <h2>
-          Gastos de hoy <span className="side">{totalHoy > 0 ? fmt(totalHoy) : ''}</span>
+          Gastos de hoy <span className="side">{totalHoyVisible > 0 ? fmt(totalHoyVisible) : ''}</span>
         </h2>
 
         {!lista ? (
           <div className="empty-lines">Cargando…</div>
-        ) : lista.length === 0 ? (
+        ) : listaVisible.length === 0 ? (
           <div className="empty-lines">Todavía no hay gastos hoy.</div>
         ) : (
           <>
-            {lista.map((g) => (
+            {listaVisible.map((g) => (
               <div className="gasto-item" key={g.id} style={g.anulado ? { opacity: 0.45 } : {}}>
                 <div>
                   <div className="gasto-nombre">
@@ -158,10 +169,10 @@ export default function Gastos({ usuario }) {
                 </div>
               </div>
             ))}
-            {lista.length > 0 && (
+            {listaVisible.length > 0 && (
               <div className="gasto-item" style={{ borderBottom: 'none', paddingTop: 12 }}>
                 <div className="gasto-nombre">Total del día</div>
-                <span className="gasto-monto" style={{ fontSize: 22 }}>{fmt(totalHoy)}</span>
+                <span className="gasto-monto" style={{ fontSize: 22 }}>{fmt(totalHoyVisible)}</span>
               </div>
             )}
           </>
@@ -238,7 +249,7 @@ export default function Gastos({ usuario }) {
                 <span className="paso-n">·</span> ¿De dónde sale?
               </div>
               <div className="chips">
-                {ORIGENES.map((o) => (
+                {origenesDisponibles.map((o) => (
                   <button key={o} className={`chip ${origen === o ? 'on' : ''}`} onClick={() => setOrigen(o)}>
                     {o}
                   </button>

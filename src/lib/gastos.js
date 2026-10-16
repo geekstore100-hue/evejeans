@@ -28,6 +28,13 @@ export function esNomina(categoria) {
   return categoria === 'Sueldo' || categoria === 'Comisión';
 }
 
+// Origen especial: plata que Nelson pone de su bolsillo (o paga por fuera con
+// transferencia, tarjeta personal, etc.), NUNCA de la caja de la tienda. Estos
+// gastos no deben aparecer en el Cierre del día (no hay nada que cuadrar, esa
+// plata nunca pasó por la caja) ni en las pantallas que ven las vendedoras —
+// para ellas sería un número que no reconocen y que no salió de su turno.
+export const ORIGEN_FUERA_DE_CAJA = 'Nelson, fuera de caja';
+
 export async function registrarGasto({ usuario, categoria, quien, periodo, monto, desc, origen }) {
   const nomina = esNomina(categoria);
   const fecha = hoyStr();

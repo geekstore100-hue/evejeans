@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ventasPorFecha, anularVenta, hoyStr } from '../lib/ventas';
 import { conteosRecientes } from '../lib/conteo';
-import { gastosRecientes } from '../lib/gastos';
+import { gastosRecientes, ORIGEN_FUERA_DE_CAJA } from '../lib/gastos';
 import { ajustesRecientes } from '../lib/inventario';
 import { comprasRecientes } from '../lib/compras';
 
@@ -52,7 +52,12 @@ export default function Movimientos({ usuario }) {
 
   useEffect(() => {
     conteosRecientes().then(setConteos);
-    gastosRecientes().then(setGastos);
+    // Los gastos "fuera de caja" de Nelson (plata que nunca salió de la caja
+    // de la tienda) no se muestran a las vendedoras acá tampoco — mismo motivo
+    // que en Cierre del día: para ellas sería un número que no reconocen.
+    gastosRecientes().then((g) =>
+      setGastos(usuario.id === 'nelson' ? g : g.filter((x) => x.origen !== ORIGEN_FUERA_DE_CAJA))
+    );
     // Los ajustes de inventario son solo de Nelson (las reglas de Firestore ya lo exigen).
     if (usuario.id === 'nelson') ajustesRecientes().then(setAjustes);
     comprasRecientes().then(setCompras);
