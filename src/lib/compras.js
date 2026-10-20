@@ -9,6 +9,7 @@ import {
   query,
   where,
   getDocs,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { guardarSinBloquear } from './offlineWrite';
@@ -211,6 +212,64 @@ export async function comprasDeUsuario(usuarioId) {
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
+}
+
+// ---------- Versiones "en vivo" ----------
+// Igual que las de arriba, pero se quedan escuchando: cada vez que alguien
+// (en otro computador o celular) crea, confirma, corrige o elimina un pedido,
+// la pantalla que esté abierta se actualiza sola, sin tener que salir y volver
+// a entrar ni recargar la página. Devuelven una función para dejar de escuchar
+// (se llama al salir de la pantalla).
+//
+// "estimate" en los serverTimestamp: un pedido recién creado todavía no tiene
+// la hora del servidor (llega un segundo después); sin esto quedaría ordenado
+// de último por un instante y podría quedar por fuera de la lista.
+function docsConId(snap) {
+  return snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+}
+function porCreacionDesc(a, b) {
+  return (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0);
+}
+
+// callback(lista, { desdeCache }) — desdeCache = true si todavía no llegó la
+// respuesta del servidor (datos guardados en el computador, pueden estar
+// incompletos).
+export function suscribirPedidosPendientes(callback, onError) {
+  const q = query(collection(db, 'compras'), where('estado', '==', 'pendiente'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      const lista = docsConId(snap).sort((a, b) => (a.hora < b.hora ? -1 : 1));
+      callback(lista, { desdeCache: snap.metadata.fromCache });
+    },
+    (err) => {
+      console.error('Error escuchando pedidos pendientes:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export function suscribirComprasRecientes(callback, onError, limite = 25) {
+  return onSnapshot(
+    collection(db, 'compras'),
+    (snap) => callback(docsConId(snap).sort(porCreacionDesc).slice(0, limite)),
+    (err) => {
+      console.error('Error escuchando compras:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export function suscribirComprasDeUsuario(usuarioId, callback, onError) {
+  const q = query(collection(db, 'compras'), where('usuarioId', '==', usuarioId));
+  return onSnapshot(
+    q,
+    (snap) => callback(docsConId(snap).sort(porCreacionDesc)),
+    (err) => {
+      console.error('Error escuchando pedidos del usuario:', err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 export { hoyStr, ahoraStr };

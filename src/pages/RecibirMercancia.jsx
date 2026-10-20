@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { pedidosPendientes, confirmarRecepcion, claveLinea } from '../lib/compras';
-import { leerBorrador, guardarBorrador, borrarBorrador } from '../lib/recepcionBorrador';
+import { suscribirPedidosPendientes, confirmarRecepcion, claveLinea } from '../lib/compras';
+import { leerBorrador, guardarBorrador, borrarBorrador, limpiarBorradoresHuerfanos } from '../lib/recepcionBorrador';
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
@@ -11,19 +11,48 @@ export default function RecibirMercancia({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [pendientes, setPendientes] = useState(null);
   const [abierto, setAbierto] = useState(null);
+  const [aviso, setAviso] = useState('');
+  const [errorCarga, setErrorCarga] = useState('');
+  // El pedido que ESTA persona está confirmando ahora mismo — para no
+  // confundir "lo confirmé yo" con "lo confirmó alguien más" cuando el pedido
+  // desaparece de la lista.
+  const confirmandoRef = useRef(null);
 
   useEffect(() => {
     const quitar = suscribirInventario(setInventario);
     return quitar;
   }, []);
 
+  // En vivo: si Fausto o Nelson registran un pedido nuevo (o lo corrigen, o lo
+  // eliminan) mientras esta pestaña está abierta, aparece solo — ya no hace
+  // falta salir y volver a entrar para verlo.
   useEffect(() => {
-    cargar();
+    const quitar = suscribirPedidosPendientes(
+      (lista, { desdeCache }) => {
+        setPendientes(lista);
+        // Solo con la respuesta real del servidor (no con lo guardado en el
+        // computador, que puede estar incompleto): se borran los borradores
+        // de pedidos que ya no existen, para que no quede el aviso de
+        // "confirmación a medias" en Ventas de un pedido que ya se confirmó.
+        if (!desdeCache) limpiarBorradoresHuerfanos(lista.map((p) => p.id));
+      },
+      (err) => setErrorCarga('No se pudo leer los pedidos: ' + err.message)
+    );
+    return quitar;
   }, []);
 
-  async function cargar() {
-    setPendientes(await pedidosPendientes());
-  }
+  // Si el pedido que se estaba contando deja de estar pendiente sin que esta
+  // persona lo haya confirmado (lo confirmó alguien más en otro computador, o
+  // Nelson lo eliminó), se cierra el formulario y se avisa por qué.
+  useEffect(() => {
+    if (!abierto || !pendientes) return;
+    if (pendientes.some((p) => p.id === abierto)) return;
+    if (confirmandoRef.current !== abierto) {
+      setAviso('El pedido que estabas contando ya no está pendiente: alguien más lo confirmó o Nelson lo eliminó.');
+    }
+    confirmandoRef.current = null;
+    setAbierto(null);
+  }, [pendientes, abierto]);
 
   const porId = useMemo(() => {
     const m = {};
@@ -48,6 +77,16 @@ export default function RecibirMercancia({ usuario }) {
         con lo que de verdad contaste — si algo no coincide con lo pedido, queda registrado.
       </p>
 
+      {aviso && (
+        <div className="msg bad" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ flex: 1 }}>{aviso}</span>
+          <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAviso('')}>
+            Entendido
+          </button>
+        </div>
+      )}
+      {errorCarga && <div className="msg bad">{errorCarga}</div>}
+
       {!pendientes ? (
         <div className="empty-lines">Cargando…</div>
       ) : pendientes.length === 0 ? (
@@ -64,10 +103,12 @@ export default function RecibirMercancia({ usuario }) {
                   porId={porId}
                   usuario={usuario}
                   onCancelar={() => setAbierto(null)}
-                  onListo={async () => {
+                  onEmpezar={() => (confirmandoRef.current = p.id)}
+                  onListo={() => {
+                    confirmandoRef.current = null;
                     setAbierto(null);
-                    await cargar();
                   }}
+                  onFallo={() => (confirmandoRef.current = null)}
                 />
               ) : (
                 <div className="gasto-item" key={p.id}>
@@ -79,7 +120,14 @@ export default function RecibirMercancia({ usuario }) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span className="gasto-monto">{fmt(p.totalGeneral)}</span>
-                    <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.id)}>
+                    <button
+                      className="btn ghost sm"
+                      style={{ width: 'auto' }}
+                      onClick={() => {
+                        setAviso('');
+                        setAbierto(p.id);
+                      }}
+                    >
                       Confirmar
                     </button>
                   </div>
@@ -93,7 +141,7 @@ export default function RecibirMercancia({ usuario }) {
   );
 }
 
-function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
+function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo, onEmpezar, onFallo }) {
   // Se agrupa por referencia + nota, no por línea: si Fausto registró la
   // misma prenda en más de una línea (por ejemplo, porque llegó a distintos
   // costos de compra), a quien recibe le llega todo mezclado físicamente y no
@@ -147,7 +195,10 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
   // escribió un número, pero no coincide con lo pedido) — así el campo no se
   // ve como un error antes de que alcance a contar esa referencia.
   const gruposConEstado = grupos.map((g) => {
-    const crudo = cantidades[g.clave];
+    // "?? ''": si Nelson corrige el pedido mientras se está contando (ahora
+    // se actualiza en vivo), puede aparecer una referencia nueva que todavía
+    // no tiene número escrito — cuenta como vacía, no como error.
+    const crudo = cantidades[g.clave] ?? '';
     const vacio = crudo === '';
     const valor = parseInt(crudo);
     const distinto = !vacio && (isNaN(valor) || valor !== g.cantidadPedida);
@@ -161,6 +212,7 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
     if (!todoCoincide) return;
     setMsg('');
     setGuardando(true);
+    onEmpezar?.();
     try {
       // El grupo ya coincidió con el total pedido en esas líneas, así que
       // cada línea recibe exactamente lo que tenía registrado.
@@ -178,6 +230,7 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
       borrarBorrador(pedido.id);
       onListo();
     } catch (e) {
+      onFallo?.();
       setMsg('No se pudo confirmar: ' + e.message);
     } finally {
       setGuardando(false);
@@ -206,7 +259,7 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo }) {
             type="number"
             inputMode="numeric"
             placeholder="0"
-            value={cantidades[g.clave]}
+            value={cantidades[g.clave] ?? ''}
             onFocus={(e) => e.target.select()}
             onChange={(e) => setCantidades((c) => ({ ...c, [g.clave]: e.target.value }))}
             style={g.distinto ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' } : {}}

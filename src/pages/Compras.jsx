@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasRecientes, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
+import { crearPedidoCompra, suscribirComprasRecientes, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 import { useBuscadorFiltro, CuadroBusqueda } from '../lib/buscadorFiltro';
 import { soloDigitos, formatoPesos } from '../lib/formatoDinero';
 
@@ -46,17 +46,26 @@ export default function Compras({ usuario }) {
     return quitar;
   }, []);
 
+  // En vivo: lo que registra Fausto, o lo que la tienda confirma como
+  // recibido, aparece solo en el historial — sin recargar la página.
   useEffect(() => {
-    cargarHistorial();
+    const quitar = suscribirComprasRecientes(setHistorial, () => setHistorial([]));
+    return quitar;
   }, []);
 
-  async function cargarHistorial() {
-    try {
-      setHistorial(await comprasRecientes());
-    } catch (e) {
-      setHistorial([]);
+  // Si mientras se ajusta un pedido la tienda lo confirma (o se elimina), se
+  // cierra el ajuste: guardar encima de un pedido ya confirmado borraría lo
+  // que contaron al recibirlo.
+  useEffect(() => {
+    if (!editando || !historial) return;
+    const c = historial.find((x) => x.id === editando);
+    if (!c || c.estado !== 'pendiente') {
+      setEditando(null);
+      setMsgEliminar(
+        c ? 'Ese pedido ya lo confirmaron en la tienda mientras lo ajustabas — ya no se puede cambiar.' : 'Ese pedido ya no existe.'
+      );
     }
-  }
+  }, [historial, editando]);
 
   // Primero las referencias "con nombre" (orden alfabético), y después las
   // "por precio" en orden ascendente.
@@ -206,7 +215,6 @@ export default function Compras({ usuario }) {
       setProveedor('');
       setOrigen(null);
       setPaso('elegir');
-      cargarHistorial();
     } catch (e) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
     } finally {
@@ -221,7 +229,6 @@ export default function Compras({ usuario }) {
     setEliminando(c.id);
     try {
       await eliminarPedido(c.id);
-      await cargarHistorial();
     } catch (e) {
       setMsgEliminar('No se pudo eliminar: ' + e.message);
     } finally {
@@ -466,10 +473,7 @@ export default function Compras({ usuario }) {
                 itemsNombre={itemsNombre}
                 itemsPrecio={itemsPrecio}
                 onCancelar={() => setEditando(null)}
-                onListo={async () => {
-                  setEditando(null);
-                  await cargarHistorial();
-                }}
+                onListo={() => setEditando(null)}
               />
             ) : (
               <div key={c.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>

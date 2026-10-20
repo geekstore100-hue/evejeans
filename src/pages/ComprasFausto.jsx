@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { crearPedidoCompra, comprasDeUsuario, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
+import { crearPedidoCompra, suscribirComprasDeUsuario, ajustarPedido, eliminarPedido, nuevaLineaId, claveLinea } from '../lib/compras';
 import { soloDigitos, formatoPesos } from '../lib/formatoDinero';
 
 // Versión simplificada de Compras, pensada para Fausto: letra grande, un solo
@@ -40,26 +40,40 @@ export default function ComprasFausto({ usuario }) {
     return quitar;
   }, []);
 
+  // En vivo: cuando la vendedora confirma que llegó un pedido, aquí pasa solo
+  // de PENDIENTE a CONFIRMADO, sin tener que recargar la página.
   useEffect(() => {
-    cargarMisPedidos();
+    const quitar = suscribirComprasDeUsuario(
+      usuario.id,
+      (mios) => {
+        // TODOS los pendientes se muestran siempre, sin importar cuántos haya
+        // — si no, uno viejo se puede quedar sin poder corregirse ni
+        // eliminarse solo porque hubo varios pedidos después (de él mismo o de
+        // Nelson). De los ya confirmados, con los últimos 8 basta (son solo
+        // para mirar, ya no se pueden tocar).
+        const pendientes = mios.filter((c) => c.estado === 'pendiente');
+        const confirmadas = mios.filter((c) => c.estado !== 'pendiente').slice(0, 8);
+        setMisPedidos([...pendientes, ...confirmadas]);
+      },
+      () => setMisPedidos([])
+    );
+    return quitar;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function cargarMisPedidos() {
-    try {
-      const mios = await comprasDeUsuario(usuario.id);
-      // TODOS los pendientes se muestran siempre, sin importar cuántos haya
-      // — si no, uno viejo se puede quedar sin poder corregirse ni
-      // eliminarse solo porque hubo varios pedidos después (de él mismo o de
-      // Nelson). De los ya confirmados, con los últimos 8 basta (son solo
-      // para mirar, ya no se pueden tocar).
-      const pendientes = mios.filter((c) => c.estado === 'pendiente');
-      const confirmadas = mios.filter((c) => c.estado !== 'pendiente').slice(0, 8);
-      setMisPedidos([...pendientes, ...confirmadas]);
-    } catch (e) {
-      setMisPedidos([]);
+  // Si mientras corrige un pedido la vendedora lo confirma (o se elimina), se
+  // cierra la corrección — ya no se puede tocar, y seguir con ella llevaría a
+  // un error de permisos al guardar.
+  useEffect(() => {
+    if (!corrigiendo || !misPedidos) return;
+    const c = misPedidos.find((x) => x.id === corrigiendo);
+    if (!c || c.estado !== 'pendiente') {
+      setCorrigiendo(null);
+      setMsgEliminar(
+        c ? 'Ese pedido ya lo confirmaron en la tienda mientras lo corregías — ya no se puede cambiar.' : 'Ese pedido ya no existe.'
+      );
     }
-  }
+  }, [misPedidos, corrigiendo]);
 
   // Primero las referencias "con nombre" (orden alfabético), y después las "por
   // precio" en orden ascendente — sin buscador: son pocas y así siempre están en
@@ -169,7 +183,6 @@ export default function ComprasFausto({ usuario }) {
     setEliminando(c.id);
     try {
       await eliminarPedido(c.id);
-      await cargarMisPedidos();
     } catch (e) {
       setMsgEliminar('No se pudo eliminar: ' + e.message);
     } finally {
@@ -212,7 +225,6 @@ export default function ComprasFausto({ usuario }) {
       setExito({ total: totalPedido });
       setPedido([]);
       setPaso('elegir');
-      cargarMisPedidos();
     } catch (e) {
       setMsg({ tipo: 'bad', texto: e.message || 'No se pudo registrar el pedido.' });
     } finally {
@@ -415,10 +427,7 @@ export default function ComprasFausto({ usuario }) {
                 itemsNombre={itemsNombre}
                 itemsPrecio={itemsPrecio}
                 onCancelar={() => setCorrigiendo(null)}
-                onListo={async () => {
-                  setCorrigiendo(null);
-                  await cargarMisPedidos();
-                }}
+                onListo={() => setCorrigiendo(null)}
               />
             ) : (
               <div key={c.id} className="cf-pedido-row">

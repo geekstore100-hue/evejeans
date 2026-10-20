@@ -9,6 +9,7 @@ import {
   where,
   documentId,
   getDocs,
+  onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -148,7 +149,12 @@ export async function habilitarTodoPendiente(usuario) {
 // Resumen de lo habilitado-pero-todavía-no-recibido, para el aviso en Ventas
 // y en la pantalla de Fausto. null si no hay nada avisado en este momento.
 export async function entregaHabilitadaInfo() {
-  const pendientes = await planillasPendientes();
+  return resumenHabilitadas(await planillasPendientes());
+}
+
+// Lo mismo, pero a partir de una lista que ya se tiene (por ejemplo la que
+// llega en vivo con suscribirPlanillasPendientes).
+export function resumenHabilitadas(pendientes) {
   const habilitadas = pendientes.filter((p) => p.habilitada);
   if (habilitadas.length === 0) return null;
   const total = habilitadas.reduce((s, p) => s + (p.efectivoAEntregar || 0), 0);
@@ -239,6 +245,39 @@ export async function confirmarPlanillaHoy({ recibido, entregoNombre, nota }, us
 export async function calcularEfectivoHoy() {
   const resumen = await resumenDia(hoyStr());
   return resumen.efectivoAEntregar || 0;
+}
+
+// ---------- Versiones "en vivo" ----------
+// Se quedan escuchando: cuando la vendedora avisa, o cuando Fausto (o Nelson)
+// confirma que recibió, la pantalla del otro se actualiza sola — sin tener
+// que recargar la página ni salir y volver a entrar. Devuelven una función
+// para dejar de escuchar (se llama al salir de la pantalla).
+function planillasDe(snap) {
+  return snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+}
+
+export function suscribirPlanillasPendientes(callback, onError) {
+  const q = query(collection(db, 'planillas'), where('estado', '==', 'pendiente'));
+  return onSnapshot(
+    q,
+    (snap) => callback(planillasDe(snap).sort((a, b) => (a.fecha < b.fecha ? -1 : 1))),
+    (err) => {
+      console.error('Error escuchando planillas pendientes:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+export function suscribirPlanillasRecibidas(callback, onError, limite = 20) {
+  const q = query(collection(db, 'planillas'), where('estado', '==', 'recibido'));
+  return onSnapshot(
+    q,
+    (snap) => callback(planillasDe(snap).sort((a, b) => (b.fecha > a.fecha ? 1 : -1)).slice(0, limite)),
+    (err) => {
+      console.error('Error escuchando planillas recibidas:', err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 export { hoyStr };

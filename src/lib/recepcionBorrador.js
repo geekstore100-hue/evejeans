@@ -60,3 +60,23 @@ export function hayBorradorEnCurso() {
     return false;
   }
 }
+
+// Borra los borradores de pedidos que ya NO están pendientes (porque alguien
+// más los confirmó, o Nelson los eliminó) — si no, se quedaría para siempre el
+// aviso de "dejaste una confirmación a medias" en Ventas, de un pedido que ya
+// no existe. idsPendientes: los ids de los pedidos que siguen pendientes.
+export function limpiarBorradoresHuerfanos(idsPendientes) {
+  try {
+    const vigentes = new Set(idsPendientes);
+    const sobran = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const clave = localStorage.key(i);
+      if (clave && clave.startsWith(PREFIJO) && !vigentes.has(clave.slice(PREFIJO.length))) {
+        sobran.push(clave);
+      }
+    }
+    sobran.forEach((c) => localStorage.removeItem(c));
+  } catch {
+    // no pasa nada
+  }
+}

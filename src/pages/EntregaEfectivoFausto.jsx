@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { USUARIOS_BASE } from '../lib/usuarios';
 import {
   asegurarPlanillasPendientes,
-  planillasPendientes,
-  planillasRecibidas,
+  suscribirPlanillasPendientes,
+  suscribirPlanillasRecibidas,
   confirmarPlanilla,
   confirmarPlanillaHoy,
   calcularEfectivoHoy,
@@ -35,17 +35,31 @@ export default function EntregaEfectivoFausto({ usuario }) {
   // comprobante global al final, en vez de uno por cada día.
   const [sesionConfirmadas, setSesionConfirmadas] = useState([]);
 
+  // En vivo: en cuanto la vendedora avisa que tiene el efectivo listo, le
+  // aparece a Fausto sin tener que recargar la página.
+  useEffect(() => {
+    const alFallar = (e) => setErrorCarga('No se pudo cargar: ' + e.message);
+    const quitarP = suscribirPlanillasPendientes(setPendientes, alFallar);
+    const quitarR = suscribirPlanillasRecibidas(
+      (r) => setRecibidas(r.filter((x) => x.recibidoPorId === usuario.id).slice(0, 5)),
+      alFallar
+    );
+    return () => {
+      quitarP();
+      quitarR();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     cargar();
   }, []);
 
+  // Crea las planillas de los días que falten (lo que cree aparece solo en la
+  // lista, porque ya se está escuchando en vivo).
   async function cargar() {
-    setErrorCarga('');
     try {
       await asegurarPlanillasPendientes();
-      const [p, r] = await Promise.all([planillasPendientes(), planillasRecibidas(5)]);
-      setPendientes(p);
-      setRecibidas(r.filter((x) => x.recibidoPorId === usuario.id));
     } catch (e) {
       setErrorCarga('No se pudo cargar: ' + e.message);
     }

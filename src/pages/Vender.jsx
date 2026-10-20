@@ -9,7 +9,7 @@ import { tocaConteo, registrarConteo, elegirMuestraSemana } from '../lib/conteo'
 import { semanaDe } from '../lib/festivos';
 import { guardarConfig } from '../lib/config';
 import { hayBorradorEnCurso } from '../lib/recepcionBorrador';
-import { entregaHabilitadaInfo } from '../lib/planillas';
+import { suscribirPlanillasPendientes, resumenHabilitadas } from '../lib/planillas';
 
 const MEDIOS = ['Efectivo', 'Datáfono', 'Nequi', 'Addi', 'PTM', 'Sistecrédito'];
 
@@ -58,8 +58,13 @@ export default function Vender({ usuario }) {
 
   // Igual, pero para el efectivo que la vendedora ya avisó que tiene listo
   // para Fausto y todavía nadie ha confirmado que lo recibió.
+  // En vivo: en cuanto Fausto confirma que lo recibió, el aviso se quita solo.
   useEffect(() => {
-    entregaHabilitadaInfo().then(setEntregaHabilitada).catch(() => {});
+    const quitar = suscribirPlanillasPendientes(
+      (pendientes) => setEntregaHabilitada(resumenHabilitadas(pendientes)),
+      () => {}
+    );
+    return quitar;
   }, []);
 
   useEffect(() => {

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { USUARIOS_BASE } from '../lib/usuarios';
 import {
   asegurarPlanillasPendientes,
-  planillasPendientes,
-  planillasRecibidas,
+  suscribirPlanillasPendientes,
+  suscribirPlanillasRecibidas,
   confirmarPlanilla,
   confirmarPlanillaHoy,
   calcularEfectivoHoy,
@@ -33,19 +33,29 @@ export default function Sobres({ usuario }) {
   // cada día.
   const [sesionConfirmadas, setSesionConfirmadas] = useState([]);
 
+  // En vivo: si Fausto (o Nelson) confirma que recibió desde su celular, o
+  // alguien avisa desde otro computador, esta pantalla se actualiza sola — ya
+  // no hace falta recargar la página para dejar de ver días "por entregar".
+  useEffect(() => {
+    const alFallar = (e) => setErrorCarga('No se pudo cargar: ' + e.message);
+    const quitarP = suscribirPlanillasPendientes(setPendientes, alFallar);
+    const quitarR = suscribirPlanillasRecibidas(setRecibidas, alFallar);
+    return () => {
+      quitarP();
+      quitarR();
+    };
+  }, []);
+
   useEffect(() => {
     cargar();
   }, []);
 
+  // Revisa si hay días atrasados sin planilla y las crea solas (con el monto
+  // que ya calculó el Cierre de cada día). Lo que cree aparece solo en la lista
+  // de arriba, porque ya se está escuchando en vivo.
   async function cargar() {
-    setErrorCarga('');
     try {
-      // Revisa si hay días atrasados sin planilla y las crea solas (con el monto
-      // que ya calculó el Cierre de cada día) antes de mostrar la lista.
       await asegurarPlanillasPendientes();
-      const [p, r] = await Promise.all([planillasPendientes(), planillasRecibidas()]);
-      setPendientes(p);
-      setRecibidas(r);
     } catch (e) {
       setErrorCarga('No se pudo cargar: ' + e.message);
     }
