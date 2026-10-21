@@ -252,7 +252,30 @@ export default function Compras({ usuario }) {
     <div className="sale-grid">
       {paso === 'elegir' && (
         <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <h2>Nuevo pedido — ¿qué compraste?</h2>
+          {pedido.length > 0 && (
+            <div
+              style={{
+                border: '2px solid var(--rosa)',
+                background: 'var(--rosa-suave)',
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={{ flex: 1, fontWeight: 800, color: 'var(--rosa-fuerte)' }}>
+                🧾 Tienes un pedido SIN REGISTRAR: {pedido.length} {pedido.length === 1 ? 'factura' : 'facturas'} ·{' '}
+                {fmt(totalPedido)}
+              </span>
+              <button className="btn sm" style={{ width: 'auto' }} onClick={() => setPaso('decidir')}>
+                ‹ Volver al pedido para registrarlo
+              </button>
+            </div>
+          )}
+          <h2>{pedido.length > 0 ? 'Agregar otra factura — ¿qué prenda tiene?' : 'Nuevo pedido — ¿qué compraste?'}</h2>
           <CuadroBusqueda
             ref={buscadorRef}
             busqueda={busc.busqueda}
@@ -290,11 +313,6 @@ export default function Compras({ usuario }) {
               </div>
             </div>
           </div>
-          {pedido.length > 0 && (
-            <button className="btn ghost sm" style={{ width: 'auto', marginTop: 12 }} onClick={() => setPaso('decidir')}>
-              Volver al pedido en curso ({pedido.length})
-            </button>
-          )}
           {msg.texto && <div className={`msg ${msg.tipo}`}>{msg.texto}</div>}
         </div>
       )}
@@ -390,8 +408,14 @@ export default function Compras({ usuario }) {
       )}
 
       {paso === 'decidir' && (
-        <div className="card" style={{ gridColumn: '1 / -1', maxWidth: 520 }}>
-          <h2>Nuevo pedido</h2>
+        <div
+          className="card"
+          style={{ gridColumn: '1 / -1', maxWidth: 520, border: '2px solid var(--rosa)', background: 'var(--rosa-suave)' }}
+        >
+          <h2 style={{ marginBottom: 2 }}>Pedido que estás armando</h2>
+          <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12 }}>
+            Todavía NO está registrado. Revísalo y toca «Registrar pedido».
+          </div>
           {pedido.map((l, idx) => (
             <div key={l.lineaId} style={{ border: '2px solid var(--line)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -444,11 +468,11 @@ export default function Compras({ usuario }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-            <button className="btn ghost" onClick={otraFactura}>
-              Agregar otra factura
-            </button>
             <button className="btn" disabled={guardando} onClick={registrar}>
               {guardando ? 'Guardando…' : 'Registrar pedido'}
+            </button>
+            <button className="btn ghost" disabled={guardando} onClick={otraFactura}>
+              + Agregar otra factura
             </button>
             <button className="btn ghost sm" style={{ width: 'auto', alignSelf: 'center' }} onClick={cancelarPedido}>
               Cancelar pedido
@@ -459,7 +483,7 @@ export default function Compras({ usuario }) {
       )}
 
       <div className="card" style={{ gridColumn: '1 / -1' }}>
-        <h2>Historial de pedidos</h2>
+        <h2>Historial de pedidos ya registrados</h2>
         {!historial ? (
           <div className="empty-lines">Cargando…</div>
         ) : historial.length === 0 ? (

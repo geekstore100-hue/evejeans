@@ -105,6 +105,7 @@ export default function ComprasFausto({ usuario }) {
     // escribirla (y así no queda un poco distinta cada vez, por ejemplo
     // "Chaquetas jean" una vez y "Chaqueta de jean" la siguiente).
     setActual({ id: it.id, name: it.name, qty: 1, costo: '', nota: it.ultimaNota || '' });
+    setCorrigiendo(null);
     setCostoSospechoso(false);
     setPaso('todo');
   }
@@ -174,7 +175,18 @@ export default function ComprasFausto({ usuario }) {
   }
 
   function otraPrenda() {
+    setMsg({ tipo: '', texto: '' });
     setPaso('elegir');
+  }
+
+  // Para cuando se tocó "Agregar otra factura" por error (o ya no hace falta
+  // otra): vuelve al resumen del pedido que se está armando, sin perder nada,
+  // para poder registrarlo.
+  function volverAlPedido() {
+    setActual(null);
+    setCostoSospechoso(false);
+    setMsg({ tipo: '', texto: '' });
+    setPaso('decidir');
   }
 
   async function eliminar(c) {
@@ -255,9 +267,22 @@ export default function ComprasFausto({ usuario }) {
         </div>
       )}
 
+      {paso === 'elegir' && pedido.length > 0 && (
+        <div className="cf-card cf-en-curso">
+          <div className="cf-en-curso-titulo">
+            🧾 Tienes un pedido SIN REGISTRAR: {pedido.length} {pedido.length === 1 ? 'factura' : 'facturas'} ·{' '}
+            {fmt(totalPedido)}
+          </div>
+          <button className="cf-btn-registrar" style={{ marginBottom: 0 }} onClick={volverAlPedido}>
+            ‹ Volver al pedido para registrarlo
+          </button>
+          <div className="cf-en-curso-sub">O elige abajo la prenda de la otra factura que quieres agregar.</div>
+        </div>
+      )}
+
       {paso === 'elegir' && (
         <div className="cf-card">
-          <div className="cf-paso">¿Qué compraste?</div>
+          <div className="cf-paso">{pedido.length > 0 ? '¿Qué prenda tiene la otra factura?' : '¿Qué compraste?'}</div>
 
           <div className="cf-split-label">Con nombre</div>
           <div className="cf-tiles">
@@ -378,7 +403,12 @@ export default function ComprasFausto({ usuario }) {
       )}
 
       {paso === 'decidir' && (
-        <div className="cf-card">
+        <div className="cf-card cf-en-curso">
+          <div className="cf-paso" style={{ marginBottom: 2 }}>Pedido que estás armando</div>
+          <div className="cf-en-curso-sub" style={{ marginTop: 0, marginBottom: 12 }}>
+            Todavía NO está registrado. Revísalo y toca «Registrar pedido».
+          </div>
+          <div>
           {pedido.map((l, idx) => (
             <div key={l.lineaId} className="cf-resumen-linea">
               <div className="cf-resumen-info">
@@ -401,24 +431,33 @@ export default function ComprasFausto({ usuario }) {
               </button>
             </div>
           ))}
+          </div>
 
           <div className="cf-total-general">Total de grupo de facturas: {fmt(totalPedido)}</div>
 
+          {/* "Registrar pedido" es el botón grande y va primero: es lo que se hace
+              casi siempre al llegar acá. "Agregar otra factura" queda aparte y más
+              discreto, para no tocarlo por error (y si se toca, se puede volver). */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-            <button className="cf-btn-registrar" style={{ marginBottom: 0 }} onClick={otraPrenda}>
-              Agregar otra factura
-            </button>
-            <button className="cf-btn-secundario" style={{ width: '100%' }} disabled={guardando} onClick={registrar}>
+            <button className="cf-btn-registrar" style={{ marginBottom: 0 }} disabled={guardando} onClick={registrar}>
               {guardando ? 'Guardando…' : 'Registrar pedido'}
+            </button>
+            <button className="cf-btn-secundario" style={{ width: '100%' }} disabled={guardando} onClick={otraPrenda}>
+              + Agregar otra factura
             </button>
           </div>
           {msg.texto && <div className={`msg ${msg.tipo}`} style={{ fontSize: 16 }}>{msg.texto}</div>}
         </div>
       )}
 
-      {misPedidos && misPedidos.length > 0 && (
+      {/* Mientras se arma un pedido, los ya registrados no se muestran: Fausto
+          confundía esos totales con los del pedido que estaba armando. */}
+      {misPedidos && misPedidos.length > 0 && pedido.length === 0 && paso === 'elegir' && (
         <div className="cf-card">
-          <div className="cf-paso">Tus pedidos</div>
+          <div className="cf-paso" style={{ marginBottom: 2 }}>Pedidos que ya registraste</div>
+          <div className="cf-en-curso-sub" style={{ marginTop: 0, marginBottom: 10 }}>
+            Estos ya están guardados — no son un pedido nuevo.
+          </div>
           {misPedidos.map((c) =>
             corrigiendo === c.id ? (
               <CorreccionSimple
