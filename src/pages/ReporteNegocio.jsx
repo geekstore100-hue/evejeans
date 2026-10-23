@@ -16,6 +16,7 @@ import {
   suscribirEntregasRango,
 } from '../lib/reportes';
 import { Columnas, Barras, Tarjeta } from '../components/Graficos';
+import PreguntaIA from '../components/PreguntaIA';
 
 // "Cómo va el negocio" (solo Nelson): cuánto se vende y se gana contra el
 // período anterior, por qué cambió la ganancia (en pesos, factor por factor)
@@ -302,6 +303,73 @@ function PorQue({ explicacion, txtAntes }) {
   );
 }
 
+// Lo que se le manda a la IA: solo números agregados del período y del
+// anterior. Las vendedoras van como "Vendedora 1", "Vendedora 2"… (sin
+// nombres de personas) y en pantalla se vuelven a poner los nombres reales.
+function armarResumenIA(x) {
+  const r = Math.round;
+  const tot = (s) => ({
+    ventas: r(s.total),
+    ganancia_bruta: r(s.ganancia),
+    costo_de_lo_vendido: r(s.costo),
+    margen_pct: s.total ? r((s.ganancia / s.total) * 100) : null,
+    prendas: s.prendas,
+    numero_de_ventas: s.n,
+    venta_promedio: r(s.ticket),
+    descuentos: r(s.desc),
+  });
+  const A = porReferencia(x.act, x.costoPorId, x.porId);
+  const B = porReferencia(x.ant, x.costoPorId, x.porId);
+  const stock = {};
+  x.inventario.forEach((it) => {
+    if (!it.oculto) stock[it.id] = it.stock || 0;
+  });
+  const ref = (q) =>
+    q
+      ? { prendas: q.u, ventas: r(q.venta), ganancia: r(q.venta - q.costo), precio_promedio: r(q.venta / q.u), costo_promedio: r(q.costo / q.u) }
+      : { prendas: 0 };
+  const referencias = [...new Set([...Object.keys(A.refs), ...Object.keys(B.refs), ...Object.keys(stock)])]
+    .map((id) => ({
+      referencia: (A.refs[id] || B.refs[id])?.nombre || x.porId[id]?.name || id,
+      este_periodo: ref(A.refs[id]),
+      periodo_anterior: ref(B.refs[id]),
+      stock_hoy: stock[id] ?? null,
+      costo_de_compra_hoy: x.porId[id] ? r(x.porId[id].costoCompra || 0) : null,
+    }))
+    .filter((q) => q.este_periodo.prendas || q.periodo_anterior.prendas || q.stock_hoy)
+    .sort((a, b) => (b.este_periodo.ganancia || 0) - (a.este_periodo.ganancia || 0));
+  const nombres = {};
+  const vendedoras = Object.entries(x.porV)
+    .sort((a, b) => b[1].t - a[1].t)
+    .map(([nombre, a], i) => {
+      const alias = `Vendedora ${i + 1}`;
+      nombres[alias] = nombre;
+      return { vendedora: alias, ventas: r(a.t), numero_de_ventas: a.n, prendas: a.p, venta_promedio: r(a.t / a.n) };
+    });
+  const resumen = {
+    periodo: { nombre: x.P.nombre, desde: x.P.desde, hasta: x.P.hasta },
+    comparado_con: { descripcion: x.P.ant.txt, desde: x.P.ant.desde, hasta: x.P.ant.hasta },
+    hoy: x.hoy,
+    totales: { este_periodo: tot(x.act), periodo_anterior: tot(x.ant) },
+    por_que_cambio_ganancia: x.porQue
+      ? { cambio_total: r(x.porQue.total), causas: x.porQue.factores.map((f) => ({ causa: f.nombre, pesos: r(f.valor), detalle: f.texto })) }
+      : null,
+    referencias,
+    ventas_por_dia: x.porDia.map((q) => ({ fecha: q.fecha, ventas: r(q.valor) })),
+    promedio_por_dia_de_la_semana: x.sem.map((q) => ({ dia: q.label, promedio: r(q.valor), dias_con_ventas: q.n })),
+    ventas_por_hora: x.porHora.map((q) => ({ hora: q.label, numero_de_ventas: q.valor })),
+    medios_de_pago: x.medios.map(([m, v]) => ({ medio: m, pesos: r(v) })),
+    vendedoras,
+    gastos_por_categoria: Object.entries(x.porCat).map(([c, v]) => ({ categoria: c, pesos: r(v) })),
+    retiros_de_socios: r(x.retiros),
+    cambios_de_prendas: x.nCambios,
+    ventas_anuladas: { cantidad: x.anuladas.length, pesos: r(x.anuladas.reduce((s, v) => s + (v.total || 0), 0)) },
+    ventas_con_descuento: x.conDesc,
+    faltantes_en_entregas_de_efectivo: { entregas: x.faltas.length, pesos: r(x.faltaTot) },
+  };
+  return { resumen, nombres };
+}
+
 export default function ReporteNegocio() {
   const [periodo, setPeriodo] = useState('mes');
   const [hoy, setHoy] = useState(hoyStr());
@@ -455,7 +523,12 @@ export default function ReporteNegocio() {
     const anuladas = ventas.filter((v) => v.anulada && entre(v.fecha, P.desde, P.hasta));
     const conDesc = act.vs.filter((v) => v.descuento > 0).length;
 
+    const ia = armarResumenIA({
+      P, hoy, act, ant, porQue, costoPorId, porId, inventario, porDia, sem, porHora, medios, porV, porCat, retiros, nCambios, anuladas, conDesc, faltas, faltaTot,
+    });
+
     return {
+      ia,
       act,
       ant,
       porQue,
@@ -528,6 +601,10 @@ export default function ReporteNegocio() {
 
       <div className="rp-porque-wrap">
         <PorQue explicacion={d.porQue} txtAntes={P.ant.txt} />
+      </div>
+
+      <div className="rp-porque-wrap">
+        <PreguntaIA resumen={d.ia.resumen} nombres={d.ia.nombres} reiniciarCon={periodo} />
       </div>
 
       <h2 className="rp-seccion-tit">Cómo se vende</h2>
