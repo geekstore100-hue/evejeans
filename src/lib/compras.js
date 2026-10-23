@@ -48,7 +48,9 @@ export function claveLinea(item) {
 // items: [{id, lineaId, name, cantidadPedida, costoUnitario, nota}]
 // proveedor es opcional (la pantalla simple de Fausto ya no lo pregunta) —
 // cuando no se sabe o no se preguntó, queda como null.
-export async function crearPedidoCompra({ items, proveedor, origen, nota, usuario }) {
+// facturaNum: el número de la factura dentro del día (Fausto pasa cada factura
+// de papel como un pedido aparte: Factura 1, Factura 2…). Opcional.
+export async function crearPedidoCompra({ items, proveedor, origen, nota, usuario, facturaNum }) {
   if (!items || items.length === 0) throw new Error('No hay ninguna referencia en el pedido.');
 
   const batch = writeBatch(db);
@@ -97,6 +99,7 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
     usuarioNombre: usuario.nombreDefault,
     proveedor: proveedor && proveedor.trim() ? proveedor.trim() : null,
     nota: nota || null,
+    facturaNum: facturaNum || null,
     // "|| null": la pantalla de Fausto ya no pregunta el origen del dinero, así
     // que este campo puede llegar vacío — Firestore no acepta "undefined".
     origen: origen || null,
@@ -168,7 +171,10 @@ export async function pedidosPendientes() {
 // línea — itemsAjustados debe traer todas las líneas del pedido (incluso las
 // que no cambiaron), cada una con al menos {id, lineaId, name, cantidadPedida,
 // costoUnitario, nota}.
-export async function ajustarPedido(compraId, itemsAjustados) {
+// extra (opcional, solo Nelson): otros campos del pedido que también se
+// corrigen, como { proveedor, origen }. Las reglas de Firestore no dejan que
+// Fausto toque nada más que los renglones.
+export async function ajustarPedido(compraId, itemsAjustados, extra = {}) {
   const nuevosItems = itemsAjustados.map((i) => ({
     id: i.id,
     lineaId: i.lineaId || nuevaLineaId(),
@@ -180,7 +186,7 @@ export async function ajustarPedido(compraId, itemsAjustados) {
     nota: i.nota || null,
   }));
   const totalGeneral = nuevosItems.reduce((s, i) => s + i.total, 0);
-  await updateDoc(doc(db, 'compras', compraId), { items: nuevosItems, totalGeneral });
+  await updateDoc(doc(db, 'compras', compraId), { ...extra, items: nuevosItems, totalGeneral });
 }
 
 // Elimina un pedido que sigue PENDIENTE — nunca llegó a subir el stock de
@@ -255,6 +261,21 @@ export function suscribirComprasRecientes(callback, onError, limite = 25) {
     (snap) => callback(docsConId(snap).sort(porCreacionDesc).slice(0, limite)),
     (err) => {
       console.error('Error escuchando compras:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+// Todas las facturas de un día (de cualquier usuario). Sirve para numerar las
+// facturas del día sin que dos queden con el mismo número, y para que Nelson
+// vea en vivo todo lo que se compró hoy.
+export function suscribirComprasDelDia(fecha, callback, onError) {
+  const q = query(collection(db, 'compras'), where('fecha', '==', fecha));
+  return onSnapshot(
+    q,
+    (snap) => callback(docsConId(snap).sort(porCreacionDesc)),
+    (err) => {
+      console.error('Error escuchando las compras del día:', err);
       if (onError) onError(err);
     }
   );

@@ -113,7 +113,10 @@ export default function RecibirMercancia({ usuario }) {
               ) : (
                 <div className="gasto-item" key={p.id}>
                   <div>
-                    <div className="gasto-nombre">{p.fecha} {p.hora}</div>
+                    <div className="gasto-nombre">
+                      {p.facturaNum ? `Factura ${p.facturaNum} · ` : ''}
+                      {p.fecha} {p.hora}
+                    </div>
                     <div className="gasto-sub">
                       {p.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''}`).join(', ')}
                     </div>
@@ -247,7 +250,8 @@ function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo, onEm
   return (
     <div className="card modo-prueba" style={{ marginBottom: 10 }}>
       <div style={{ fontWeight: 800, marginBottom: 8 }}>
-        Confirmar recepción — {pedido.fecha}
+        Confirmar recepción — {pedido.facturaNum ? `Factura ${pedido.facturaNum} del ` : ''}
+        {pedido.fecha}
       </div>
       {gruposConEstado.map((g) => (
         <div className="field" key={g.clave} style={{ marginBottom: 8 }}>
