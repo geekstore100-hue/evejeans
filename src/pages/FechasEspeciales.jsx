@@ -341,7 +341,7 @@ export default function FechasEspeciales({ usuario }) {
       <div className="rp-leyenda">
         <span>
           <i className="fuerte" />
-          Fuerte: el doble o más de un día normal · llamar refuerzo
+          Fuerte: el doble o más de un día normal
         </span>
         <span>
           <i className="movido" />
@@ -389,10 +389,10 @@ export default function FechasEspeciales({ usuario }) {
                     'Sin datos de años anteriores para esta fecha'
                   ) : fuertes.length ? (
                     <>
-                      Llamar refuerzo: <b>{fuertes.join(', ')}</b>
+                      Días más fuertes: <b>{fuertes.join(', ')}</b>
                     </>
                   ) : (
-                    'Sin días fuertes; con el personal de siempre alcanza'
+                    'Ningún día llegó al doble de un día normal'
                   )}
                 </span>
               </span>

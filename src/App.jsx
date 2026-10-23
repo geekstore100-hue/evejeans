@@ -23,6 +23,7 @@ import ReporteNegocio from './pages/ReporteNegocio';
 import LibroDiario from './pages/LibroDiario';
 import FechasEspeciales from './pages/FechasEspeciales';
 import MenuNelson from './components/MenuNelson';
+import AvisoRefuerzo from './components/AvisoRefuerzo';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -134,6 +135,7 @@ export default function App() {
             📊 Reportes
           </button>
         </div>
+        <AvisoRefuerzo usuario={usuario} />
         {/* Fausto ve Reportes menos el Libro diario (ese es solo de Nelson). */}
         {vistaFausto === 'reportes' && (
           <nav className="mn-subs cf-subs" aria-label="Submenú de Reportes">
@@ -238,6 +240,8 @@ export default function App() {
           </nav>
         </>
       )}
+
+      {esNelson && <AvisoRefuerzo usuario={usuario} />}
 
       <main>
         {vista === 'vender' && <Vender usuario={usuario} />}

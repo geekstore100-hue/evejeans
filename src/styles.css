@@ -957,3 +957,26 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
   .rp-diario:not(.rp-fechas-tabla) .rp-fecha-sep td { display: block; }
 }
 @media (prefers-reduced-motion: reduce) { .rp-flecha { transition: none; } }
+
+/* ---------- Aviso "podrían necesitar otra vendedora" (components/AvisoRefuerzo.jsx) ---------- */
+.av-refuerzo {
+  display: flex; align-items: flex-start; gap: 12px; max-width: 1180px; margin: 10px auto 0; padding: 12px 14px;
+  background: var(--rosa-suave); border: 1px solid #f2c9dc; border-left: 5px solid var(--rosa-fuerte); border-radius: 12px; color: var(--ink);
+}
+.av-icono { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; background: var(--panel); color: var(--rosa-fuerte); display: grid; place-items: center; }
+.av-icono svg { width: 20px; height: 20px; }
+.av-texto { flex: 1; min-width: 0; font-size: 14px; }
+.av-texto > b { font-size: 15px; }
+.av-texto ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+.av-dias { font-weight: 800; }
+.av-cuando { color: var(--rosa-fuerte); font-weight: 700; }
+.av-texto small { display: block; color: var(--ink-soft); font-size: 13px; }
+.av-cerrar { flex-shrink: 0; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 800; }
+.av-cerrar:focus-visible { outline: 3px solid var(--cian); outline-offset: 2px; }
+.con-panel-fijo .av-refuerzo { margin-right: 410px; }
+@media (max-width: 640px) {
+  .av-refuerzo { margin: 8px 8px 0; flex-wrap: wrap; }
+  .av-texto { flex-basis: calc(100% - 46px); }
+  .av-cerrar { margin-left: 46px; }
+  .con-panel-fijo .av-refuerzo { margin-right: 8px; }
+}
