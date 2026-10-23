@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { suscribirPedidosPendientes } from '../lib/compras';
 import { suscribirPlanillasPendientes } from '../lib/planillas';
 
-// Menú de Nelson: en vez de las 14 pestañas en una sola fila, 4 grupos con su
+// Menú de Nelson: en vez de todas las pestañas en una sola fila, 5 grupos con su
 // submenú. En el computador los grupos van arriba; en el celular van abajo,
 // en una barra que se alcanza con el pulgar, y "Cambiar de turno" y "Bloquear
 // tienda" pasan a un botón "⋯". Las vendedoras siguen con su menú de siempre
@@ -48,6 +48,15 @@ const GRUPOS = [
       { id: 'nequi', nombre: 'Números de Nequi' },
     ],
   },
+  {
+    id: 'reportes',
+    nombre: 'Reportes',
+    subs: [
+      { id: 'reporteNegocio', nombre: 'Cómo va el negocio' },
+      { id: 'libroDiario', nombre: 'Libro diario' },
+      { id: 'fechasEspeciales', nombre: 'Fechas especiales' },
+    ],
+  },
 ];
 
 function Icono({ grupo }) {
@@ -81,6 +90,13 @@ function Icono({ grupo }) {
         <path d="M3 7l9-4 9 4-9 4-9-4z" />
         <path d="M3 7v10l9 4 9-4V7" />
         <path d="M12 11v10" />
+      </svg>
+    );
+  if (grupo === 'reportes')
+    return (
+      <svg {...comun}>
+        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+        <path d="M14 3v6h6M8 17v-3M12 17v-6M16 17v-2" />
       </svg>
     );
   return (

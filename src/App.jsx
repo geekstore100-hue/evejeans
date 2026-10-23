@@ -19,6 +19,9 @@ import Movimientos from './pages/Movimientos';
 import Conciliacion from './pages/Conciliacion';
 import Capital from './pages/Capital';
 import Nequi from './pages/Nequi';
+import ReporteNegocio from './pages/ReporteNegocio';
+import LibroDiario from './pages/LibroDiario';
+import FechasEspeciales from './pages/FechasEspeciales';
 import MenuNelson from './components/MenuNelson';
 
 export default function App() {
@@ -234,6 +237,9 @@ export default function App() {
         {vista === 'conciliacion' && usuario.id === 'nelson' && <Conciliacion usuario={usuario} />}
         {vista === 'capital' && usuario.id === 'nelson' && <Capital usuario={usuario} />}
         {vista === 'nequi' && usuario.id === 'nelson' && <Nequi usuario={usuario} />}
+        {vista === 'reporteNegocio' && usuario.id === 'nelson' && <ReporteNegocio />}
+        {vista === 'libroDiario' && usuario.id === 'nelson' && <LibroDiario />}
+        {vista === 'fechasEspeciales' && usuario.id === 'nelson' && <FechasEspeciales usuario={usuario} />}
       </main>
     </div>
   );
