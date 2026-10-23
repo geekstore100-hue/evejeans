@@ -578,6 +578,13 @@ td.dim { color: var(--ink-soft); font-size: 12.5px; }
 }
 .ff-tape-cap + div > .ff-vieja { border-top: none; }
 .ff-vieja small { display: block; font-weight: 500; font-size: 12px; color: var(--ink-soft); }
+.ff-resumen-pend {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; text-align: left;
+  background: none; border: none; padding: 4px 4px; border-radius: 6px; color: var(--ink); font-weight: 800; font-size: 15px;
+}
+.ff-resumen-lista { margin-top: 8px; border-top: 1px solid var(--line); }
+.ff-resumen-lista > div:first-child > .ff-vieja { border-top: none; }
+.ff-historial-link { align-self: center; background: none; border: none; color: var(--ink-soft); font-size: 13px; font-weight: 700; text-decoration: underline; padding: 4px; }
 .ff-historial-toggle { background: none; border: none; padding: 0; color: var(--ink-soft); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 
 /* Detalle desplegado debajo de la fila */

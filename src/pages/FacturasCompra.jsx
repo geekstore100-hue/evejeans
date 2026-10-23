@@ -110,6 +110,9 @@ export default function FacturasCompra({ usuario, modo }) {
   const [expandida, setExpandida] = useState(null);
   const [confirmarEliminar, setConfirmarEliminar] = useState(null);
   const [verHistorial, setVerHistorial] = useState(false);
+  // La lista de "sin recibir" arranca recogida en una sola línea: si no,
+  // cada factura de hoy sale dos veces (en la tirilla y en esta lista).
+  const [verPendientes, setVerPendientes] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [toast, setToast] = useState('');
@@ -146,6 +149,14 @@ export default function FacturasCompra({ usuario, modo }) {
     const t = setTimeout(() => setToast(''), 3000);
     return () => clearTimeout(t);
   }, [toast]);
+
+  // La factura recién guardada se resalta un momento y se apaga sola, para
+  // que no parezca que tiene algo distinto a las demás.
+  useEffect(() => {
+    if (!resaltar) return;
+    const t = setTimeout(() => setResaltar(null), 3000);
+    return () => clearTimeout(t);
+  }, [resaltar]);
 
   useEffect(() => {
     if (nuevoRenglon == null) return;
@@ -588,7 +599,7 @@ export default function FacturasCompra({ usuario, modo }) {
         </div>
 
         <section className="ff-dia">
-          <div className="ff-dia-label">{esNelson ? 'Se lleva hoy (todos)' : 'Llevas hoy'}</div>
+          <div className="ff-dia-label">{esNelson ? 'Comprado hoy entre todos' : 'Llevas hoy'}</div>
           <div className="ff-dia-total">{fmt(totalHoy)}</div>
           <div className="ff-dia-sub">
             {facturasHoy.length} {facturasHoy.length === 1 ? 'factura guardada' : 'facturas guardadas'}
@@ -650,18 +661,37 @@ export default function FacturasCompra({ usuario, modo }) {
 
         {pendientes.length > 0 && (
           <section className="ff-viejas">
-            <div className="ff-tape-cap">Todavía sin recibir en la tienda</div>
-            {pendientes.map((c) => filaLista(c, 'p' + c.id, tituloFactura(c)))}
+            <button
+              className={`ff-resumen-pend ${verPendientes ? 'abierta' : ''}`}
+              aria-expanded={verPendientes}
+              onClick={() => {
+                setVerPendientes((v) => !v);
+                setExpandida(null);
+                setConfirmarEliminar(null);
+              }}
+            >
+              <span>
+                {pendientes.length} {pendientes.length === 1 ? 'factura' : 'facturas'} sin recibir en la tienda
+                <span className="ff-flecha">›</span>
+              </span>
+              <span className="ff-tape-amt">{num(pendientes.reduce((s, c) => s + (c.totalGeneral || 0), 0))}</span>
+            </button>
+            {verPendientes && (
+              <div className="ff-resumen-lista">{pendientes.map((c) => filaLista(c, 'p' + c.id, tituloFactura(c)))}</div>
+            )}
           </section>
         )}
 
-        {esNelson && historial.length > 0 && (
+        {esNelson && historial.length > 0 && verHistorial && (
           <section className="ff-viejas">
-            <button className="ff-historial-toggle" onClick={() => setVerHistorial((v) => !v)}>
-              Ya recibidas, días anteriores · {verHistorial ? 'ocultar' : 'ver'}
-            </button>
-            {verHistorial && historial.map((c) => filaLista(c, 'h' + c.id, tituloFactura(c)))}
+            <div className="ff-tape-cap">Ya recibidas, días anteriores</div>
+            {historial.map((c) => filaLista(c, 'h' + c.id, tituloFactura(c)))}
           </section>
+        )}
+        {esNelson && historial.length > 0 && (
+          <button className="ff-historial-link" onClick={() => setVerHistorial((v) => !v)}>
+            {verHistorial ? 'Ocultar las ya recibidas de días anteriores' : 'Ver las ya recibidas de días anteriores'}
+          </button>
         )}
 
         <div className="ff-cta">
