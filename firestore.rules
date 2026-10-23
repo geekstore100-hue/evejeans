@@ -36,11 +36,12 @@ service cloud.firestore {
                       && request.resource.data.stock is number
                       && request.resource.data.stock >= 0
                     )
-                    // Fausto solo puede tocar el costo de compra (al registrar un pedido),
-                    // nunca el stock, el nombre, el precio de venta ni nada más.
+                    // Fausto solo puede tocar el costo de compra y la última nota usada
+                    // (al registrar una factura), nunca el stock, el nombre, el precio
+                    // de venta ni nada más.
                     || (
                       esFausto()
-                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costoCompra'])
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['costoCompra', 'ultimaNota'])
                     );
     }
 
@@ -223,7 +224,10 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['items', 'estado', 'confirmadoPor', 'confirmadoFecha'])
                     );
-      allow delete: if esNelson();
+      // Fausto puede eliminar sus PROPIAS facturas mientras sigan pendientes
+      // (todavía no han subido el stock de nada, así que no hay nada que revertir).
+      allow delete: if esNelson()
+                    || (esFausto() && resource.data.usuarioId == 'fausto' && resource.data.estado == 'pendiente');
     }
 
     // ---------- Conteos de inicio de semana ----------
@@ -251,6 +255,18 @@ service cloud.firestore {
     match /capitalInicial/{id} {
       allow read, create: if esNelson();
       allow update, delete: if false;
+    }
+
+    // ---------- Números de Nequi ----------
+    // Solo Nelson los ve y los registra. Cada documento es un período (un
+    // número, desde cuándo hasta cuándo estuvo activo). Al crear uno nuevo se
+    // actualiza el "hasta" del anterior para cerrarlo — por eso el único campo
+    // que se puede tocar en un update es ese.
+    match /nequiNumeros/{id} {
+      allow read, create: if esNelson();
+      allow update: if esNelson()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasta']);
+      allow delete: if false;
     }
 
     // ---------- Observaciones de Cierre del día ----------
