@@ -783,6 +783,7 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
 
 /* ¿Por qué cambió la ganancia? */
 .rp-porque-wrap { margin-bottom: 22px; }
+.rp-porque-nota { margin: -4px 0 10px; font-size: 13px; line-height: 1.45; color: var(--rp-aviso); background: var(--rp-aviso-suave); border-radius: 8px; padding: 8px 10px; }
 .rp-porque { display: grid; }
 .rp-porque-fila { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 28%) 110px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rp-grid); }
 .rp-porque-fila.total { border-top: 2px solid var(--ink); }

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from './firebase';
+import { armarHistorialCostos, costoDe } from './costos';
 
 async function todasLasVentas() {
   const snap = await getDocs(
@@ -51,6 +52,7 @@ export async function generarExcel(config) {
 
   const costoPorId = {};
   inventario.forEach((it) => (costoPorId[it.id] = it.costoCompra || 0));
+  const historialCostos = armarHistorialCostos(compras);
 
   // ---------- Día a día ----------
   // La comisión ya no se estima con una fórmula: ahora es un gasto más que registran
@@ -99,7 +101,7 @@ export async function generarExcel(config) {
     const m = mesDe(v.fecha.slice(0, 7));
     m.ingresos += v.total;
     (v.items || []).forEach((i) => {
-      const costoUsado = i.costoCompra !== undefined ? i.costoCompra : costoPorId[i.id] || 0;
+      const costoUsado = costoDe(i, v.fecha, historialCostos, costoPorId).costo;
       m.costo += costoUsado * i.qty;
     });
   });

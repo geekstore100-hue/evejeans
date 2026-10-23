@@ -14,7 +14,9 @@ import {
   suscribirVentasRango,
   suscribirGastosRango,
   suscribirEntregasRango,
+  suscribirComprasRango,
 } from '../lib/reportes';
+import { armarHistorialCostos, costoDe } from '../lib/costos';
 import { Columnas, Barras, Tarjeta } from '../components/Graficos';
 import PreguntaIA from '../components/PreguntaIA';
 
@@ -69,24 +71,41 @@ function periodos(hoy) {
 function entre(s, a, b) {
   return s >= a && s <= b;
 }
-function costoItem(i, costoPorId) {
-  return i.costoCompra !== undefined ? i.costoCompra : costoPorId[i.id] || 0;
+// ctx = { historial, costoPorId } (ver lib/costos.js)
+function costoItem(i, fecha, ctx) {
+  return costoDe(i, fecha, ctx.historial, ctx.costoPorId).costo;
 }
-function resumen(ventas, desde, hasta, costoPorId) {
+function resumen(ventas, desde, hasta, ctx) {
   const vs = ventas.filter((v) => v.tipo === 'venta' && !v.anulada && entre(v.fecha, desde, hasta));
   let total = 0;
   let costo = 0;
   let prendas = 0;
   let desc = 0;
+  let estimadas = 0; // prendas sin costo guardado en la venta (ver lib/costos.js)
+  let sinCosto = 0; // prendas sin ningún costo conocido
   vs.forEach((v) => {
     total += v.total || 0;
     desc += v.descuento || 0;
     (v.items || []).forEach((i) => {
-      costo += costoItem(i, costoPorId) * i.qty;
+      const c = costoDe(i, v.fecha, ctx.historial, ctx.costoPorId);
+      costo += c.costo * i.qty;
       prendas += i.qty;
+      if (c.estimado) estimadas += i.qty;
+      if (c.sinCosto) sinCosto += i.qty;
     });
   });
-  return { vs, total, costo, ganancia: total - costo, prendas, n: vs.length, ticket: vs.length ? total / vs.length : 0, desc };
+  return {
+    vs,
+    total,
+    costo,
+    ganancia: total - costo,
+    prendas,
+    n: vs.length,
+    ticket: vs.length ? total / vs.length : 0,
+    desc,
+    estimadas,
+    sinCosto,
+  };
 }
 function horaTexto(h) {
   const a = (x) => `${x % 12 || 12} ${x < 12 || x === 24 ? 'a. m.' : 'p. m.'}`;
@@ -124,7 +143,7 @@ function Kpi({ label, valor, a, b, sub }) {
 //  2. Mezcla: se vendieron más de las referencias que dejan poco (o al revés).
 //  3. Costo y precio: la misma referencia costó más o se vendió a otro precio.
 //  4. Descuentos: se dieron más o menos descuentos.
-function porReferencia(r, costoPorId, porId) {
+function porReferencia(r, ctx, porId) {
   const refs = {};
   let desc = 0;
   r.vs.forEach((v) => {
@@ -134,15 +153,15 @@ function porReferencia(r, costoPorId, porId) {
       const a = (refs[i.id] = refs[i.id] || { nombre: porId[i.id]?.name || i.name, u: 0, venta: 0, costo: 0 });
       a.u += i.qty;
       a.venta += (i.price || 0) * i.qty;
-      a.costo += costoItem(i, costoPorId) * i.qty;
+      a.costo += costoItem(i, v.fecha, ctx) * i.qty;
     });
   });
   return { refs, desc };
 }
 
-function explicarGanancia(act, ant, costoPorId, porId) {
-  const A = porReferencia(act, costoPorId, porId);
-  const B = porReferencia(ant, costoPorId, porId);
+function explicarGanancia(act, ant, ctx, porId) {
+  const A = porReferencia(act, ctx, porId);
+  const B = porReferencia(ant, ctx, porId);
   const U1 = Object.values(A.refs).reduce((s, r) => s + r.u, 0);
   const U0 = Object.values(B.refs).reduce((s, r) => s + r.u, 0);
   if (!U0) return null;
@@ -238,7 +257,22 @@ function explicarGanancia(act, ant, costoPorId, porId) {
   return { total: act.ganancia - ant.ganancia, factores };
 }
 
-function PorQue({ explicacion, txtAntes }) {
+// Aviso cuando hay ventas viejas que quedaron sin costo guardado (ver lib/costos.js).
+function notaCostos(act, ant, txtAntes) {
+  const est = act.estimadas + ant.estimadas;
+  if (!est) return null;
+  const sin = act.sinCosto + ant.sinCosto;
+  const partes = [];
+  if (act.estimadas) partes.push(`${act.estimadas} de este período`);
+  if (ant.estimadas) partes.push(`${ant.estimadas} de ${txtAntes}`);
+  return (
+    `Ojo: ${est === 1 ? 'una prenda vendida' : `${est} prendas vendidas`} (${partes.join(' y ')}) no ${est === 1 ? 'tenía' : 'tenían'} el costo guardado ` +
+    'porque se vendieron cuando el inventario tenía el costo en $0. Para esas se usó el costo de la factura de compra más cercana' +
+    (sin ? `; ${sin === 1 ? 'una no tiene' : `${sin} no tienen`} ninguna factura ni costo en el inventario y cuentan como $0.` : '.')
+  );
+}
+
+function PorQue({ explicacion, txtAntes, nota }) {
   if (!explicacion) {
     return (
       <Tarjeta ancha titulo="¿Por qué cambió la ganancia?" lectura={`No hay ventas en ${txtAntes} para comparar.`} />
@@ -269,6 +303,7 @@ function PorQue({ explicacion, txtAntes }) {
         )
       }
     >
+      {nota && <p className="rp-porque-nota">{nota}</p>}
       <div className="rp-porque">
         {orden.map((f) => (
           <div className="rp-porque-fila" key={f.id}>
@@ -318,8 +353,8 @@ function armarResumenIA(x) {
     venta_promedio: r(s.ticket),
     descuentos: r(s.desc),
   });
-  const A = porReferencia(x.act, x.costoPorId, x.porId);
-  const B = porReferencia(x.ant, x.costoPorId, x.porId);
+  const A = porReferencia(x.act, x.ctx, x.porId);
+  const B = porReferencia(x.ant, x.ctx, x.porId);
   const stock = {};
   x.inventario.forEach((it) => {
     if (!it.oculto) stock[it.id] = it.stock || 0;
@@ -376,6 +411,7 @@ export default function ReporteNegocio({ usuario }) {
   const [ventas, setVentas] = useState(null);
   const [gastos, setGastos] = useState([]);
   const [entregas, setEntregas] = useState([]);
+  const [compras, setCompras] = useState(null);
   const [inventario, setInventario] = useState(null);
   const [error, setError] = useState('');
 
@@ -394,28 +430,33 @@ export default function ReporteNegocio({ usuario }) {
     const q1 = suscribirVentasRango(desdeEscucha, hoy, setVentas, err);
     const q2 = suscribirGastosRango(desdeEscucha, hoy, setGastos, err);
     const q4 = suscribirEntregasRango(P.desde, P.hasta, setEntregas, err);
+    // Facturas de compra desde unos meses antes: de ahí sale el costo de las
+    // ventas viejas que quedaron sin costo guardado (ver lib/costos.js).
+    const q5 = suscribirComprasRango(sumarDias(desdeEscucha, -180), hoy, setCompras, err);
     return () => {
       q1();
       q2();
       q4();
+      q5();
     };
   }, [desdeEscucha, hoy, P.desde, P.hasta]);
 
   useEffect(() => suscribirInventario(setInventario, (e) => setError('No se pudo cargar: ' + e.message)), []);
 
   const datos = useMemo(() => {
-    if (!ventas || !inventario) return null;
+    if (!ventas || !inventario || !compras) return null;
     const costoPorId = {};
     const porId = {};
     inventario.forEach((it) => {
       costoPorId[it.id] = it.costoCompra || 0;
       porId[it.id] = it;
     });
-    const act = resumen(ventas, P.desde, P.hasta, costoPorId);
-    const ant = resumen(ventas, P.ant.desde, P.ant.hasta, costoPorId);
+    const ctx = { historial: armarHistorialCostos(compras), costoPorId };
+    const act = resumen(ventas, P.desde, P.hasta, ctx);
+    const ant = resumen(ventas, P.ant.desde, P.ant.hasta, ctx);
 
     // ---- Por qué cambió la ganancia ----
-    const porQue = explicarGanancia(act, ant, costoPorId, porId);
+    const porQue = explicarGanancia(act, ant, ctx, porId);
 
     // ---- Entregas de efectivo con faltantes ----
     const recibidas = entregas.filter((e) => e.estado === 'recibido');
@@ -468,7 +509,7 @@ export default function ReporteNegocio({ usuario }) {
         const a = (agg[i.id] = agg[i.id] || { nombre: porId[i.id]?.name || i.name, und: 0, venta: 0, costo: 0 });
         a.und += i.qty;
         a.venta += (i.price || 0) * i.qty;
-        a.costo += costoItem(i, costoPorId) * i.qty;
+        a.costo += costoItem(i, v.fecha, ctx) * i.qty;
       })
     );
     // El descuento de cada venta se reparte entre sus prendas, para que la
@@ -524,7 +565,7 @@ export default function ReporteNegocio({ usuario }) {
     const conDesc = act.vs.filter((v) => v.descuento > 0).length;
 
     const ia = armarResumenIA({
-      P, hoy, act, ant, porQue, costoPorId, porId, inventario, porDia, sem, porHora, medios, porV, porCat, retiros, nCambios, anuladas, conDesc, faltas, faltaTot,
+      P, hoy, act, ant, porQue, ctx, porId, inventario, porDia, sem, porHora, medios, porV, porCat, retiros, nCambios, anuladas, conDesc, faltas, faltaTot,
     });
 
     return {
@@ -552,7 +593,7 @@ export default function ReporteNegocio({ usuario }) {
       anuladas,
       conDesc,
     };
-  }, [ventas, inventario, gastos, entregas, P, hoy]);
+  }, [ventas, inventario, gastos, entregas, compras, P, hoy]);
 
   const filtros = (
     <div className="rp-filtros">
@@ -600,7 +641,7 @@ export default function ReporteNegocio({ usuario }) {
       </div>
 
       <div className="rp-porque-wrap">
-        <PorQue explicacion={d.porQue} txtAntes={P.ant.txt} />
+        <PorQue explicacion={d.porQue} txtAntes={P.ant.txt} nota={notaCostos(act, ant, P.ant.txt)} />
       </div>
 
       <div className="rp-porque-wrap">

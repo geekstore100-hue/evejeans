@@ -1,5 +1,6 @@
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
+import { armarHistorialCostos, costoDe } from './costos';
 
 function hoyStr() {
   const d = new Date();
@@ -42,6 +43,14 @@ export async function calcularGanancia(desde, hasta, config) {
     costoPorId[d.id] = d.data().costoCompra || 0;
     nombrePorId[d.id] = d.data().name;
   });
+  // Facturas de compra (desde unos meses antes): de ahí sale el costo de las
+  // ventas viejas que quedaron guardadas con costo $0 (ver lib/costos.js).
+  const desdeCompras = new Date(desde + 'T00:00:00');
+  desdeCompras.setDate(desdeCompras.getDate() - 180);
+  const snapCompras = await getDocs(
+    query(collection(db, 'compras'), where('fecha', '>=', desdeCompras.toISOString().slice(0, 10)), where('fecha', '<=', hasta))
+  );
+  const historial = armarHistorialCostos(snapCompras.docs.map((d) => d.data()));
 
   let ingresos = 0;
   let costoMercancia = 0;
@@ -54,10 +63,9 @@ export async function calcularGanancia(desde, hasta, config) {
     descuentos += v.descuento || 0;
     (v.items || []).forEach((i) => {
       unidadesVendidas += i.qty;
-      // Preferimos el costo que quedó guardado en la venta misma (el que tenía ese día).
-      // Si es una venta vieja de antes de este arreglo, no tiene ese dato — ahí, como
-      // respaldo, se usa el costo actual (puede no ser exacto para esas ventas puntuales).
-      const costoUsado = i.costoCompra !== undefined ? i.costoCompra : (costoPorId[i.id] || 0);
+      // El costo que quedó guardado en la venta; si quedó en $0, el de la
+      // factura más cercana (ver lib/costos.js).
+      const costoUsado = costoDe(i, v.fecha, historial, costoPorId).costo;
       costoMercancia += costoUsado * i.qty;
     });
   });
