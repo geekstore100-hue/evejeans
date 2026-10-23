@@ -3,13 +3,10 @@ import { suscribirAvisoRefuerzo } from '../lib/refuerzo';
 import { hoyStr, sumarDias, fechaConDia, fmt } from '../lib/reportes';
 
 // Franja de aviso arriba de la app (Nelson y Fausto): "podrían necesitar otra
-// vendedora" cuando en los próximos días viene uno que en años anteriores se
-// vendió el doble o más de un día normal. Se puede cerrar; vuelve a salir
+// vendedora" cuando en los próximos días viene uno que en años anteriores
+// vendió $2.500.000 o más (ver lib/refuerzo.js). Se puede cerrar; vuelve a salir
 // cuando ya falten 2 días o menos, como recordatorio.
 
-function veces(v) {
-  return v.toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-}
 function cuando(faltan) {
   return faltan === 0 ? 'hoy' : faltan === 1 ? 'mañana' : `en ${faltan} días`;
 }
@@ -88,8 +85,10 @@ export default function AvisoRefuerzo({ usuario }) {
         <b>Podrían necesitar otra vendedora</b>
         <ul>
           {grupos.map((g) => {
-            const pico = g.reduce((a, b) => (b.veces > a.veces ? b : a));
-            const ejemplo = pico.porAnio.reduce((a, b) => (b.veces > a.veces ? b : a));
+            const pico = g.reduce((a, b) => (b.esperado > a.esperado ? b : a));
+            // El año más reciente como ejemplo; si hay varios, también el promedio.
+            const ejemplo = pico.referencias[0];
+            const anios = pico.referencias.map((r) => r.fecha.slice(0, 4)).reverse();
             const primero = g[0];
             const ultimo = g[g.length - 1];
             return (
@@ -99,8 +98,8 @@ export default function AvisoRefuerzo({ usuario }) {
                 </span>{' '}
                 <span className="av-cuando">· {g.length === 1 ? cuando(primero.faltan) : `empieza ${cuando(primero.faltan)}`}</span>
                 <small>
-                  El {fechaConDia(ejemplo.fecha)} de {ejemplo.fecha.slice(0, 4)} se vendieron {fmt(ejemplo.venta)}:{' '}
-                  {veces(ejemplo.veces)} veces un día normal.
+                  El {fechaConDia(ejemplo.fecha)} de {ejemplo.fecha.slice(0, 4)} se vendieron {fmt(ejemplo.venta)}
+                  {pico.referencias.length > 1 ? ` (promedio de ${anios.join(' y ')}: ${fmt(pico.esperado)})` : ''}.
                 </small>
               </li>
             );

@@ -57,6 +57,8 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
   const [mensajes, setMensajes] = useState([]); // [{ rol: 'yo'|'ia', texto, error? }]
   const [pregunta, setPregunta] = useState('');
   const [pensando, setPensando] = useState(false);
+  const [estado, setEstado] = useState('');
+  const [segundos, setSegundos] = useState(0);
   const [clave, setClave] = useState('');
   const [guardandoClave, setGuardandoClave] = useState(false);
   const [msgClave, setMsgClave] = useState('');
@@ -72,6 +74,13 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
   useEffect(() => {
     setMensajes([]);
   }, [reiniciarCon]);
+
+  // Contador de segundos mientras se espera, para que se note que sigue trabajando.
+  useEffect(() => {
+    if (!pensando) return;
+    const t = setInterval(() => setSegundos((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [pensando]);
 
   useEffect(() => {
     if (mensajes.length) finRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -90,6 +99,8 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
     const historial = previos.map((m, i) => (i === 0 ? { ...m, texto: m.textoEnviado || m.texto } : m));
     setMensajes((ms) => [...ms.filter((m) => !m.error && !m.fallida), { rol: 'yo', texto: q, textoEnviado: conDatos }, { rol: 'ia', texto: '' }]);
     setPensando(true);
+    setEstado('verificando');
+    setSegundos(0);
     const poner = (t, error, detalle) =>
       setMensajes((ms) => {
         const copia = ms.slice();
@@ -99,7 +110,7 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
         return copia;
       });
     try {
-      await preguntarIA({ historial, pregunta: conDatos, onTexto: (t) => poner(t) });
+      await preguntarIA({ historial, pregunta: conDatos, onTexto: (t) => poner(t), onEstado: setEstado });
     } catch (e) {
       poner(e.message, true, e.detalle);
     } finally {
@@ -172,7 +183,7 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
                         <p>{m.texto}</p>
                         {m.detalle && <p className="rp-ia-detalle">Detalle técnico: {m.detalle}</p>}
                       </>
-                    ) : <Respuesta texto={m.texto} nombres={nombres} /> : <p className="rp-ia-pensando">Pensando…</p>}
+                    ) : <Respuesta texto={m.texto} nombres={nombres} /> : <p className="rp-ia-pensando">{estado === 'verificando' ? 'Verificando la app' : 'La IA está pensando'}… {segundos > 2 ? `${segundos} s` : ''}</p>}
                   </div>
                 )
               )}

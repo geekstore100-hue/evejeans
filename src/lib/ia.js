@@ -1,5 +1,5 @@
-import { getAI, getGenerativeModel, GoogleAIBackend } from 'firebase/ai';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { getAI, getGenerativeModel, GoogleAIBackend, ThinkingLevel } from 'firebase/ai';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from 'firebase/app-check';
 import { app } from './firebase';
 
 // IA de la sección Reportes (solo Nelson), con Gemini a través de Firebase AI
@@ -27,24 +27,37 @@ Cómo responder:
 - Pesos con punto de miles y sin decimales ($1.250.000). Porcentajes sin decimales.
 - Cuando tenga sentido, termina con una o dos acciones concretas que Nelson pueda hacer esta semana.`;
 
-let appCheckActivo = false;
+let appCheck = null;
 export function activarAppCheck(claveSitio) {
-  if (appCheckActivo || !claveSitio) return;
-  initializeAppCheck(app, {
+  if (appCheck || !claveSitio) return;
+  appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaEnterpriseProvider(claveSitio),
     isTokenAutoRefreshEnabled: true,
   });
-  appCheckActivo = true;
 }
 
 let ai = null;
-function modelo(nombre) {
+// conPensamiento: los modelos nuevos "piensan" antes de responder; se les pide
+// que piensen poco (respuesta más rápida). Si el modelo no acepta esa opción,
+// se vuelve a intentar sin ella.
+function modelo(nombre, conPensamiento) {
   if (!ai) ai = getAI(app, { backend: new GoogleAIBackend() });
-  return getGenerativeModel(ai, {
-    model: nombre,
-    systemInstruction: INSTRUCCIONES,
-    generationConfig: { temperature: 0.4, maxOutputTokens: 900 },
-  });
+  const generationConfig = { temperature: 0.4, maxOutputTokens: 4096 };
+  if (conPensamiento) generationConfig.thinkingConfig = { thinkingLevel: ThinkingLevel.LOW };
+  return getGenerativeModel(ai, { model: nombre, systemInstruction: INSTRUCCIONES, generationConfig });
+}
+
+// Si algo se queda esperando para siempre (antes la pantalla se quedaba en
+// "Pensando…" sin decir nada), se corta con un error que dice dónde fue.
+class TiempoAgotado extends Error {}
+function conTiempo(promesa, ms, mensaje) {
+  let t;
+  return Promise.race([
+    promesa,
+    new Promise((_, rechazar) => {
+      t = setTimeout(() => rechazar(new TiempoAgotado(mensaje)), ms);
+    }),
+  ]).finally(() => clearTimeout(t));
 }
 
 // Los errores de Firebase AI traen el código HTTP entre corchetes, por
@@ -63,6 +76,7 @@ function sinInternet(e) {
 function explicarError(e) {
   const t = `${e?.code || ''} ${e?.message || e}`;
   const http = estadoHTTP(e);
+  if (e instanceof TiempoAgotado) return e.message;
   if (esAppCheck(e))
     return 'La IA todavía no reconoce la app (App Check). Revisa que la clave de reCAPTCHA esté bien pegada y registrada en Firebase → App Check, y recarga la página.';
   if (http === 429 || /resource.?exhausted|quota exceeded/i.test(t))
@@ -76,28 +90,66 @@ function explicarError(e) {
 
 // historial: [{ rol: 'yo' | 'ia', texto }] de la conversación hasta ahora.
 // onTexto(textoParcial) se llama a medida que va llegando la respuesta.
-export async function preguntarIA({ historial, pregunta, onTexto }) {
+// onEstado('verificando' | 'pensando' | 'escribiendo') para mostrar en qué va.
+export async function preguntarIA({ historial, pregunta, onTexto, onEstado = () => {} }) {
   const history = historial.map((m) => ({ role: m.rol === 'yo' ? 'user' : 'model', parts: [{ text: m.texto }] }));
-  let ultimoError = null;
   const detalles = [];
-  for (const nombre of MODELOS) {
+
+  // 1. App Check: que reCAPTCHA confirme que la pregunta sale de la app.
+  onEstado('verificando');
+  if (!appCheck) {
+    const err = new Error('La IA todavía no está encendida: falta la clave de reCAPTCHA.');
+    throw err;
+  }
+  try {
+    await conTiempo(
+      getToken(appCheck),
+      20000,
+      'reCAPTCHA no respondió en 20 segundos. Revisa que la clave sea la del proyecto evejeans y que tenga los dominios evejeans.web.app y evejeans.firebaseapp.com.'
+    );
+  } catch (e) {
+    console.error('IA (App Check):', e);
+    const err = new Error(
+      e instanceof TiempoAgotado
+        ? e.message
+        : 'reCAPTCHA no aceptó la app. Revisa que la clave esté bien pegada y registrada en Firebase → App Check, y recarga la página.'
+    );
+    if (!(e instanceof TiempoAgotado)) err.detalle = `App Check: ${e?.code || ''} ${String(e?.message || e).slice(0, 220)}`;
+    throw err;
+  }
+
+  // 2. La pregunta, probando modelos y opciones en orden.
+  const intentos = [];
+  MODELOS.forEach((m) => intentos.push({ nombre: m, conPensamiento: true }, { nombre: m, conPensamiento: false }));
+  let ultimoError = null;
+  for (let k = 0; k < intentos.length; k++) {
+    const { nombre, conPensamiento } = intentos[k];
     let texto = '';
     try {
-      const chat = modelo(nombre).startChat({ history });
-      const res = await chat.sendMessageStream(pregunta);
-      for await (const parte of res.stream) {
-        texto += parte.text();
-        onTexto(texto);
+      onEstado('pensando');
+      const chat = modelo(nombre, conPensamiento).startChat({ history });
+      const res = await conTiempo(chat.sendMessageStream(pregunta), 60000, 'La IA no contestó en 60 segundos.');
+      const it = res.stream[Symbol.asyncIterator]();
+      for (;;) {
+        const paso = await conTiempo(it.next(), texto ? 30000 : 60000, 'La IA se quedó callada a mitad de la respuesta.');
+        if (paso.done) break;
+        const parte = paso.value.text();
+        if (parte) {
+          texto += parte;
+          onEstado('escribiendo');
+          onTexto(texto);
+        }
       }
       if (!texto.trim()) throw new Error('La IA respondió vacío.');
       return texto;
     } catch (e) {
-      console.error(`IA (${nombre}):`, e);
+      console.error(`IA (${nombre}${conPensamiento ? '' : ', sin pensar'}):`, e);
       ultimoError = e;
-      detalles.push(`${nombre}: ${estadoHTTP(e) || e?.code || ''} ${String(e?.message || e).slice(0, 220)}`);
-      // Si ya alcanzó a escribir algo, o el problema es de configuración o de
-      // internet, no tiene sentido intentar con otro modelo.
+      detalles.push(`${nombre}${conPensamiento ? '' : ' (sin pensar)'}: ${estadoHTTP(e) || e?.code || ''} ${String(e?.message || e).slice(0, 220)}`);
       if (texto || esAppCheck(e) || sinInternet(e)) break;
+      // "Sin pensar" solo se intenta si el problema fue esa opción o la respuesta vacía.
+      const porPensamiento = /think/i.test(String(e?.message || '')) || /vacío/.test(String(e?.message || ''));
+      if (conPensamiento && !porPensamiento) k++;
     }
   }
   const err = new Error(explicarError(ultimoError));
