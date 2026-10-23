@@ -47,15 +47,31 @@ function modelo(nombre) {
   });
 }
 
+// Los errores de Firebase AI traen el código HTTP entre corchetes, por
+// ejemplo "Error fetching from https://…:generateContent: [429 ] …".
+function estadoHTTP(e) {
+  const m = String(e?.message || '').match(/\[(\d{3})\b/);
+  return m ? Number(m[1]) : null;
+}
+function esAppCheck(e) {
+  return /app.?check|recaptcha|attestation/i.test(`${e?.code || ''} ${e?.message || ''}`) || estadoHTTP(e) === 401;
+}
+function sinInternet(e) {
+  return !estadoHTTP(e) && /failed to fetch|network|offline/i.test(String(e?.message || ''));
+}
+
 function explicarError(e) {
   const t = `${e?.code || ''} ${e?.message || e}`;
-  if (/app.?check|recaptcha|attestation|unauthenticated|401/i.test(t))
+  const http = estadoHTTP(e);
+  if (esAppCheck(e))
     return 'La IA todavía no reconoce la app (App Check). Revisa que la clave de reCAPTCHA esté bien pegada y registrada en Firebase → App Check, y recarga la página.';
-  if (/429|quota|resource.?exhausted|rate/i.test(t)) return 'Se acabó el cupo gratis de la IA por ahora. Intenta en un rato (el cupo diario se renueva cada día).';
-  if (/api.?not.?enabled|firebasevertexai|firebaseml|ai logic|SERVICE_DISABLED|403/i.test(t))
-    return 'Falta activar la IA en Firebase: en la consola, AI Services → AI Logic → "Get started" con la Gemini Developer API.';
-  if (/network|fetch|offline|failed to fetch/i.test(t)) return 'No hay internet en este momento. Intenta de nuevo cuando vuelva la señal.';
-  return 'La IA no pudo responder: ' + (e?.message || e);
+  if (http === 429 || /resource.?exhausted|quota exceeded/i.test(t))
+    return 'Google dice que se acabó el cupo gratis de la IA. Si apenas la estás estrenando, puede que el cupo de este modelo no esté disponible en el plan gratis.';
+  if (http === 403 || /api has not been used|is disabled|SERVICE_DISABLED|PERMISSION_DENIED/i.test(t))
+    return 'Falta activar la IA en Firebase: en la consola, AI Services → AI Logic → "Get started" con la Gemini Developer API. Si ya lo hiciste, espera unos minutos y vuelve a intentar.';
+  if (http === 404) return 'El modelo de IA no está disponible para este proyecto.';
+  if (sinInternet(e)) return 'No hay internet en este momento. Intenta de nuevo cuando vuelva la señal.';
+  return 'La IA no pudo responder.';
 }
 
 // historial: [{ rol: 'yo' | 'ia', texto }] de la conversación hasta ahora.
@@ -63,6 +79,7 @@ function explicarError(e) {
 export async function preguntarIA({ historial, pregunta, onTexto }) {
   const history = historial.map((m) => ({ role: m.rol === 'yo' ? 'user' : 'model', parts: [{ text: m.texto }] }));
   let ultimoError = null;
+  const detalles = [];
   for (const nombre of MODELOS) {
     let texto = '';
     try {
@@ -77,10 +94,13 @@ export async function preguntarIA({ historial, pregunta, onTexto }) {
     } catch (e) {
       console.error(`IA (${nombre}):`, e);
       ultimoError = e;
-      // Si ya alcanzó a escribir algo, o el problema es de configuración, no
-      // tiene sentido intentar con otro modelo.
-      if (texto || /app.?check|recaptcha|unauthenticated|401|network|fetch/i.test(`${e?.code} ${e?.message}`)) break;
+      detalles.push(`${nombre}: ${estadoHTTP(e) || e?.code || ''} ${String(e?.message || e).slice(0, 220)}`);
+      // Si ya alcanzó a escribir algo, o el problema es de configuración o de
+      // internet, no tiene sentido intentar con otro modelo.
+      if (texto || esAppCheck(e) || sinInternet(e)) break;
     }
   }
-  throw new Error(explicarError(ultimoError));
+  const err = new Error(explicarError(ultimoError));
+  err.detalle = detalles.join(' | ');
+  throw err;
 }

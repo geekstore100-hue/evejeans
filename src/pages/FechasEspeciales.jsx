@@ -263,6 +263,7 @@ export default function FechasEspeciales({ usuario }) {
   const [ventas, setVentas] = useState(null);
   const [abierta, setAbierta] = useState(null);
   const [verCargar, setVerCargar] = useState(false);
+  const esNelson = usuario?.id === 'nelson';
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -327,14 +328,15 @@ export default function FechasEspeciales({ usuario }) {
             {primera ? ` Del ${fechaLarga(primera)} de ${primera.slice(0, 4)} en adelante, las ventas salen del sistema.` : ''}
           </div>
         </div>
-        <button className="rp-btn sec" onClick={() => setVerCargar((v) => !v)} aria-expanded={verCargar || !hayDatos}>
-          {verCargar ? 'Cerrar' : 'Cargar años anteriores (Excel)'}
-        </button>
+        {/* Cargar el Excel es solo de Nelson (Fausto ve la pantalla, pero no carga). */}
+        {esNelson && (
+          <button className="rp-btn sec" onClick={() => setVerCargar((v) => !v)} aria-expanded={verCargar || !hayDatos}>
+            {verCargar ? 'Cerrar' : 'Cargar años anteriores (Excel)'}
+          </button>
+        )}
       </div>
 
-      {(verCargar || !hayDatos) && (
-        <CargarAnios usuario={usuario} historicos={historicos} />
-      )}
+      {esNelson && (verCargar || !hayDatos) && <CargarAnios usuario={usuario} historicos={historicos} />}
 
       <div className="rp-leyenda">
         <span>

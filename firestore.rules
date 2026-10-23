@@ -269,6 +269,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---------- Ventas por día de años anteriores (Reportes → Fechas especiales) ----------
+    // Lo que Nelson llevaba en su Excel antes del sistema: un documento por año
+    // ({ anio, dias: { 'AAAA-MM-DD': venta } }). Nelson y Fausto lo ven (Fausto
+    // tiene Reportes → Fechas especiales); solo Nelson lo carga. Puede volver a
+    // cargar un año para corregirlo (reemplaza el anterior), pero no borrarlo.
+    match /ventasHistoricas/{anio} {
+      allow read: if esNelson() || esFausto();
+      allow create, update: if esNelson()
+                            && request.resource.data.anio is number
+                            && string(request.resource.data.anio) == anio
+                            && request.resource.data.dias is map;
+      allow delete: if false;
+    }
+
     // ---------- Observaciones de Cierre del día ----------
     // Una nota de texto libre por fecha (no es un dato financiero, por eso se puede
     // corregir libremente). El id del documento es la fecha (AAAA-MM-DD).

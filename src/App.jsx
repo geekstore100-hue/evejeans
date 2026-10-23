@@ -34,7 +34,8 @@ export default function App() {
   const [vista, setVista] = useState('vender');
   const [panicoActivo, setPanicoActivo] = useState(false);
   const [panicoListo, setPanicoListo] = useState(false);
-  const [vistaFausto, setVistaFausto] = useState('pedido'); // pedido | efectivo
+  const [vistaFausto, setVistaFausto] = useState('pedido'); // pedido | efectivo | reportes
+  const [reporteFausto, setReporteFausto] = useState('negocio'); // negocio | fechas
 
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
@@ -129,10 +130,26 @@ export default function App() {
           <button className={vistaFausto === 'efectivo' ? 'on' : ''} onClick={() => setVistaFausto('efectivo')}>
             💵 Recibir efectivo
           </button>
+          <button className={vistaFausto === 'reportes' ? 'on' : ''} onClick={() => setVistaFausto('reportes')}>
+            📊 Reportes
+          </button>
         </div>
+        {/* Fausto ve Reportes menos el Libro diario (ese es solo de Nelson). */}
+        {vistaFausto === 'reportes' && (
+          <nav className="mn-subs cf-subs" aria-label="Submenú de Reportes">
+            <button className={`mn-sub ${reporteFausto === 'negocio' ? 'on' : ''}`} onClick={() => setReporteFausto('negocio')}>
+              Cómo va el negocio
+            </button>
+            <button className={`mn-sub ${reporteFausto === 'fechas' ? 'on' : ''}`} onClick={() => setReporteFausto('fechas')}>
+              Fechas especiales
+            </button>
+          </nav>
+        )}
         <main>
           {vistaFausto === 'pedido' && <ComprasFausto usuario={usuario} />}
           {vistaFausto === 'efectivo' && <EntregaEfectivoFausto usuario={usuario} />}
+          {vistaFausto === 'reportes' && reporteFausto === 'negocio' && <ReporteNegocio usuario={usuario} />}
+          {vistaFausto === 'reportes' && reporteFausto === 'fechas' && <FechasEspeciales usuario={usuario} />}
         </main>
       </div>
     );
@@ -237,7 +254,7 @@ export default function App() {
         {vista === 'conciliacion' && usuario.id === 'nelson' && <Conciliacion usuario={usuario} />}
         {vista === 'capital' && usuario.id === 'nelson' && <Capital usuario={usuario} />}
         {vista === 'nequi' && usuario.id === 'nelson' && <Nequi usuario={usuario} />}
-        {vista === 'reporteNegocio' && usuario.id === 'nelson' && <ReporteNegocio />}
+        {vista === 'reporteNegocio' && usuario.id === 'nelson' && <ReporteNegocio usuario={usuario} />}
         {vista === 'libroDiario' && usuario.id === 'nelson' && <LibroDiario />}
         {vista === 'fechasEspeciales' && usuario.id === 'nelson' && <FechasEspeciales usuario={usuario} />}
       </main>

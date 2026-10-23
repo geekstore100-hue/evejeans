@@ -370,7 +370,7 @@ function armarResumenIA(x) {
   return { resumen, nombres };
 }
 
-export default function ReporteNegocio() {
+export default function ReporteNegocio({ usuario }) {
   const [periodo, setPeriodo] = useState('mes');
   const [hoy, setHoy] = useState(hoyStr());
   const [ventas, setVentas] = useState(null);
@@ -604,7 +604,7 @@ export default function ReporteNegocio() {
       </div>
 
       <div className="rp-porque-wrap">
-        <PreguntaIA resumen={d.ia.resumen} nombres={d.ia.nombres} reiniciarCon={periodo} />
+        <PreguntaIA resumen={d.ia.resumen} nombres={d.ia.nombres} reiniciarCon={periodo} puedeConfigurar={usuario?.id === 'nelson'} />
       </div>
 
       <h2 className="rp-seccion-tit">Cómo se vende</h2>

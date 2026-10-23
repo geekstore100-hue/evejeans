@@ -52,7 +52,7 @@ function Respuesta({ texto, nombres }) {
   );
 }
 
-export default function PreguntaIA({ resumen, nombres, reiniciarCon }) {
+export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfigurar = true }) {
   const [config, setConfig] = useState(null);
   const [mensajes, setMensajes] = useState([]); // [{ rol: 'yo'|'ia', texto, error? }]
   const [pregunta, setPregunta] = useState('');
@@ -90,10 +90,10 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon }) {
     const historial = previos.map((m, i) => (i === 0 ? { ...m, texto: m.textoEnviado || m.texto } : m));
     setMensajes((ms) => [...ms.filter((m) => !m.error && !m.fallida), { rol: 'yo', texto: q, textoEnviado: conDatos }, { rol: 'ia', texto: '' }]);
     setPensando(true);
-    const poner = (t, error) =>
+    const poner = (t, error, detalle) =>
       setMensajes((ms) => {
         const copia = ms.slice();
-        copia[copia.length - 1] = { rol: 'ia', texto: t, error };
+        copia[copia.length - 1] = { rol: 'ia', texto: t, error, detalle };
         // Una pregunta sin respuesta no se manda en la conversación siguiente.
         if (error) copia[copia.length - 2] = { ...copia[copia.length - 2], fallida: true };
         return copia;
@@ -101,7 +101,7 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon }) {
     try {
       await preguntarIA({ historial, pregunta: conDatos, onTexto: (t) => poner(t) });
     } catch (e) {
-      poner(e.message, true);
+      poner(e.message, true, e.detalle);
     } finally {
       setPensando(false);
     }
@@ -132,7 +132,9 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon }) {
         </h3>
       </div>
 
-      {!claveSitio ? (
+      {!claveSitio && !puedeConfigurar ? (
+        <p className="rp-lectura">La IA todavía no está encendida. Nelson tiene que terminar de configurarla.</p>
+      ) : !claveSitio ? (
         <div className="rp-ia-config">
           <p>
             Falta un paso para encender la IA: pega aquí la <b>clave del sitio de reCAPTCHA</b> que creaste para App Check. Se hace una sola
@@ -165,7 +167,12 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon }) {
                   </div>
                 ) : (
                   <div key={i} className={`rp-ia-resp ${m.error ? 'error' : ''}`}>
-                    {m.texto ? m.error ? <p>{m.texto}</p> : <Respuesta texto={m.texto} nombres={nombres} /> : <p className="rp-ia-pensando">Pensando…</p>}
+                    {m.texto ? m.error ? (
+                      <>
+                        <p>{m.texto}</p>
+                        {m.detalle && <p className="rp-ia-detalle">Detalle técnico: {m.detalle}</p>}
+                      </>
+                    ) : <Respuesta texto={m.texto} nombres={nombres} /> : <p className="rp-ia-pensando">Pensando…</p>}
                   </div>
                 )
               )}
