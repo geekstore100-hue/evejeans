@@ -20,6 +20,7 @@ import {
   ventasPorDia,
 } from '../lib/reportes';
 import { Columnas } from '../components/Graficos';
+import { UMBRAL_PESOS } from '../lib/refuerzo';
 
 // Fechas especiales (solo Nelson): mira cuánto se vendió cada día alrededor
 // de cada fecha fuerte en años anteriores, cuántas veces fue eso un día
@@ -81,14 +82,14 @@ function finTemp(fe, anio) {
 function prom(lista) {
   return lista.length ? lista.reduce((a, b) => a + b, 0) / lista.length : null;
 }
-function nivel(v) {
-  if (v == null) return '';
-  if (v === 0) return 'cerrado';
-  return v >= 2 ? 'fuerte' : v >= 1.5 ? 'movido' : '';
+// Un día es "fuerte" por la plata que se espera mover, no por cuántas veces
+// un día normal: desde UMBRAL_PESOS una sola vendedora no da abasto (lo
+// definió Nelson; es el mismo número del aviso de otra vendedora).
+function nivel(x) {
+  if (x.veces === 0) return 'cerrado';
+  return x.esperado != null && x.esperado >= UMBRAL_PESOS ? 'fuerte' : '';
 }
-function veces(v) {
-  return '×' + v.toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-}
+const UMBRAL_TXT = corto(UMBRAL_PESOS);
 
 function analizar(dias, hoy) {
   // Días que caen dentro de alguna temporada: no cuentan como "día normal".
@@ -171,7 +172,7 @@ function rangosFuertes(filas) {
   const r = [];
   let act = null;
   filas.forEach((x) => {
-    if (x.veces != null && x.veces >= 2) {
+    if (nivel(x) === 'fuerte') {
       if (act && sumarDias(act.hasta, 1) === x.fecha) act.hasta = x.fecha;
       else {
         act = { desde: x.fecha, hasta: x.fecha };
@@ -308,9 +309,8 @@ export default function FechasEspeciales({ usuario }) {
     <div className="rp">
       <div className="rp-fuente">
         <div>
-          <b>Así se calcula:</b> para cada fecha se mira cuánto se vendió cada día alrededor de ella en años anteriores, y cuántas veces fue eso
-          un día normal (el mismo día de la semana, en las 4 semanas antes de la temporada). Con eso se ubican los mismos días en el calendario de
-          este año.
+          <b>Así se calcula:</b> para cada fecha se mira cuánto se vendió cada día alrededor de ella en años anteriores, comparado con lo
+          que se vendía en esa época, y con eso se calcula lo que se espera vender cada día de este año.
           {crecimiento && (
             <>
               {' '}
@@ -341,15 +341,11 @@ export default function FechasEspeciales({ usuario }) {
       <div className="rp-leyenda">
         <span>
           <i className="fuerte" />
-          Fuerte: el doble o más de un día normal
-        </span>
-        <span>
-          <i className="movido" />
-          Movido: entre 1,5 y 2 veces
+          Más de {UMBRAL_TXT} en el día: una sola vendedora no da abasto
         </span>
         <span>
           <i />
-          Normal
+          Menos de {UMBRAL_TXT}
         </span>
       </div>
 
@@ -389,10 +385,10 @@ export default function FechasEspeciales({ usuario }) {
                     'Sin datos de años anteriores para esta fecha'
                   ) : fuertes.length ? (
                     <>
-                      Días más fuertes: <b>{fuertes.join(', ')}</b>
+                      Días de más de {UMBRAL_TXT}: <b>{fuertes.join(', ')}</b>
                     </>
                   ) : (
-                    'Ningún día llegó al doble de un día normal'
+                    `Ningún día debería pasar de ${UMBRAL_TXT}`
                   )}
                 </span>
               </span>
@@ -409,29 +405,34 @@ export default function FechasEspeciales({ usuario }) {
             {esAbierta && an.anios.length > 0 && (
               <div className="rp-fecha-detalle">
                 <p className="rp-lectura">
-                  Cada barra es un día de la temporada de {an.anio}, con las veces que se vendió un día normal en{' '}
-                  {an.anios.length === 1 ? an.anios[0] : `años anteriores (promedio de ${an.anios.join(', ').replace(/, (\d+)$/, ' y $1')})`}. La
-                  línea oscura marca un día normal.
+                  Cada barra es lo que se espera vender cada día de la temporada de {an.anio}, según cómo se movió ese día en{' '}
+                  {an.anios.length === 1 ? an.anios[0] : `${an.anios.join(', ').replace(/, (\d+)$/, ' y $1')}`} y cómo va la tienda hoy. La línea
+                  marca {UMBRAL_TXT}: desde ahí, una sola vendedora no da abasto.
                 </p>
                 <Columnas
                   datos={an.filas.map((x) => ({
                     label: fechaConDia(x.fecha),
                     corto: diaCorto(x.fecha),
-                    valor: x.veces || 0,
-                    nivel: nivel(x.veces),
+                    valor: x.esperado || 0,
+                    nivel: nivel(x),
                     x,
                   }))}
-                  aria={`Veces un día normal, ${fe.nombre}`}
-                  eje={(v) => '×' + v.toLocaleString('es-CO', { maximumFractionDigits: 1 })}
+                  aria={`Venta esperada por día, ${fe.nombre}`}
+                  eje={corto}
                   tip={(d) =>
-                    d.x.veces == null
-                      ? 'sin datos'
-                      : d.x.veces === 0
-                        ? 'cerrado en años anteriores'
-                        : `${veces(d.x.veces)} un día normal${d.x.esperado ? ` · se esperan ${corto(d.x.esperado)}` : ''}`
+                    d.x.veces === 0
+                      ? 'cerrado en años anteriores'
+                      : d.x.esperado == null
+                        ? 'sin datos'
+                        : `se esperan ${corto(d.x.esperado)}` +
+                          d.x.porAnio
+                            .filter((p) => p.venta != null)
+                            .map((p) => ` · ${p.anio}: ${corto(p.venta)}`)
+                            .join('')
                   }
                   modo="niveles"
-                  linea={1}
+                  linea={UMBRAL_PESOS}
+                  lineaTexto={UMBRAL_TXT}
                   alto={200}
                 />
                 <TablaDias an={an} />
@@ -445,45 +446,52 @@ export default function FechasEspeciales({ usuario }) {
 }
 
 function TablaDias({ an }) {
-  const dest = an.filas.filter((x) => ['fuerte', 'movido', 'cerrado'].includes(nivel(x.veces)));
-  if (!dest.length) return <p className="rp-lectura">Ningún día de esta temporada llegó a 1,5 veces un día normal.</p>;
-  const etiqueta = { fuerte: 'Fuerte', movido: 'Movido', cerrado: 'Cerrado' };
+  const fuertes = an.filas.filter((x) => nivel(x) !== '');
+  // Si ningún día pasa del límite, se muestran igual los 3 de más venta.
+  const dest = fuertes.length
+    ? fuertes
+    : [...an.filas]
+        .filter((x) => x.esperado)
+        .sort((a, b) => b.esperado - a.esperado)
+        .slice(0, 3)
+        .sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+  if (!dest.length) return null;
+  const etiqueta = { fuerte: `Más de ${UMBRAL_TXT}`, cerrado: 'Cerrado' };
   return (
-    <div className="rp-tabla-wrap">
-      <table className="rp-diario rp-fechas-tabla">
-        <thead>
-          <tr>
-            <th>{an.anio}</th>
-            {an.anios.map((a) => (
-              <th key={a}>En {a}</th>
-            ))}
-            <th className="num">Veces normal</th>
-            <th className="num">Se espera</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dest.map((x) => (
-            <tr key={x.fecha}>
-              <td>
-                <span className={`rp-pildora ${nivel(x.veces)}`}>{etiqueta[nivel(x.veces)]}</span> <b>{fechaConDia(x.fecha)}</b>
-              </td>
-              {x.porAnio.map((p) => (
-                <td key={p.anio}>
-                  {diaCorto(p.fecha)} de {MESES[parseFecha(p.fecha).getMonth()]}
-                  <br />
-                  <small>
-                    {p.venta == null ? 'sin dato' : p.venta === 0 ? 'cerrado' : corto(p.venta)} · {p.veces ? veces(p.veces) : '—'}
-                  </small>
-                </td>
+    <>
+      {!fuertes.length && <p className="rp-lectura">Ningún día debería pasar de {UMBRAL_TXT}. Estos son los de más venta:</p>}
+      <div className="rp-tabla-wrap">
+        <table className="rp-diario rp-fechas-tabla">
+          <thead>
+            <tr>
+              <th>{an.anio}</th>
+              {an.anios.map((a) => (
+                <th key={a}>En {a}</th>
               ))}
-              <td className="num">
-                <b>{x.veces ? veces(x.veces) : '—'}</b>
-              </td>
-              <td className="num">{x.esperado ? corto(x.esperado) : '—'}</td>
+              <th className="num">Se espera</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {dest.map((x) => (
+              <tr key={x.fecha}>
+                <td>
+                  {nivel(x) && <span className={`rp-pildora ${nivel(x)}`}>{etiqueta[nivel(x)]}</span>} <b>{fechaConDia(x.fecha)}</b>
+                </td>
+                {x.porAnio.map((p) => (
+                  <td key={p.anio}>
+                    {diaCorto(p.fecha)} de {MESES[parseFecha(p.fecha).getMonth()]}
+                    <br />
+                    <small>{p.venta == null ? 'sin dato' : p.venta === 0 ? 'cerrado' : fmt(p.venta)}</small>
+                  </td>
+                ))}
+                <td className="num">
+                  <b>{x.esperado ? corto(x.esperado) : '—'}</b>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

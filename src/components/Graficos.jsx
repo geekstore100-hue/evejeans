@@ -29,7 +29,7 @@ function useAncho() {
 // datos: [{ label, corto, valor, nivel?: 'fuerte'|'movido', destacado?: bool }]
 // modo: 'simple' (todas rosa) | 'destacar' (rosa solo las destacadas) | 'niveles'
 // linea: valor donde dibujar una línea de referencia (ej. 1 = "día normal")
-export function Columnas({ datos, eje, tip, alto = 190, modo = 'simple', etiquetaMax = false, linea = null, aria }) {
+export function Columnas({ datos, eje, tip, alto = 190, modo = 'simple', etiquetaMax = false, linea = null, lineaTexto = null, aria }) {
   const [ref, anchoCont] = useAncho();
   const [activo, setActivo] = useState(null);
   const W = Math.max(280, anchoCont || 600);
@@ -75,7 +75,7 @@ export function Columnas({ datos, eje, tip, alto = 190, modo = 'simple', etiquet
     <div className="rp-plot" ref={ref}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={aria} onPointerLeave={() => setActivo(null)}>
         {ticks.map((t) => {
-          const esLinea = linea != null && Math.abs(t - linea) < 1e-9;
+          const esLinea = linea != null && !lineaTexto && Math.abs(t - linea) < 1e-9;
           return (
             <g key={t}>
               <line x1={mL} x2={W - mR} y1={y(t)} y2={y(t)} stroke={t === 0 ? GRIS : GRILLA} strokeWidth="1" />
@@ -123,6 +123,11 @@ export function Columnas({ datos, eje, tip, alto = 190, modo = 'simple', etiquet
           );
         })}
         {linea != null && <line x1={mL} x2={W - mR} y1={y(linea)} y2={y(linea)} stroke={TINTA} strokeWidth="1" pointerEvents="none" />}
+        {linea != null && lineaTexto && (
+          <text x={W - mR} y={y(linea) - 5} textAnchor="end" fontSize="11" fontWeight="700" fill={TINTA} pointerEvents="none">
+            {lineaTexto}
+          </text>
+        )}
       </svg>
       {dAct && (
         <div
