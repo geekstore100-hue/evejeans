@@ -13,14 +13,13 @@ import {
   horaAMinutos,
   suscribirVentasRango,
   suscribirGastosRango,
-  suscribirComprasRango,
   suscribirEntregasRango,
 } from '../lib/reportes';
 import { Columnas, Barras, Tarjeta } from '../components/Graficos';
 
 // "Cómo va el negocio" (solo Nelson): cuánto se vende y se gana contra el
-// período anterior, avisos para adelantarse (lo que se va a acabar, lo que
-// no se mueve, compras contra ventas, la caja) y gráficos de cómo se vende.
+// período anterior, por qué cambió la ganancia (en pesos, factor por factor)
+// y gráficos de cómo se vende.
 // Todo en vivo: si entra una venta mientras está abierto, se actualiza solo.
 
 const MESES_CORTOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -116,15 +115,190 @@ function Kpi({ label, valor, a, b, sub }) {
   );
 }
 
-function Alerta({ clase, estado, titulo, children }) {
+// ---------- ¿Por qué cambió la ganancia? ----------
+// La ganancia bruta es: prendas × lo que deja cada prenda − descuentos. El
+// cambio entre los dos períodos se reparte, en pesos y sin que sobre ni falte
+// nada, en cuatro causas:
+//  1. Cantidad: se vendieron más o menos prendas.
+//  2. Mezcla: se vendieron más de las referencias que dejan poco (o al revés).
+//  3. Costo y precio: la misma referencia costó más o se vendió a otro precio.
+//  4. Descuentos: se dieron más o menos descuentos.
+function porReferencia(r, costoPorId, porId) {
+  const refs = {};
+  let desc = 0;
+  r.vs.forEach((v) => {
+    const sub = (v.items || []).reduce((s, i) => s + (i.price || 0) * i.qty, 0);
+    desc += sub - (v.total || 0);
+    (v.items || []).forEach((i) => {
+      const a = (refs[i.id] = refs[i.id] || { nombre: porId[i.id]?.name || i.name, u: 0, venta: 0, costo: 0 });
+      a.u += i.qty;
+      a.venta += (i.price || 0) * i.qty;
+      a.costo += costoItem(i, costoPorId) * i.qty;
+    });
+  });
+  return { refs, desc };
+}
+
+function explicarGanancia(act, ant, costoPorId, porId) {
+  const A = porReferencia(act, costoPorId, porId);
+  const B = porReferencia(ant, costoPorId, porId);
+  const U1 = Object.values(A.refs).reduce((s, r) => s + r.u, 0);
+  const U0 = Object.values(B.refs).reduce((s, r) => s + r.u, 0);
+  if (!U0) return null;
+  const deja = (r) => (r.venta - r.costo) / r.u;
+  const promedio0 = Object.values(B.refs).reduce((s, r) => s + r.venta - r.costo, 0) / U0;
+
+  const ids = [...new Set([...Object.keys(A.refs), ...Object.keys(B.refs)])];
+  const filas = ids.map((id) => {
+    const a = A.refs[id];
+    const b = B.refs[id];
+    const m1 = a ? deja(a) : null;
+    const m0 = b ? deja(b) : m1; // referencia nueva: se compara contra sí misma
+    const u1 = a ? a.u : 0;
+    const u0 = b ? b.u : 0;
+    const deMas = u1 - (U1 * u0) / U0; // prendas de más (o de menos) frente a la mezcla de antes
+    return {
+      id,
+      nombre: (a || b).nombre,
+      m0,
+      deMas,
+      mezcla: deMas * (m0 - promedio0),
+      costoPrecio: a ? u1 * (m1 - m0) : 0,
+      c0: b ? b.costo / b.u : null,
+      c1: a ? a.costo / a.u : null,
+      p0: b ? b.venta / b.u : null,
+      p1: a ? a.venta / a.u : null,
+    };
+  });
+
+  const volumen = (U1 - U0) * promedio0;
+  const mezcla = filas.reduce((s, f) => s + f.mezcla, 0);
+  const costoPrecio = filas.reduce((s, f) => s + f.costoPrecio, 0);
+  const descuentos = -(A.desc - B.desc);
+  const enDireccion = (campo, signo) =>
+    filas
+      .filter((f) => Math.sign(f[campo]) === signo && Math.abs(f[campo]) >= 1)
+      .sort((x, y) => Math.abs(y[campo]) - Math.abs(x[campo]))
+      .slice(0, 2);
+
+  const dif = U1 - U0;
+  const factores = [
+    {
+      id: 'cantidad',
+      nombre: 'Cantidad de prendas',
+      valor: volumen,
+      texto:
+        dif === 0
+          ? `Se vendieron las mismas ${U1} prendas que antes.`
+          : `Se vendieron ${U1} prendas, ${Math.abs(dif)} ${dif < 0 ? 'menos' : 'más'} que antes (${U0}). Cada prenda dejaba en promedio ${fmt(promedio0)}.`,
+    },
+    {
+      id: 'mezcla',
+      nombre: 'Qué referencias se vendieron',
+      valor: mezcla,
+      texto: (() => {
+        const top = enDireccion('mezcla', Math.sign(mezcla));
+        if (!top.length) return 'Se vendió la misma mezcla de referencias que antes.';
+        return (
+          `Se vendió una mezcla que deja ${mezcla < 0 ? 'menos' : 'más'}: ` +
+          top
+            .map((f) => `${f.deMas < 0 ? 'menos' : 'más'} ${f.nombre} (deja ${fmt(f.m0)} por prenda)`)
+            .join(' y ') +
+          `. El promedio era ${fmt(promedio0)} por prenda.`
+        );
+      })(),
+    },
+    {
+      id: 'costo',
+      nombre: 'Costo y precio de cada referencia',
+      valor: costoPrecio,
+      texto: (() => {
+        const top = enDireccion('costoPrecio', Math.sign(costoPrecio));
+        if (!top.length) return 'Cada referencia costó y se vendió igual que antes.';
+        return (
+          top
+            .map((f) => {
+              const partes = [];
+              if (f.c0 != null && Math.round(f.c1) !== Math.round(f.c0)) partes.push(`costó ${fmt(f.c1)} por prenda (antes ${fmt(f.c0)})`);
+              if (f.p0 != null && Math.round(f.p1) !== Math.round(f.p0)) partes.push(`se vendió a ${fmt(f.p1)} (antes ${fmt(f.p0)})`);
+              return `${f.nombre} ${partes.join(' y ') || 'cambió poco'}`;
+            })
+            .join('; ') + '.'
+        );
+      })(),
+    },
+    {
+      id: 'descuentos',
+      nombre: 'Descuentos',
+      valor: descuentos,
+      texto: `Diste ${fmt(A.desc)} en descuentos (antes ${fmt(B.desc)}).`,
+    },
+  ];
+  return { total: act.ganancia - ant.ganancia, factores };
+}
+
+function PorQue({ explicacion, txtAntes }) {
+  if (!explicacion) {
+    return (
+      <Tarjeta ancha titulo="¿Por qué cambió la ganancia?" lectura={`No hay ventas en ${txtAntes} para comparar.`} />
+    );
+  }
+  const { total, factores } = explicacion;
+  const orden = [...factores].sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor));
+  const max = Math.max(1, ...factores.map((f) => Math.abs(f.valor)));
+  const principal = orden.find((f) => Math.sign(f.valor) === Math.sign(total));
+  const signo = (v) => (Math.round(v) === 0 ? '' : v < 0 ? '−' : '+');
   return (
-    <div className={`rp-alerta ${clase}`}>
-      <div className="rp-alerta-top">
-        <span className="rp-estado">{estado}</span>
-        <h3>{titulo}</h3>
+    <Tarjeta
+      ancha
+      titulo="¿Por qué cambió la ganancia?"
+      lectura={
+        Math.round(total) === 0 ? (
+          `La ganancia bruta quedó igual que en ${txtAntes}.`
+        ) : (
+          <>
+            La ganancia bruta <b>{total < 0 ? 'bajó' : 'subió'} {fmt(Math.abs(total))}</b> frente a {txtAntes}.
+            {principal && (
+              <>
+                {' '}
+                Lo que más pesó: <b>{principal.nombre.toLowerCase()}</b>.
+              </>
+            )}
+          </>
+        )
+      }
+    >
+      <div className="rp-porque">
+        {orden.map((f) => (
+          <div className="rp-porque-fila" key={f.id}>
+            <div className="rp-porque-texto">
+              <b>{f.nombre}</b>
+              <small>{f.texto}</small>
+            </div>
+            <div className="rp-porque-pista" aria-hidden="true">
+              <div
+                className={`rp-porque-barra ${f.valor < 0 ? 'baja' : 'sube'}`}
+                style={{ width: `${(Math.abs(f.valor) / max) * 50}%`, [f.valor < 0 ? 'right' : 'left']: '50%' }}
+              />
+            </div>
+            <div className={`rp-porque-valor ${Math.round(f.valor) === 0 ? '' : f.valor < 0 ? 'baja' : 'sube'}`}>
+              {signo(f.valor)}
+              {fmt(Math.abs(f.valor))}
+            </div>
+          </div>
+        ))}
+        <div className="rp-porque-fila total">
+          <div className="rp-porque-texto">
+            <b>Cambio total de la ganancia bruta</b>
+          </div>
+          <div />
+          <div className={`rp-porque-valor ${Math.round(total) === 0 ? '' : total < 0 ? 'baja' : 'sube'}`}>
+            {signo(total)}
+            {fmt(Math.abs(total))}
+          </div>
+        </div>
       </div>
-      {children}
-    </div>
+    </Tarjeta>
   );
 }
 
@@ -133,7 +307,6 @@ export default function ReporteNegocio() {
   const [hoy, setHoy] = useState(hoyStr());
   const [ventas, setVentas] = useState(null);
   const [gastos, setGastos] = useState([]);
-  const [compras, setCompras] = useState([]);
   const [entregas, setEntregas] = useState([]);
   const [inventario, setInventario] = useState(null);
   const [error, setError] = useState('');
@@ -145,19 +318,17 @@ export default function ReporteNegocio() {
   }, []);
 
   const P = useMemo(() => periodos(hoy)[periodo], [hoy, periodo]);
-  const desdeEscucha = [P.ant.desde, sumarDias(hoy, -29)].sort()[0];
+  const desdeEscucha = P.ant.desde;
 
   useEffect(() => {
     setVentas(null);
     const err = (e) => setError('No se pudo cargar: ' + e.message);
     const q1 = suscribirVentasRango(desdeEscucha, hoy, setVentas, err);
     const q2 = suscribirGastosRango(desdeEscucha, hoy, setGastos, err);
-    const q3 = suscribirComprasRango(P.desde, P.hasta, setCompras, err);
     const q4 = suscribirEntregasRango(P.desde, P.hasta, setEntregas, err);
     return () => {
       q1();
       q2();
-      q3();
       q4();
     };
   }, [desdeEscucha, hoy, P.desde, P.hasta]);
@@ -175,30 +346,10 @@ export default function ReporteNegocio() {
     const act = resumen(ventas, P.desde, P.hasta, costoPorId);
     const ant = resumen(ventas, P.ant.desde, P.ant.hasta, costoPorId);
 
-    // ---- Un paso adelante: ritmo de venta de los últimos 30 días ----
-    const desde30 = sumarDias(hoy, -29);
-    const vel = {};
-    ventas.forEach((v) => {
-      if (v.tipo !== 'venta' || v.anulada || !entre(v.fecha, desde30, hoy)) return;
-      (v.items || []).forEach((i) => {
-        vel[i.id] = (vel[i.id] || 0) + i.qty;
-      });
-    });
-    const visibles = inventario.filter((it) => !it.oculto);
-    const seAcaban = visibles
-      .map((it) => {
-        const pd = (vel[it.id] || 0) / 30;
-        const stock = it.stock || 0;
-        return { it, pd, stock, dias: pd ? stock / pd : Infinity };
-      })
-      .filter((x) => x.pd > 0 && x.dias < 14)
-      .sort((a, b) => a.dias - b.dias);
-    const quietas = visibles
-      .filter((it) => (vel[it.id] || 0) <= 2 && (it.stock || 0) >= 10)
-      .map((it) => ({ it, vendidas: vel[it.id] || 0, plata: (it.stock || 0) * (it.costoCompra || 0) }))
-      .sort((a, b) => b.plata - a.plata);
-    const parado = quietas.reduce((s, x) => s + x.plata, 0);
-    const comprasPeriodo = compras.filter((c) => entre(c.fecha, P.desde, P.hasta)).reduce((s, c) => s + (c.totalGeneral || 0), 0);
+    // ---- Por qué cambió la ganancia ----
+    const porQue = explicarGanancia(act, ant, costoPorId, porId);
+
+    // ---- Entregas de efectivo con faltantes ----
     const recibidas = entregas.filter((e) => e.estado === 'recibido');
     const faltas = recibidas.filter((e) => (e.difEntrega || 0) < 0).sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
     const faltaTot = faltas.reduce((s, e) => s - e.difEntrega, 0);
@@ -307,10 +458,7 @@ export default function ReporteNegocio() {
     return {
       act,
       ant,
-      seAcaban,
-      quietas,
-      parado,
-      comprasPeriodo,
+      porQue,
       faltas,
       faltaTot,
       nEntregas: recibidas.length,
@@ -331,7 +479,7 @@ export default function ReporteNegocio() {
       anuladas,
       conDesc,
     };
-  }, [ventas, inventario, gastos, compras, entregas, P, hoy]);
+  }, [ventas, inventario, gastos, entregas, P, hoy]);
 
   const filtros = (
     <div className="rp-filtros">
@@ -349,7 +497,7 @@ export default function ReporteNegocio() {
   const d = datos;
   const { act, ant } = d;
   const margen = act.total ? (act.ganancia / act.total) * 100 : 0;
-  const ratio = act.costo ? d.comprasPeriodo / act.costo : 0;
+  const margenAntes = ant.total ? (ant.ganancia / ant.total) * 100 : null;
   const efectivo = act.total ? ((d.medios.find(([m]) => m === 'Efectivo')?.[1] || 0) / act.total) * 100 : 0;
 
   return (
@@ -366,7 +514,7 @@ export default function ReporteNegocio() {
           valor={corto(act.ganancia)}
           a={act.ganancia}
           b={ant.ganancia}
-          sub={`Margen del ${margen.toFixed(0)}% · antes ${corto(ant.ganancia)}`}
+          sub={`Antes ${corto(ant.ganancia)} · margen del ${margen.toFixed(0)}%${margenAntes != null ? ` (antes ${margenAntes.toFixed(0)}%)` : ''}`}
         />
         <Kpi
           label="Prendas vendidas"
@@ -378,97 +526,8 @@ export default function ReporteNegocio() {
         <Kpi label="Venta promedio" valor={corto(act.ticket)} a={act.ticket} b={ant.ticket} sub={`Por cliente · antes ${corto(ant.ticket)}`} />
       </div>
 
-      <h2 className="rp-seccion-tit">Un paso adelante</h2>
-      <div className="rp-alertas">
-        {d.seAcaban.length > 0 ? (
-          <Alerta clase="critica" estado="⚠ Pedir ya" titulo="Se van a acabar">
-            <p>Al ritmo que se vendieron en los últimos 30 días, estas referencias se acaban en menos de dos semanas.</p>
-            <ul>
-              {d.seAcaban.slice(0, 8).map((x) => (
-                <li key={x.it.id}>
-                  <span>
-                    <b>{x.it.name}</b> · {x.stock === 0 ? 'ya no hay' : `quedan ${x.stock}`}
-                  </span>
-                  <span>
-                    {x.stock === 0
-                      ? `se vendían ${x.pd.toLocaleString('es-CO', { maximumFractionDigits: 1 })} al día`
-                      : `se acaba en ~${Math.max(1, Math.round(x.dias))} ${Math.max(1, Math.round(x.dias)) === 1 ? 'día' : 'días'} (${x.pd.toLocaleString('es-CO', { maximumFractionDigits: 1 })} al día)`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Alerta>
-        ) : (
-          <Alerta clase="info" estado="✓ Bien" titulo="Se van a acabar">
-            <p>Ninguna referencia se acaba en las próximas dos semanas al ritmo de venta de los últimos 30 días.</p>
-          </Alerta>
-        )}
-
-        {d.quietas.length > 0 ? (
-          <Alerta clase="cuidado" estado="● Plata quieta" titulo="Mercancía que no se mueve">
-            <p>
-              Casi no se vendieron en 30 días y tienen <b>{corto(d.parado)}</b> invertidos (a precio de compra). Candidatas a promoción o a no
-              volver a comprar.
-            </p>
-            <ul>
-              {d.quietas.slice(0, 6).map((x) => (
-                <li key={x.it.id}>
-                  <span>
-                    <b>{x.it.name}</b> · {x.it.stock} en stock
-                  </span>
-                  <span>
-                    {x.vendidas === 1 ? '1 vendida' : `${x.vendidas} vendidas`} en 30 días · {corto(x.plata)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Alerta>
-        ) : (
-          <Alerta clase="info" estado="✓ Bien" titulo="Mercancía que no se mueve">
-            <p>No hay referencias con mucho stock quietas en los últimos 30 días.</p>
-          </Alerta>
-        )}
-
-        <Alerta clase="info" estado="◆ Compras" titulo="Lo que entra contra lo que sale">
-          <p>
-            En este período compraste <b>{corto(d.comprasPeriodo)}</b> en mercancía y vendiste prendas que te habían costado{' '}
-            <b>{corto(act.costo)}</b>.{' '}
-            {!act.costo
-              ? ''
-              : ratio > 1.15
-                ? 'Estás comprando más de lo que vendes: el inventario está creciendo.'
-                : ratio < 0.85
-                  ? 'Estás vendiendo más de lo que repones: el inventario está bajando.'
-                  : 'Compras y ventas van parejas.'}
-          </p>
-        </Alerta>
-
-        <Alerta clase={d.faltaTot ? 'cuidado' : 'info'} estado={d.faltaTot ? '● Revisar' : '✓ Bien'} titulo="Control de caja">
-          <p>
-            {d.faltaTot ? (
-              <>
-                En <b>{d.faltas.length}</b> {d.faltas.length === 1 ? 'entrega' : 'entregas'} de efectivo faltó plata: <b>{fmt(d.faltaTot)}</b> en total.
-              </>
-            ) : d.nEntregas ? (
-              `Las ${d.nEntregas} entregas de efectivo del período cuadraron.`
-            ) : (
-              'Todavía no hay entregas de efectivo recibidas en este período.'
-            )}
-          </p>
-          {d.faltas.length > 0 && (
-            <ul>
-              {d.faltas.slice(0, 4).map((e) => (
-                <li key={e.id}>
-                  <span>
-                    Efectivo del {fechaLarga(e.fecha)}
-                    {e.entregoNombre ? ` · ${e.entregoNombre}` : ''}
-                  </span>
-                  <span>faltaron {fmt(-e.difEntrega)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Alerta>
+      <div className="rp-porque-wrap">
+        <PorQue explicacion={d.porQue} txtAntes={P.ant.txt} />
       </div>
 
       <h2 className="rp-seccion-tit">Cómo se vende</h2>

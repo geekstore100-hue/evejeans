@@ -779,24 +779,23 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
 .rp-kpi-delta.neutro { color: var(--ink-soft); background: var(--paper); font-weight: 700; }
 .rp-kpi-sub { font-size: 12px; color: var(--rp-muted); margin-top: 6px; }
 
-/* Un paso adelante */
-.rp-seccion-tit { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft); margin: 4px 0 10px; }
-.rp-alertas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
-.rp-alerta { background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
-.rp-alerta.critica { border-left-color: var(--rp-mal); }
-.rp-alerta.cuidado { border-left-color: var(--rp-aviso); }
-.rp-alerta.info { border-left-color: var(--cian-fuerte); }
-.rp-alerta-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.rp-estado { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
-.critica .rp-estado { background: var(--rp-mal-suave); color: var(--rp-mal); }
-.cuidado .rp-estado { background: var(--rp-aviso-suave); color: var(--rp-aviso); }
-.info .rp-estado { background: var(--cian-suave); color: var(--cian-fuerte); }
-.rp-alerta h3 { margin: 0; font-size: 16px; }
-.rp-alerta p { margin: 0 0 8px; font-size: 14px; line-height: 1.45; color: var(--ink-soft); }
-.rp-alerta p b { color: var(--ink); }
-.rp-alerta ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; }
-.rp-alerta li { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; border-top: 1px solid var(--rp-grid); padding-top: 5px; }
-.rp-alerta li span:last-child { font-variant-numeric: tabular-nums; color: var(--ink-soft); text-align: right; }
+/* ¿Por qué cambió la ganancia? */
+.rp-porque-wrap { margin-bottom: 22px; }
+.rp-porque { display: grid; }
+.rp-porque-fila { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 28%) 110px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rp-grid); }
+.rp-porque-fila.total { border-top: 2px solid var(--ink); }
+.rp-porque-texto { min-width: 0; font-size: 14px; }
+.rp-porque-texto b { display: block; }
+.rp-porque-texto small { display: block; color: var(--ink-soft); font-size: 13px; line-height: 1.4; margin-top: 2px; }
+.rp-porque-pista { position: relative; height: 16px; }
+.rp-porque-pista::before { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--rp-gris); }
+.rp-porque-barra { position: absolute; top: 1px; height: 14px; min-width: 2px; }
+.rp-porque-barra.sube { background: var(--rp-bien); border-radius: 0 4px 4px 0; }
+.rp-porque-barra.baja { background: var(--rp-mal); border-radius: 4px 0 0 4px; }
+.rp-porque-valor { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-porque-valor.sube { color: var(--rp-bien); }
+.rp-porque-valor.baja { color: var(--rp-mal); }
+.rp-porque-fila.total .rp-porque-valor { font-size: 17px; }
 
 /* Gráficos */
 .rp-graficos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -907,7 +906,7 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
 
 @media (max-width: 860px) {
   .rp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .rp-alertas, .rp-graficos { grid-template-columns: minmax(0, 1fr); }
+  .rp-graficos { grid-template-columns: minmax(0, 1fr); }
   .rp-resumen-diario { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
@@ -915,6 +914,8 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
   .rp-acciones { margin-left: 0; width: 100%; }
   .rp-acciones .rp-btn { flex: 1; }
   .rp-fecha-top { grid-template-columns: 56px minmax(0, 1fr); }
+  .rp-porque-fila { grid-template-columns: minmax(0, 1fr) 100px; gap: 6px 10px; }
+  .rp-porque-texto { grid-column: 1 / -1; }
   .rp-fecha-plata { grid-column: 2; text-align: left; }
   /* En el celular el libro diario va como tarjetas, sin deslizar de lado. */
   .rp-diario:not(.rp-fechas-tabla) { min-width: 0; }
