@@ -29,14 +29,13 @@ import {
 // - La factura que se está armando queda guardada en este dispositivo hasta
 //   terminarla: si se cambia de pestaña o se recarga la página, no se pierde.
 //
-// modo "fausto": solo ve y toca sus propias facturas; no se le pregunta
-// proveedor ni de dónde sale la plata (siempre es el efectivo que recogió).
-// modo "nelson": ve las facturas de todos, puede corregir o eliminar cualquiera
-// que siga sin recibir, y al terminar una suya se le pregunta el proveedor y de
-// dónde sale la plata.
+// En ninguno de los dos modos se pregunta proveedor ni de dónde sale la
+// plata: siempre sale del efectivo que recoge Fausto (ver "Entrega de dinero").
+// modo "fausto": solo ve y toca sus propias facturas.
+// modo "nelson": ve las facturas de todos, y puede corregir o eliminar
+// cualquiera que siga sin recibir.
 
 const PRENDAS = ['Chaquetas de jean', 'Chaquetas de cuerina', 'Short', 'Blusa', 'Faldas'];
-const ORIGENES = ['Efectivo de la caja', 'Nequi del local', 'Datáfono del local', 'Transferencia bancaria'];
 const UMBRAL_COSTO_BAJO = 5000;
 
 function fmt(n) {
@@ -100,7 +99,7 @@ export default function FacturasCompra({ usuario, modo }) {
 
   const [vista, setVista] = useState(borradorInicial?.abierta ? 'factura' : 'hoy');
   // { compraId: null | id (si se corrige una guardada), facturaNum, fecha,
-  //   usuarioId (dueño), lineas, proveedor, origen }
+  //   usuarioId (dueño), lineas }
   const [abierta, setAbierta] = useState(borradorInicial?.abierta || null);
   const [hoja, setHoja] = useState(null);
   const [flujo, setFlujo] = useState(null); // { paso, d: {refId, prenda, cant, costo}, edit, orig }
@@ -111,7 +110,6 @@ export default function FacturasCompra({ usuario, modo }) {
   const [expandida, setExpandida] = useState(null);
   const [confirmarEliminar, setConfirmarEliminar] = useState(null);
   const [verHistorial, setVerHistorial] = useState(false);
-  const [cerrar, setCerrar] = useState({ proveedor: '', origen: null });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [toast, setToast] = useState('');
@@ -367,8 +365,6 @@ export default function FacturasCompra({ usuario, modo }) {
         fecha: hoy,
         usuarioId: usuario.id,
         lineas: [],
-        proveedor: '',
-        origen: null,
       });
     }
     setVista('factura');
@@ -401,8 +397,6 @@ export default function FacturasCompra({ usuario, modo }) {
       fecha: c.fecha,
       usuarioId: c.usuarioId,
       lineas: lineasDePedido(c),
-      proveedor: c.proveedor || '',
-      origen: c.origen || null,
     });
     setExpandida(null);
     setMsg('');
@@ -424,21 +418,12 @@ export default function FacturasCompra({ usuario, modo }) {
     }
   }
 
-  // Nelson, en sus propias facturas, dice el proveedor y de dónde sale la
-  // plata antes de guardar. En las de Fausto (o en la pantalla de Fausto) no.
-  const pideCierre = esNelson && abierta && (!abierta.compraId || abierta.usuarioId === usuario.id);
-
   function tocarTerminar() {
     if (!abierta || abierta.lineas.length === 0 || guardando) return;
-    if (pideCierre) {
-      setCerrar({ proveedor: abierta.proveedor || '', origen: abierta.origen || null, error: '' });
-      setHoja({ tipo: 'cerrar' });
-      return;
-    }
-    guardarFactura({});
+    guardarFactura();
   }
 
-  async function guardarFactura({ proveedor, origen }) {
+  async function guardarFactura() {
     setMsg('');
     setGuardando(true);
     const items = abierta.lineas.map((l) => ({
@@ -454,14 +439,14 @@ export default function FacturasCompra({ usuario, modo }) {
     try {
       let id = abierta.compraId;
       if (abierta.compraId) {
-        await ajustarPedido(abierta.compraId, items, pideCierre ? { proveedor: proveedor.trim() || null, origen } : {});
+        await ajustarPedido(abierta.compraId, items);
       } else {
         const res = await crearPedidoCompra({
           items,
-          // Fausto no anota proveedor, y su plata siempre sale del efectivo que
-          // ya recogió de la caja (ver "Entrega de dinero").
-          proveedor: esNelson ? proveedor : null,
-          origen: esNelson ? origen : 'Efectivo de la caja',
+          // No se anota proveedor, y la plata siempre sale del efectivo que
+          // recoge Fausto de la caja (ver "Entrega de dinero").
+          proveedor: null,
+          origen: 'Efectivo de la caja',
           usuario,
           facturaNum: numero,
         });
@@ -474,23 +459,10 @@ export default function FacturasCompra({ usuario, modo }) {
       setToast(`✓ Factura ${numero} guardada · ${fmt(total)}`);
       window.scrollTo(0, 0);
     } catch (e) {
-      setHoja(null);
       setMsg('No se pudo guardar la factura: ' + (e.message || 'error desconocido') + '. Inténtalo de nuevo.');
     } finally {
       setGuardando(false);
     }
-  }
-
-  function confirmarCierre() {
-    if (!cerrar.proveedor.trim()) {
-      setCerrar((c) => ({ ...c, error: 'Falta el proveedor.' }));
-      return;
-    }
-    if (!cerrar.origen) {
-      setCerrar((c) => ({ ...c, error: 'Falta decir de dónde sale la plata.' }));
-      return;
-    }
-    guardarFactura({ proveedor: cerrar.proveedor, origen: cerrar.origen });
   }
 
   function descartarFactura() {
@@ -541,8 +513,7 @@ export default function FacturasCompra({ usuario, modo }) {
         <div className="ff-detalle-estado">
           Guardada a las {c.hora}
           {esNelson && c.usuarioNombre ? ` por ${c.usuarioNombre}` : ''}
-          {esNelson && c.proveedor ? ` · ${c.proveedor}` : ''}
-          {esNelson && c.origen ? ` · ${c.origen}` : ''} ·{' '}
+          {' · '}
           {c.estado === 'pendiente'
             ? 'todavía no la reciben en la tienda'
             : `ya la recibió ${c.confirmadoPor || 'la tienda'}, no se puede cambiar`}
@@ -1026,46 +997,6 @@ export default function FacturasCompra({ usuario, modo }) {
       );
     }
 
-    if (hoja.tipo === 'cerrar') {
-      return (
-        <>
-          <h3 className="ff-sheet-title">Factura {numAbierta} · {fmt(totalLineas(abierta.lineas))}</h3>
-          <p className="ff-sheet-sub">Antes de guardarla:</p>
-          <label className="ff-campo-label" htmlFor="ff-proveedor">
-            Proveedor
-          </label>
-          <input
-            id="ff-proveedor"
-            className="ff-campo"
-            type="text"
-            placeholder="Nombre del proveedor"
-            value={cerrar.proveedor}
-            onChange={(e) => setCerrar((c) => ({ ...c, proveedor: e.target.value, error: '' }))}
-          />
-          <div className="ff-campo-label">¿De dónde sale la plata?</div>
-          <div className="ff-chips">
-            {ORIGENES.map((o) => (
-              <button
-                key={o}
-                className={`ff-chip ${cerrar.origen === o ? 'on' : ''}`}
-                onClick={() => setCerrar((c) => ({ ...c, origen: o, error: '' }))}
-              >
-                {o}
-              </button>
-            ))}
-          </div>
-          {cerrar.error && <div className="ff-aviso">{cerrar.error}</div>}
-          <div className="ff-fila-btns">
-            <button className="ff-btn-main" disabled={guardando} onClick={confirmarCierre}>
-              {guardando ? 'Guardando…' : 'Guardar factura'}
-            </button>
-            <button className="ff-btn-sec" onClick={() => setHoja(null)}>
-              Volver a la factura
-            </button>
-          </div>
-        </>
-      );
-    }
     return null;
   }
 
