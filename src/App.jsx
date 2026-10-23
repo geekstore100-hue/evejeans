@@ -19,6 +19,7 @@ import Movimientos from './pages/Movimientos';
 import Conciliacion from './pages/Conciliacion';
 import Capital from './pages/Capital';
 import Nequi from './pages/Nequi';
+import MenuNelson from './components/MenuNelson';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -134,118 +135,89 @@ export default function App() {
     );
   }
 
-  return (
-    <div className={vista === 'vender' ? 'con-panel-fijo' : ''}>
-      <div className="topbar">
-        <div className="brand">
-          <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
-          <span>· punto de venta</span>
-        </div>
-        <div className="spacer" />
-        <div className="who">
-          Turno de <b>{usuario.nombreDefault}</b>
-        </div>
-        <button className="link-btn" onClick={cambiarDeTurno}>
-          Cambiar de turno
-        </button>
-        {usuario.id === 'nelson' && (
-          <>
-            <div className="topbar-divider" />
-            {panicoActivo ? (
-              <button
-                className="panic-btn desbloquear"
-                onClick={async () => {
-                  const ok = window.confirm(
-                    'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
-                  );
-                  if (!ok) return;
-                  try {
-                    await desactivarPanico(usuario);
-                  } catch (e) {
-                    alert('No se pudo desactivar: ' + e.message);
-                  }
-                }}
-              >
-                🔓 Desbloquear tienda
-              </button>
-            ) : (
-              <button
-                className="panic-btn bloquear"
-                onClick={async () => {
-                  const ok = window.confirm(
-                    'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
-                  );
-                  if (!ok) return;
-                  try {
-                    await activarPanico(usuario);
-                  } catch (e) {
-                    alert('No se pudo activar: ' + e.message);
-                  }
-                }}
-              >
-                🔒 Bloquear tienda
-              </button>
-            )}
-          </>
-        )}
-      </div>
+  async function bloquearTienda() {
+    const ok = window.confirm(
+      'Esto cierra ahora mismo la sesión de la cuenta de vendedoras en el computador de la tienda, y no la deja volver a entrar hasta que lo desactives (tú puedes hacerlo cuando quieras desde tu cuenta). ¿Seguro que quieres activarlo?'
+    );
+    if (!ok) return;
+    try {
+      await activarPanico(usuario);
+    } catch (e) {
+      alert('No se pudo activar: ' + e.message);
+    }
+  }
 
-      <nav className="tabs">
-        <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
-          Vender
-        </button>
-        <button className={vista === 'cambios' ? 'on' : ''} onClick={() => setVista('cambios')}>
-          Cambios
-        </button>
-        <button className={vista === 'gastos' ? 'on' : ''} onClick={() => setVista('gastos')}>
-          Gastos
-        </button>
-        <button className={vista === 'cierre' ? 'on' : ''} onClick={() => setVista('cierre')}>
-          Cierre del día
-        </button>
-        <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
-          Entrega de dinero
-        </button>
-        <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
-          Recibir mercancía
-        </button>
-        <button className={vista === 'entradasSalidas' ? 'on' : ''} onClick={() => setVista('entradasSalidas')}>
-          Entradas y salidas
-        </button>
-        <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
-          Historial
-        </button>
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'compras' ? 'on' : ''} onClick={() => setVista('compras')}>
-            Compras
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'inventario' ? 'on' : ''} onClick={() => setVista('inventario')}>
-            Inventario
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'ganancia' ? 'on' : ''} onClick={() => setVista('ganancia')}>
-            Ganancia
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'conciliacion' ? 'on' : ''} onClick={() => setVista('conciliacion')}>
-            Conciliación
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'capital' ? 'on' : ''} onClick={() => setVista('capital')}>
-            Capital disponible
-          </button>
-        )}
-        {usuario.id === 'nelson' && (
-          <button className={vista === 'nequi' ? 'on' : ''} onClick={() => setVista('nequi')}>
-            Nequi
-          </button>
-        )}
-      </nav>
+  async function desbloquearTienda() {
+    const ok = window.confirm(
+      'Esto permite que la cuenta de vendedoras vuelva a entrar en el computador de la tienda. ¿Seguro que quieres desactivarlo?'
+    );
+    if (!ok) return;
+    try {
+      await desactivarPanico(usuario);
+    } catch (e) {
+      alert('No se pudo desactivar: ' + e.message);
+    }
+  }
+
+  const esNelson = usuario.id === 'nelson';
+
+  return (
+    <div className={`${vista === 'vender' ? 'con-panel-fijo' : ''} ${esNelson ? 'es-nelson' : ''}`}>
+      {esNelson ? (
+        // Nelson tiene su propio menú, agrupado (ver components/MenuNelson.jsx).
+        <MenuNelson
+          usuario={usuario}
+          vista={vista}
+          setVista={setVista}
+          panicoActivo={panicoActivo}
+          onCambiarTurno={cambiarDeTurno}
+          onBloquear={bloquearTienda}
+          onDesbloquear={desbloquearTienda}
+        />
+      ) : (
+        <>
+          <div className="topbar">
+            <div className="brand">
+              <img src="/logo.png" alt="Eve Jeans" className="brand-logo" />
+              <span>· punto de venta</span>
+            </div>
+            <div className="spacer" />
+            <div className="who">
+              Turno de <b>{usuario.nombreDefault}</b>
+            </div>
+            <button className="link-btn" onClick={cambiarDeTurno}>
+              Cambiar de turno
+            </button>
+          </div>
+
+          <nav className="tabs">
+            <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
+              Vender
+            </button>
+            <button className={vista === 'cambios' ? 'on' : ''} onClick={() => setVista('cambios')}>
+              Cambios
+            </button>
+            <button className={vista === 'gastos' ? 'on' : ''} onClick={() => setVista('gastos')}>
+              Gastos
+            </button>
+            <button className={vista === 'cierre' ? 'on' : ''} onClick={() => setVista('cierre')}>
+              Cierre del día
+            </button>
+            <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
+              Entrega de dinero
+            </button>
+            <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
+              Recibir mercancía
+            </button>
+            <button className={vista === 'entradasSalidas' ? 'on' : ''} onClick={() => setVista('entradasSalidas')}>
+              Entradas y salidas
+            </button>
+            <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
+              Historial
+            </button>
+          </nav>
+        </>
+      )}
 
       <main>
         {vista === 'vender' && <Vender usuario={usuario} />}
