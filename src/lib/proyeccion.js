@@ -35,31 +35,41 @@ function totalesPorDia(historicos, ventas) {
   return dias;
 }
 
-function haceUnAnio(fecha) {
-  const d = parseFecha(fecha);
-  const x = new Date(d.getFullYear() - 1, d.getMonth(), d.getDate());
-  // 29 de febrero -> 28
-  return x.getMonth() === d.getMonth() ? fechaStr(x) : fechaStr(new Date(d.getFullYear() - 1, d.getMonth() + 1, 0));
-}
+const MESES_ADELANTE = 5; // de este mes hasta 5 meses después (ej. octubre → marzo)
+const ANIOS_ATRAS = 3;
 
-export function calcularProyeccion({ historicos, ventasRecientes, ventasAnioPasado, inventario, pendientes, hoy, mesesAdelante = 2 }) {
+function haceAnios(fecha, y) {
+  const d = parseFecha(fecha);
+  const x = new Date(d.getFullYear() - y, d.getMonth(), d.getDate());
+  // 29 de febrero -> 28
+  return x.getMonth() === d.getMonth() ? fechaStr(x) : fechaStr(new Date(d.getFullYear() - y, d.getMonth() + 1, 0));
+}
+const haceUnAnio = (f) => haceAnios(f, 1);
+
+export function calcularProyeccion({ historicos, ventasRecientes, ventasAnioPasado, inventario, pendientes, hoy, mesesAdelante = MESES_ADELANTE }) {
   const dias = totalesPorDia(historicos, [...ventasRecientes, ...ventasAnioPasado]);
 
-  // ---- Crecimiento: últimas 4 semanas contra las mismas de hace un año (364 días: mismo día de la semana) ----
-  let reciente = 0;
-  let antes = 0;
-  let conDato = 0;
-  for (let i = 1; i <= 28; i++) {
-    const f = sumarDias(hoy, -i);
-    const g = sumarDias(f, -364);
-    if (dias[f] != null && dias[g] != null) {
-      reciente += dias[f];
-      antes += dias[g];
-      conDato++;
+  // ---- Crecimiento: últimas 4 semanas contra las mismas de hace 1, 2 y 3
+  // años (364 días por año: mismo día de la semana). Si a un día del año
+  // pasado le falta el dato, se usa el de hace 2 años con su propio crecimiento.
+  function crecimientoContra(y) {
+    let reciente = 0;
+    let antes = 0;
+    let conDato = 0;
+    for (let i = 1; i <= 28; i++) {
+      const f = sumarDias(hoy, -i);
+      const g = sumarDias(f, -364 * y);
+      if (dias[f] != null && dias[g] != null) {
+        reciente += dias[f];
+        antes += dias[g];
+        conDato++;
+      }
     }
+    return conDato >= 20 && antes > 0 ? reciente / antes : null;
   }
-  const crecimiento = conDato >= 20 && antes > 0 ? reciente / antes : null;
-  const factor = crecimiento || 1;
+  const crecimientos = {};
+  for (let y = 1; y <= ANIOS_ATRAS; y++) crecimientos[y] = crecimientoContra(y);
+  const crecimiento = crecimientos[1];
 
   // ---- Mezcla: qué parte de la venta se lleva cada referencia (últimos 60 días) ----
   const desdeMezcla = sumarDias(hoy, -DIAS_MEZCLA);
@@ -91,12 +101,18 @@ export function calcularProyeccion({ historicos, ventasRecientes, ventasAnioPasa
   const finPeriodo = fechaStr(new Date(h.getFullYear(), h.getMonth() + mesesAdelante + 1, 0));
   const meses = [];
   const mesDe = (f) => f.slice(0, 7);
-  let sinDatoAnioPasado = 0;
   const diasFuturos = [];
   for (let f = hoy; f <= finPeriodo; f = sumarDias(f, 1)) {
-    const ref = dias[haceUnAnio(f)];
-    if (ref == null) sinDatoAnioPasado++;
-    diasFuturos.push({ fecha: f, esperado: ref != null ? ref * factor : null });
+    let esperado = null;
+    let base = null;
+    for (let y = 1; y <= ANIOS_ATRAS && esperado == null; y++) {
+      const ref = dias[haceAnios(f, y)];
+      if (ref != null) {
+        esperado = ref * (crecimientos[y] || 1);
+        base = y;
+      }
+    }
+    diasFuturos.push({ fecha: f, esperado, base });
   }
   // Días sin dato del año pasado: el promedio de los días con dato de ese mes.
   const promMes = {};
@@ -113,12 +129,14 @@ export function calcularProyeccion({ historicos, ventasRecientes, ventasAnioPasa
     let m = meses.find((x) => x.clave === mesDe(d.fecha));
     if (!m) {
       const p = parseFecha(d.fecha);
-      m = { clave: mesDe(d.fecha), mes: `${MESES[p.getMonth()]} ${p.getFullYear()}`, desde: d.fecha, hasta: d.fecha, venta_esperada: 0, venta_mismos_dias_anio_pasado: 0 };
+      m = { clave: mesDe(d.fecha), mes: `${MESES[p.getMonth()]} ${p.getFullYear()}`, desde: d.fecha, hasta: d.fecha, venta_esperada: 0, venta_mismos_dias_anio_pasado: 0, bases: {} };
       meses.push(m);
     }
     m.hasta = d.fecha;
     m.venta_esperada += d.esperado;
     m.venta_mismos_dias_anio_pasado += dias[haceUnAnio(d.fecha)] || 0;
+    const b = d.base ? `hace ${d.base} ${d.base === 1 ? 'año' : 'años'}` : 'sin dato (promedio del mes)';
+    m.bases[b] = (m.bases[b] || 0) + 1;
   });
 
   // ---- Por referencia ----
@@ -144,6 +162,7 @@ export function calcularProyeccion({ historicos, ventasRecientes, ventasAnioPasa
           mes: m.mes,
           prendas_esperadas: Math.round(porMes[m.clave] || 0),
           faltan_comprar_para_cubrir_hasta_fin_de_mes: Math.max(0, Math.round(acum - stock - camino)),
+          quedarian_al_final_del_mes_sin_comprar_mas: Math.max(0, Math.round(stock + camino - acum)),
         };
       });
       return {
@@ -163,20 +182,23 @@ export function calcularProyeccion({ historicos, ventasRecientes, ventasAnioPasa
 
   return {
     como_se_calculo:
-      'Venta esperada de cada día = lo que se vendió el mismo día del año pasado × el crecimiento de la tienda. ' +
+      'Venta esperada de cada día = lo que se vendió el mismo día del año pasado × el crecimiento de la tienda desde entonces. ' +
+      'Si falta el dato del año pasado (por ejemplo enero a julio de 2026, que no está cargado), se usa el de hace 2 años × el crecimiento desde hace 2 años; ' +
+      '"calculado_con" dice cuántos días de cada mes salieron de cada año. Lo calculado con datos de hace 2 años es menos seguro. ' +
       `A cada referencia le toca su parte de la venta de los últimos ${DIAS_MEZCLA} días, al precio promedio al que se vendió. ` +
       'Supone que en estas fechas se vende la misma mezcla de referencias que en los últimos 60 días (en temporada puede cambiar). ' +
       '"faltan_comprar_para_cubrir_hasta_fin_de_mes" ya descuenta el stock de hoy y lo que viene en facturas sin recibir.',
     hoy,
     crecimiento_vs_anio_pasado_pct: crecimiento ? Math.round((crecimiento - 1) * 100) : null,
+    crecimiento_vs_hace_2_anios_pct: crecimientos[2] ? Math.round((crecimientos[2] - 1) * 100) : null,
     nota_crecimiento: crecimiento ? null : 'No hay datos suficientes del año pasado para estas semanas; se supuso que la tienda vende igual que hace un año.',
-    dias_sin_dato_del_anio_pasado: sinDatoAnioPasado,
     meses: meses.map((m) => ({
       mes: m.mes,
       desde: m.desde,
       hasta: m.hasta,
       venta_esperada: Math.round(m.venta_esperada),
       venta_mismos_dias_anio_pasado: Math.round(m.venta_mismos_dias_anio_pasado),
+      calculado_con: Object.entries(m.bases).map(([k, n]) => `${n} días con datos de ${k}`).join(', '),
     })),
     referencias,
   };
@@ -189,11 +211,12 @@ async function leer(q) {
 
 // Lee lo necesario (una sola vez, al hacer la primera pregunta) y calcula.
 export async function cargarProyeccion(hoy) {
-  const finAnioPasado = sumarDias(hoy, -365 + 100);
+  // Del sistema, el año pasado por estas fechas (cuando ya haya un año de
+  // sistema): desde 4 semanas antes de hoy hasta el final de la proyección.
+  const finAnioPasado = sumarDias(hoy, -365 + 31 * (MESES_ADELANTE + 1));
   const [historicos, ventasRecientes, ventasAnioPasado, inventario, pendientes] = await Promise.all([
     leer(collection(db, 'ventasHistoricas')),
     leer(query(collection(db, 'ventas'), where('fecha', '>=', sumarDias(hoy, -DIAS_MEZCLA)), where('fecha', '<=', hoy))),
-    // Del sistema, el año pasado por estas fechas (cuando ya haya un año de sistema).
     leer(query(collection(db, 'ventas'), where('fecha', '>=', sumarDias(hoy, -400)), where('fecha', '<=', finAnioPasado))),
     leer(collection(db, 'inventario')),
     leer(query(collection(db, 'compras'), where('estado', '==', 'pendiente'))),
