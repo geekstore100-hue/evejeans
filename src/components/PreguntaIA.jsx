@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { suscribirConfig, guardarConfig } from '../lib/config';
 import { activarAppCheck, preguntarIA } from '../lib/ia';
+import { cargarProyeccion } from '../lib/proyeccion';
+import { hoyStr } from '../lib/reportes';
 
 // Tarjeta "Pregúntale a la IA" (Reportes, solo Nelson). Le manda a Gemini un
 // resumen de los números del período (sin nombres de personas) y la pregunta,
@@ -93,14 +95,33 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
     // La primera pregunta va con los datos; las siguientes ya los tienen en
     // la conversación.
     const previos = mensajes.filter((m) => !m.error && !m.fallida);
-    const conDatos = previos.length
-      ? q
-      : `Datos de la tienda (JSON):\n${JSON.stringify(resumen)}\n\nPregunta de Nelson: ${q}`;
     const historial = previos.map((m, i) => (i === 0 ? { ...m, texto: m.textoEnviado || m.texto } : m));
-    setMensajes((ms) => [...ms.filter((m) => !m.error && !m.fallida), { rol: 'yo', texto: q, textoEnviado: conDatos }, { rol: 'ia', texto: '' }]);
+    setMensajes((ms) => [...ms.filter((m) => !m.error && !m.fallida), { rol: 'yo', texto: q }, { rol: 'ia', texto: '' }]);
     setPensando(true);
-    setEstado('verificando');
     setSegundos(0);
+    let conDatos = q;
+    if (!previos.length) {
+      // Primera pregunta: va con los números del período y con la proyección
+      // de ventas y compras por referencia (ver lib/proyeccion.js).
+      setEstado('preparando');
+      let proyeccion = null;
+      try {
+        proyeccion = await Promise.race([
+          cargarProyeccion(hoyStr()),
+          new Promise((_, no) => setTimeout(() => no(new Error('tardó demasiado')), 20000)),
+        ]);
+      } catch (e) {
+        console.error('Proyección para la IA:', e);
+        proyeccion = { error: 'No se pudo calcular la proyección: ' + e.message };
+      }
+      conDatos = `Datos de la tienda (JSON):\n${JSON.stringify({ ...resumen, proyeccion })}\n\nPregunta de Nelson: ${q}`;
+      setMensajes((ms) => {
+        const copia = ms.slice();
+        copia[copia.length - 2] = { ...copia[copia.length - 2], textoEnviado: conDatos };
+        return copia;
+      });
+    }
+    setEstado('verificando');
     const poner = (t, error, detalle) =>
       setMensajes((ms) => {
         const copia = ms.slice();
@@ -183,7 +204,7 @@ export default function PreguntaIA({ resumen, nombres, reiniciarCon, puedeConfig
                         <p>{m.texto}</p>
                         {m.detalle && <p className="rp-ia-detalle">Detalle técnico: {m.detalle}</p>}
                       </>
-                    ) : <Respuesta texto={m.texto} nombres={nombres} /> : <p className="rp-ia-pensando">{estado === 'verificando' ? 'Verificando la app' : 'La IA está pensando'}… {segundos > 2 ? `${segundos} s` : ''}</p>}
+                    ) : <Respuesta texto={m.texto} nombres={nombres} /> : <p className="rp-ia-pensando">{estado === 'preparando' ? 'Preparando los números' : estado === 'verificando' ? 'Verificando la app' : 'La IA está pensando'}… {segundos > 2 ? `${segundos} s` : ''}</p>}
                   </div>
                 )
               )}
