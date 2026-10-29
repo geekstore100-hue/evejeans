@@ -281,6 +281,20 @@ export function suscribirComprasDelDia(fecha, callback, onError) {
   );
 }
 
+// Las facturas que ya se confirmaron (recibieron en la tienda) en una fecha —
+// para la columna "Confirmadas hoy" de Recibir mercancía.
+export function suscribirConfirmadasDelDia(fecha, callback, onError) {
+  const q = query(collection(db, 'compras'), where('confirmadoFecha', '==', fecha));
+  return onSnapshot(
+    q,
+    (snap) => callback(docsConId(snap).filter((c) => c.estado === 'confirmada')),
+    (err) => {
+      console.error('Error escuchando las confirmadas del día:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
 export function suscribirComprasDeUsuario(usuarioId, callback, onError) {
   const q = query(collection(db, 'compras'), where('usuarioId', '==', usuarioId));
   return onSnapshot(

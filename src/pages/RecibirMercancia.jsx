@@ -1,58 +1,82 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
-import { suscribirPedidosPendientes, confirmarRecepcion, claveLinea } from '../lib/compras';
+import { suscribirPedidosPendientes, suscribirConfirmadasDelDia, confirmarRecepcion, claveLinea, hoyStr } from '../lib/compras';
 import { leerBorrador, guardarBorrador, borrarBorrador, limpiarBorradoresHuerfanos } from '../lib/recepcionBorrador';
+
+// Recibir mercancía: todas las facturas pendientes vienen ya abiertas, listas
+// para escribir lo que se contó, cada una en su propia tarjeta con un color
+// distinto (para que no se confundan los renglones de una factura con los de
+// la siguiente). A la derecha, las que ya se confirmaron hoy. Todo en vivo.
 
 function fmt(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function fechaCorta(f) {
+  if (!f) return '';
+  const [, m, d] = f.split('-').map(Number);
+  return `${d} ${MESES[m - 1]}`;
+}
+function ordenFacturas(a, b) {
+  if (a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1;
+  return (a.facturaNum || 0) - (b.facturaNum || 0);
+}
+function nombreFactura(p) {
+  return p.facturaNum ? `Factura ${p.facturaNum}` : 'Factura';
+}
+// Seis colores bien distintos; facturas seguidas nunca quedan del mismo color.
+const COLORES = 6;
 
 export default function RecibirMercancia({ usuario }) {
   const [inventario, setInventario] = useState(null);
   const [pendientes, setPendientes] = useState(null);
-  const [abierto, setAbierto] = useState(null);
+  const [confirmadas, setConfirmadas] = useState([]);
+  const [hoy, setHoy] = useState(hoyStr());
   const [aviso, setAviso] = useState('');
   const [errorCarga, setErrorCarga] = useState('');
-  // El pedido que ESTA persona está confirmando ahora mismo — para no
-  // confundir "lo confirmé yo" con "lo confirmó alguien más" cuando el pedido
+  // Las facturas que ESTA persona está confirmando ahora mismo — para no
+  // confundir "la confirmé yo" con "la confirmó alguien más" cuando
   // desaparece de la lista.
-  const confirmandoRef = useRef(null);
+  const confirmandoRef = useRef(new Set());
+  const anterioresRef = useRef(null);
+
+  useEffect(() => suscribirInventario(setInventario), []);
 
   useEffect(() => {
-    const quitar = suscribirInventario(setInventario);
-    return quitar;
+    const t = setInterval(() => setHoy(hoyStr()), 60000);
+    return () => clearInterval(t);
   }, []);
 
-  // En vivo: si Fausto o Nelson registran un pedido nuevo (o lo corrigen, o lo
-  // eliminan) mientras esta pestaña está abierta, aparece solo — ya no hace
-  // falta salir y volver a entrar para verlo.
+  // En vivo: si Fausto o Nelson registran una factura nueva (o la corrigen, o
+  // la eliminan) mientras esta pestaña está abierta, aparece sola.
   useEffect(() => {
-    const quitar = suscribirPedidosPendientes(
+    return suscribirPedidosPendientes(
       (lista, { desdeCache }) => {
-        setPendientes(lista);
-        // Solo con la respuesta real del servidor (no con lo guardado en el
-        // computador, que puede estar incompleto): se borran los borradores
-        // de pedidos que ya no existen, para que no quede el aviso de
-        // "confirmación a medias" en Ventas de un pedido que ya se confirmó.
+        const ids = new Set(lista.map((p) => p.id));
+        // Si una factura en la que esta persona ya había escrito algo se va
+        // sin que ella la haya confirmado, es que la confirmó alguien más o
+        // Nelson la eliminó: se avisa.
+        if (!desdeCache && anterioresRef.current) {
+          const seFueron = [...anterioresRef.current].filter((id) => !ids.has(id) && !confirmandoRef.current.has(id));
+          if (seFueron.some((id) => leerBorrador(id))) {
+            setAviso('Una factura que estabas contando ya no está pendiente: alguien más la confirmó o Nelson la eliminó.');
+          }
+          seFueron.forEach((id) => confirmandoRef.current.delete(id));
+        }
+        if (!desdeCache) anterioresRef.current = ids;
+        setPendientes([...lista].sort(ordenFacturas));
+        // Solo con la respuesta real del servidor: se borran los borradores
+        // de facturas que ya no existen.
         if (!desdeCache) limpiarBorradoresHuerfanos(lista.map((p) => p.id));
       },
-      (err) => setErrorCarga('No se pudo leer los pedidos: ' + err.message)
+      (err) => setErrorCarga('No se pudo leer las facturas: ' + err.message)
     );
-    return quitar;
   }, []);
 
-  // Si el pedido que se estaba contando deja de estar pendiente sin que esta
-  // persona lo haya confirmado (lo confirmó alguien más en otro computador, o
-  // Nelson lo eliminó), se cierra el formulario y se avisa por qué.
-  useEffect(() => {
-    if (!abierto || !pendientes) return;
-    if (pendientes.some((p) => p.id === abierto)) return;
-    if (confirmandoRef.current !== abierto) {
-      setAviso('El pedido que estabas contando ya no está pendiente: alguien más lo confirmó o Nelson lo eliminó.');
-    }
-    confirmandoRef.current = null;
-    setAbierto(null);
-  }, [pendientes, abierto]);
+  useEffect(
+    () => suscribirConfirmadasDelDia(hoy, (l) => setConfirmadas([...l].sort(ordenFacturas)), () => setConfirmadas([])),
+    [hoy]
+  );
 
   const porId = useMemo(() => {
     const m = {};
@@ -60,245 +84,237 @@ export default function RecibirMercancia({ usuario }) {
     return m;
   }, [inventario]);
 
-  // Agrupar por proveedor para que se vea junto lo mismo que llega junto.
-  // "Sin proveedor" para los pedidos que no lo preguntan (ej. Fausto).
-  const porProveedor = {};
-  (pendientes || []).forEach((p) => {
-    const clave = p.proveedor || 'Sin proveedor';
-    porProveedor[clave] = porProveedor[clave] || [];
-    porProveedor[clave].push(p);
-  });
-
   return (
-    <div className="card" style={{ maxWidth: 720 }}>
-      <h2>Recibir mercancía</h2>
-      <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-        Cuando llegue un pedido, cuenta cada referencia y confírmalo aquí. El stock solo sube
-        con lo que de verdad contaste — si algo no coincide con lo pedido, queda registrado.
-      </p>
+    <div className="rc">
+      <div className="rc-col">
+        <h2 className="rc-titulo">Recibir mercancía</h2>
+        <p className="rc-ayuda">
+          Cuenta cada referencia y escribe cuántas llegaron. Cada factura se confirma por separado; el stock solo sube con lo que de verdad
+          contaste.
+        </p>
 
-      {aviso && (
-        <div className="msg bad" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ flex: 1 }}>{aviso}</span>
-          <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAviso('')}>
-            Entendido
-          </button>
-        </div>
-      )}
-      {errorCarga && <div className="msg bad">{errorCarga}</div>}
-
-      {!pendientes ? (
-        <div className="empty-lines">Cargando…</div>
-      ) : pendientes.length === 0 ? (
-        <div className="empty-lines">No hay pedidos pendientes de recibir.</div>
-      ) : (
-        Object.entries(porProveedor).map(([proveedor, lista]) => (
-          <div key={proveedor} style={{ marginTop: 14 }}>
-            <div className="split-label">{proveedor}</div>
-            {lista.map((p) =>
-              abierto === p.id ? (
-                <FormularioConfirmar
-                  key={p.id}
-                  pedido={p}
-                  porId={porId}
-                  usuario={usuario}
-                  onCancelar={() => setAbierto(null)}
-                  onEmpezar={() => (confirmandoRef.current = p.id)}
-                  onListo={() => {
-                    confirmandoRef.current = null;
-                    setAbierto(null);
-                  }}
-                  onFallo={() => (confirmandoRef.current = null)}
-                />
-              ) : (
-                <div className="gasto-item" key={p.id}>
-                  <div>
-                    <div className="gasto-nombre">
-                      {p.facturaNum ? `Factura ${p.facturaNum} · ` : ''}
-                      {p.fecha} {p.hora}
-                    </div>
-                    <div className="gasto-sub">
-                      {p.items.map((i) => `${i.name}${i.nota ? ` (${i.nota})` : ''}`).join(', ')}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span className="gasto-monto">{fmt(p.totalGeneral)}</span>
-                    <button
-                      className="btn ghost sm"
-                      style={{ width: 'auto' }}
-                      onClick={() => {
-                        setAviso('');
-                        setAbierto(p.id);
-                      }}
-                    >
-                      Confirmar
-                    </button>
-                  </div>
-                </div>
-              )
-            )}
+        {aviso && (
+          <div className="rc-aviso">
+            <span>{aviso}</span>
+            <button onClick={() => setAviso('')}>Entendido</button>
           </div>
-        ))
-      )}
+        )}
+        {errorCarga && <div className="msg bad">{errorCarga}</div>}
+
+        {!pendientes ? (
+          <div className="empty-lines">Cargando…</div>
+        ) : pendientes.length === 0 ? (
+          <div className="rc-vacio">No hay facturas pendientes de recibir.</div>
+        ) : (
+          <>
+            <div className="rc-cuantas">
+              {pendientes.length === 1 ? '1 factura por recibir' : `${pendientes.length} facturas por recibir`}
+            </div>
+            {pendientes.map((p, idx) => (
+              <TarjetaFactura
+                key={p.id}
+                pedido={p}
+                color={idx % COLORES}
+                porId={porId}
+                usuario={usuario}
+                onEmpezar={() => confirmandoRef.current.add(p.id)}
+                onFallo={() => confirmandoRef.current.delete(p.id)}
+              />
+            ))}
+          </>
+        )}
+      </div>
+
+      <aside className="rc-lado" aria-label="Confirmadas hoy">
+        <h3>
+          Confirmadas hoy <span>{confirmadas.length}</span>
+        </h3>
+        {confirmadas.length === 0 ? (
+          <p className="rc-lado-vacio">Todavía no se ha confirmado ninguna factura hoy.</p>
+        ) : (
+          confirmadas.map((c) => <Confirmada key={c.id} compra={c} />)
+        )}
+      </aside>
     </div>
   );
 }
 
-function FormularioConfirmar({ pedido, porId, usuario, onCancelar, onListo, onEmpezar, onFallo }) {
-  // Se agrupa por referencia + nota, no por línea: si Fausto registró la
-  // misma prenda en más de una línea (por ejemplo, porque llegó a distintos
-  // costos de compra), a quien recibe le llega todo mezclado físicamente y no
-  // tiene cómo distinguir una línea de otra con solo mirarla — pedirle un
-  // número por línea la obligaría a adivinar cómo repartirlo. Por eso cuenta
-  // el total de esa prenda UNA sola vez, y si coincide con la suma de lo
-  // pedido en esas líneas, se reparte tal cual estaba registrado cada línea
-  // (cada una conserva su propio costo para la contabilidad).
-  const grupos = useMemo(() => {
-    const mapa = {};
-    const orden = [];
-    pedido.items.forEach((i) => {
-      // La nota se normaliza (sin mayúsculas/minúsculas ni espacios de más)
-      // solo para AGRUPAR — así "Chaqueta jean" y "chaqueta jean " quedan en
-      // el mismo cuadro. Para el texto que se muestra se usa la nota tal cual
-      // se escribió la primera vez.
-      const notaNormalizada = (i.nota || '').trim().toLowerCase();
-      const clave = `${i.id}|${notaNormalizada}`;
-      if (!mapa[clave]) {
-        mapa[clave] = { clave, name: i.name, nota: i.nota, lineas: [], cantidadPedida: 0 };
-        orden.push(clave);
-      }
-      mapa[clave].lineas.push(i);
-      mapa[clave].cantidadPedida += i.cantidadPedida;
-    });
-    return orden.map((clave) => mapa[clave]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pedido]);
+// Se agrupa por referencia + nota, no por línea: si Fausto registró la misma
+// prenda en más de una línea (por ejemplo a distintos costos), a quien recibe
+// le llega todo mezclado y no tiene cómo distinguir una línea de otra. Por
+// eso cuenta el total de esa prenda UNA sola vez, y si coincide con la suma
+// de lo pedido en esas líneas, se reparte tal cual estaba registrado.
+function agrupar(items) {
+  const mapa = {};
+  const orden = [];
+  items.forEach((i) => {
+    const clave = `${i.id}|${(i.nota || '').trim().toLowerCase()}`;
+    if (!mapa[clave]) {
+      mapa[clave] = { clave, id: i.id, name: i.name, nota: i.nota, lineas: [], cantidadPedida: 0 };
+      orden.push(clave);
+    }
+    mapa[clave].lineas.push(i);
+    mapa[clave].cantidadPedida += i.cantidadPedida;
+  });
+  return orden.map((c) => mapa[c]);
+}
+
+function TarjetaFactura({ pedido, color, porId, usuario, onEmpezar, onFallo }) {
+  const grupos = useMemo(() => agrupar(pedido.items || []), [pedido]);
+  const inputs = useRef([]);
+  const botonRef = useRef(null);
 
   // Vacío a propósito: cuentan cuántas hay de verdad sin ver cuánto pidió
-  // Fausto, para que sea un conteo real y no solo confirmar el número que ya
-  // estaba escrito. Si ya había un borrador guardado de este pedido (porque
-  // lo dejó a medias antes), se recupera en vez de empezar en blanco.
+  // Fausto. Si ya había un borrador guardado (lo dejó a medias), se recupera.
   const [cantidades, setCantidades] = useState(() => {
-    const borrador = leerBorrador(pedido.id);
+    const borrador = leerBorrador(pedido.id) || {};
     const inicial = {};
-    grupos.forEach((g) => (inicial[g.clave] = borrador?.[g.clave] ?? ''));
+    grupos.forEach((g) => (inicial[g.clave] = borrador[g.clave] ?? ''));
     return inicial;
   });
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
 
-  // Cada vez que escribe algo, se guarda de una vez como borrador — así, si
-  // llega una venta y toca cambiar de pestaña a medio conteo, no se pierde.
+  // Cada vez que escribe algo se guarda como borrador — si llega una venta y
+  // toca cambiar de pestaña a medio conteo, no se pierde.
   useEffect(() => {
     guardarBorrador(pedido.id, cantidades);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cantidades]);
+  }, [pedido.id, cantidades]);
 
-  // "vacío" (todavía no escribió nada ahí) es distinto de "distinto" (ya
-  // escribió un número, pero no coincide con lo pedido) — así el campo no se
-  // ve como un error antes de que alcance a contar esa referencia.
-  const gruposConEstado = grupos.map((g) => {
-    // "?? ''": si Nelson corrige el pedido mientras se está contando (ahora
-    // se actualiza en vivo), puede aparecer una referencia nueva que todavía
-    // no tiene número escrito — cuenta como vacía, no como error.
+  // "vacío" (todavía no escribió nada) es distinto de "distinto" (escribió un
+  // número que no coincide) — así no se ve como error antes de contar.
+  const conEstado = grupos.map((g) => {
     const crudo = cantidades[g.clave] ?? '';
     const vacio = crudo === '';
-    const valor = parseInt(crudo);
-    const distinto = !vacio && (isNaN(valor) || valor !== g.cantidadPedida);
-    return { ...g, vacio, distinto };
+    const valor = parseInt(crudo, 10);
+    return { ...g, vacio, distinto: !vacio && (isNaN(valor) || valor !== g.cantidadPedida) };
   });
-  const faltan = gruposConEstado.some((g) => g.vacio);
-  const hayDiferencias = gruposConEstado.some((g) => g.distinto);
+  const faltan = conEstado.filter((g) => g.vacio).length;
+  const hayDiferencias = conEstado.some((g) => g.distinto);
   const todoCoincide = !faltan && !hayDiferencias;
+  const algoEscrito = conEstado.some((g) => !g.vacio);
+  const prendas = grupos.reduce((s, g) => s + g.cantidadPedida, 0);
 
   async function confirmar() {
-    if (!todoCoincide) return;
+    if (!todoCoincide || guardando) return;
     setMsg('');
     setGuardando(true);
     onEmpezar?.();
     try {
-      // El grupo ya coincidió con el total pedido en esas líneas, así que
-      // cada línea recibe exactamente lo que tenía registrado.
       const itemsConfirmados = [];
-      grupos.forEach((g) => {
-        g.lineas.forEach((i) => {
-          itemsConfirmados.push({
-            lineaId: claveLinea(i),
-            cantidadRecibida: i.cantidadPedida,
-            stockActual: porId[i.id]?.stock || 0,
-          });
-        });
-      });
+      grupos.forEach((g) =>
+        g.lineas.forEach((i) =>
+          itemsConfirmados.push({ lineaId: claveLinea(i), cantidadRecibida: i.cantidadPedida, stockActual: porId[i.id]?.stock || 0 })
+        )
+      );
       await confirmarRecepcion(pedido.id, pedido, itemsConfirmados, usuario);
       borrarBorrador(pedido.id);
-      onListo();
     } catch (e) {
       onFallo?.();
       setMsg('No se pudo confirmar: ' + e.message);
-    } finally {
       setGuardando(false);
     }
   }
 
-  // Cancelar sí es una decisión de descartar el conteo — ahí sí se borra el
-  // borrador, para que la próxima vez empiece limpio.
-  function cancelar() {
+  function limpiar() {
     borrarBorrador(pedido.id);
-    onCancelar();
+    const vacio = {};
+    grupos.forEach((g) => (vacio[g.clave] = ''));
+    setCantidades(vacio);
+    inputs.current[0]?.focus();
   }
 
+  // Enter pasa a la siguiente referencia; en la última, al botón de confirmar.
+  function siguiente(e, k) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const sig = inputs.current[k + 1];
+    if (sig) sig.focus();
+    else botonRef.current?.focus();
+  }
+
+  const titulo = nombreFactura(pedido);
   return (
-    <div className="card modo-prueba" style={{ marginBottom: 10 }}>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>
-        Confirmar recepción — {pedido.facturaNum ? `Factura ${pedido.facturaNum} del ` : ''}
-        {pedido.fecha}
+    <section className={`rc-factura c${color}`} aria-label={`${titulo} del ${fechaCorta(pedido.fecha)}`}>
+      <header className="rc-factura-top">
+        <span className="rc-chip">{titulo}</span>
+        <span className="rc-factura-info">
+          {fechaCorta(pedido.fecha)} · {pedido.hora}
+          {pedido.usuarioNombre ? ` · la registró ${pedido.usuarioNombre}` : ''}
+          {pedido.proveedor ? ` · ${pedido.proveedor}` : ''}
+        </span>
+        <span className="rc-factura-total">
+          {prendas} {prendas === 1 ? 'prenda' : 'prendas'} · {fmt(pedido.totalGeneral)}
+        </span>
+      </header>
+
+      <div className="rc-renglones">
+        {conEstado.map((g, k) => {
+          const it = porId[g.id];
+          const etiqueta = it?.tipo === 'precio' ? `Ref ${g.name}` : g.name;
+          return (
+            <label key={g.clave} className={`rc-renglon ${g.distinto ? 'mal' : !g.vacio ? 'bien' : ''}`}>
+              <span className="rc-ref">
+                {etiqueta}
+                {g.nota && <small>{g.nota}</small>}
+              </span>
+              <input
+                ref={(el) => (inputs.current[k] = el)}
+                type="number"
+                inputMode="numeric"
+                min="0"
+                placeholder="¿cuántas?"
+                aria-label={`Cuántas llegaron de ${etiqueta}${g.nota ? ` (${g.nota})` : ''}`}
+                value={cantidades[g.clave] ?? ''}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => siguiente(e, k)}
+                onChange={(e) => setCantidades((c) => ({ ...c, [g.clave]: e.target.value.replace(/[^\d]/g, '') }))}
+              />
+            </label>
+          );
+        })}
       </div>
-      {gruposConEstado.map((g) => (
-        <div className="field" key={g.clave} style={{ marginBottom: 8 }}>
-          <label>
-            {g.name}
-            {g.nota ? ` (${g.nota})` : ''}
-          </label>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="0"
-            value={cantidades[g.clave] ?? ''}
-            onFocus={(e) => e.target.select()}
-            onChange={(e) => setCantidades((c) => ({ ...c, [g.clave]: e.target.value }))}
-            style={g.distinto ? { borderColor: 'var(--danger)', background: 'var(--danger-soft)' } : {}}
-          />
-        </div>
-      ))}
 
       {hayDiferencias && (
-        <div
-          style={{
-            background: 'var(--danger-soft)',
-            border: '2px solid var(--danger)',
-            borderRadius: 10,
-            padding: '12px 14px',
-            marginTop: 8,
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 19, fontWeight: 900, color: 'var(--danger)', textTransform: 'uppercase' }}>
-            ⚠️ La cantidad no coincide
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 4 }}>
-            Vuelve a contar; si de verdad falta algo, dile a Nelson para que ajuste el pedido
-            desde Compras — mientras tanto, no se puede confirmar.
-          </div>
+        <div className="rc-no-coincide">
+          <b>⚠️ La cantidad no coincide</b>
+          <span>Vuelve a contar. Si de verdad falta algo, dile a Nelson para que corrija la factura; mientras tanto no se puede confirmar.</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={cancelar}>Cancelar</button>
-        <button className="btn sm" style={{ width: 'auto' }} disabled={guardando || !todoCoincide} onClick={confirmar}>
-          {guardando ? 'Guardando…' : 'Confirmar entrada'}
+      <footer className="rc-factura-pie">
+        <span className="rc-estado">
+          {todoCoincide ? '✓ Todo coincide' : faltan ? `Faltan ${faltan} por contar` : ''}
+        </span>
+        {algoEscrito && !guardando && (
+          <button className="rc-btn sec" onClick={limpiar}>
+            Borrar lo contado
+          </button>
+        )}
+        <button ref={botonRef} className="rc-btn" disabled={guardando || !todoCoincide} onClick={confirmar}>
+          {guardando ? 'Guardando…' : `Confirmar ${titulo.toLowerCase()}`}
         </button>
-      </div>
+      </footer>
       {msg && <div className="msg bad">{msg}</div>}
+    </section>
+  );
+}
+
+function Confirmada({ compra }) {
+  const grupos = agrupar(compra.items || []);
+  const prendas = grupos.reduce((s, g) => s + g.lineas.reduce((x, i) => x + (i.cantidadRecibida ?? 0), 0), 0);
+  return (
+    <div className="rc-hecha">
+      <div className="rc-hecha-top">
+        <span className="rc-check" aria-hidden="true">
+          ✓
+        </span>
+        <b>{nombreFactura(compra)}</b>
+        <span className="rc-hecha-de">del {fechaCorta(compra.fecha)}</span>
+        <span className="rc-hecha-prendas">{prendas} prendas</span>
+      </div>
+      <div className="rc-hecha-items">{grupos.map((g) => `${g.name}${g.nota ? ` (${g.nota})` : ''} ×${g.cantidadPedida}`).join(' · ')}</div>
+      {compra.confirmadoPor && <div className="rc-hecha-quien">Confirmó {compra.confirmadoPor}</div>}
     </div>
   );
 }

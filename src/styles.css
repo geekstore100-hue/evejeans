@@ -978,3 +978,74 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
   .av-cerrar { margin-left: 46px; }
   .con-panel-fijo .av-refuerzo { margin-right: 8px; }
 }
+
+/* ---------- Recibir mercancía (pages/RecibirMercancia.jsx) ---------- */
+.rc {
+  --rc-bien: #2f7d55; --rc-bien-suave: #e3f3ea;
+  max-width: 1180px; margin: 0 auto; padding: 10px 8px 30px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start;
+}
+.rc-titulo { margin: 4px 0 4px; font-size: 22px; }
+.rc-ayuda { margin: 0 0 12px; font-size: 14px; color: var(--ink-soft); line-height: 1.45; max-width: 62ch; }
+.rc-aviso { display: flex; align-items: center; gap: 10px; background: var(--danger-soft); color: var(--danger); font-weight: 700; font-size: 14px; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.rc-aviso span { flex: 1; }
+.rc-aviso button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 10px; font-weight: 800; color: var(--ink); }
+.rc-vacio { background: var(--panel); border: 1px dashed var(--line); border-radius: 14px; padding: 26px; text-align: center; color: var(--ink-soft); }
+.rc-cuantas { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); margin: 4px 0 8px; }
+
+/* Cada factura con su color: franja a la izquierda, fondo suave y la etiqueta del número. */
+.rc-factura { --c: #3d8b9a; --c-suave: #e9f6f8; background: var(--panel); border: 1px solid var(--line); border-left: 8px solid var(--c); border-radius: 14px; margin-bottom: 14px; overflow: hidden; }
+.rc-factura.c0 { --c: #3d8b9a; --c-suave: #e6f4f6; }
+.rc-factura.c1 { --c: #c05f89; --c-suave: #fcecf3; }
+.rc-factura.c2 { --c: #a8721f; --c-suave: #fbf1df; }
+.rc-factura.c3 { --c: #3f8a5c; --c-suave: #e6f3eb; }
+.rc-factura.c4 { --c: #7a62b3; --c-suave: #efeaf8; }
+.rc-factura.c5 { --c: #3b6fb6; --c-suave: #e7eef9; }
+.rc-factura-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: var(--c-suave); padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.rc-chip { background: var(--c); color: #fff; font-weight: 900; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; border-radius: 7px; padding: 4px 9px; }
+.rc-factura-info { font-size: 13px; color: var(--ink-soft); flex: 1; min-width: 160px; }
+.rc-factura-total { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rc-renglones { display: grid; }
+.rc-renglon { display: grid; grid-template-columns: minmax(0, 1fr) 130px; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); cursor: text; }
+.rc-renglon:nth-child(even) { background: #fdfafc; }
+.rc-ref { font-weight: 800; font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
+.rc-ref small { display: block; font-weight: 600; font-size: 13px; color: var(--ink-soft); }
+.rc-renglon input {
+  width: 100%; border: 2px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 20px; font-weight: 800; text-align: center;
+  font-family: inherit; color: var(--ink); background: var(--panel); font-variant-numeric: tabular-nums;
+}
+.rc-renglon input::placeholder { font-size: 14px; font-weight: 600; color: #b9aec0; }
+.rc-renglon input:focus { outline: none; border-color: var(--c); box-shadow: 0 0 0 3px var(--c-suave); }
+.rc-renglon.bien input { border-color: var(--rc-bien); background: var(--rc-bien-suave); }
+.rc-renglon.mal input { border-color: var(--danger); background: var(--danger-soft); }
+.rc-no-coincide { display: grid; gap: 3px; background: var(--danger-soft); color: var(--danger); padding: 10px 14px; font-size: 13px; }
+.rc-no-coincide b { font-size: 16px; text-transform: uppercase; }
+.rc-factura-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; }
+.rc-estado { flex: 1; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.rc-btn { border: none; border-radius: 10px; padding: 11px 16px; font-size: 15px; font-weight: 800; background: var(--c); color: #fff; }
+.rc-btn:disabled { background: var(--line); color: var(--ink-soft); cursor: default; }
+.rc-btn.sec { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+.rc-btn:focus-visible { outline: 3px solid var(--cian); outline-offset: 2px; }
+
+/* Columna derecha: confirmadas hoy */
+.rc-lado { position: sticky; top: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; max-height: calc(100vh - 20px); overflow-y: auto; }
+.rc-lado h3 { margin: 0 0 10px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.rc-lado h3 span { background: var(--rc-bien-suave); color: var(--rc-bien); border-radius: 999px; font-size: 12px; padding: 2px 9px; }
+.rc-lado-vacio { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.rc-hecha { border-top: 1px solid var(--line); padding: 10px 0; }
+.rc-hecha:first-of-type { border-top: none; padding-top: 0; }
+.rc-hecha-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+.rc-check { width: 20px; height: 20px; border-radius: 50%; background: var(--rc-bien); color: #fff; display: inline-grid; place-items: center; font-size: 12px; font-weight: 900; }
+.rc-hecha-de { color: var(--ink-soft); font-size: 13px; }
+.rc-hecha-prendas { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rc-hecha-items { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+.rc-hecha-quien { font-size: 12px; color: var(--rc-bien); font-weight: 700; margin-top: 2px; }
+
+@media (max-width: 900px) {
+  .rc { grid-template-columns: minmax(0, 1fr); }
+  .rc-lado { position: static; max-height: none; }
+}
+@media (max-width: 480px) {
+  .rc-renglon { grid-template-columns: minmax(0, 1fr) 104px; padding: 9px 10px; }
+  .rc-factura-pie .rc-btn:last-child { flex: 1 1 100%; }
+}
