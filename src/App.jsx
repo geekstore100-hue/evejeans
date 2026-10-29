@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { iniciarAtras, usarAtras } from './lib/atras';
 import { escucharSesion, salir, idDesdeEmail } from './lib/auth';
 import { escucharPanico, activarPanico, desactivarPanico } from './lib/panico';
 import { USUARIOS_BASE } from './lib/usuarios';
@@ -37,6 +38,37 @@ export default function App() {
   const [panicoListo, setPanicoListo] = useState(false);
   const [vistaFausto, setVistaFausto] = useState('pedido'); // pedido | efectivo | reportes
   const [reporteFausto, setReporteFausto] = useState('negocio'); // negocio | fechas
+
+  // Botón atrás del celular (ver lib/atras.js): se recuerdan las pantallas por
+  // las que se pasó, y atrás vuelve a la anterior en vez de cerrar la app.
+  const pasadas = useRef([]);
+  useEffect(() => iniciarAtras(), []);
+  function recordar(estado) {
+    pasadas.current.push(estado);
+    if (pasadas.current.length > 30) pasadas.current.shift();
+  }
+  function irA(v) {
+    if (v === vista) return;
+    recordar({ vista });
+    setVista(v);
+  }
+  function irFausto(v, r = reporteFausto) {
+    if (v === vistaFausto && r === reporteFausto) return;
+    recordar({ vistaFausto, reporteFausto });
+    setVistaFausto(v);
+    setReporteFausto(r);
+  }
+  usarAtras(() => {
+    const anterior = pasadas.current.pop();
+    if (!anterior) return false;
+    if (anterior.vista) setVista(anterior.vista);
+    if (anterior.vistaFausto) {
+      setVistaFausto(anterior.vistaFausto);
+      setReporteFausto(anterior.reporteFausto);
+    }
+    window.scrollTo(0, 0);
+    return true;
+  }, 0);
 
   useEffect(() => {
     const quitar = escucharSesion((firebaseUser) => {
@@ -83,6 +115,7 @@ export default function App() {
       await salir();
     }
     setVendedoraElegida(null);
+    pasadas.current = [];
   }
 
   if (cargando || !panicoListo) {
@@ -125,13 +158,13 @@ export default function App() {
           </button>
         </div>
         <div className="cf-nav">
-          <button className={vistaFausto === 'pedido' ? 'on' : ''} onClick={() => setVistaFausto('pedido')}>
+          <button className={vistaFausto === 'pedido' ? 'on' : ''} onClick={() => irFausto('pedido')}>
             🧾 Nuevo pedido
           </button>
-          <button className={vistaFausto === 'efectivo' ? 'on' : ''} onClick={() => setVistaFausto('efectivo')}>
+          <button className={vistaFausto === 'efectivo' ? 'on' : ''} onClick={() => irFausto('efectivo')}>
             💵 Recibir efectivo
           </button>
-          <button className={vistaFausto === 'reportes' ? 'on' : ''} onClick={() => setVistaFausto('reportes')}>
+          <button className={vistaFausto === 'reportes' ? 'on' : ''} onClick={() => irFausto('reportes')}>
             📊 Reportes
           </button>
         </div>
@@ -139,10 +172,10 @@ export default function App() {
         {/* Fausto ve Reportes menos el Libro diario (ese es solo de Nelson). */}
         {vistaFausto === 'reportes' && (
           <nav className="mn-subs cf-subs" aria-label="Submenú de Reportes">
-            <button className={`mn-sub ${reporteFausto === 'negocio' ? 'on' : ''}`} onClick={() => setReporteFausto('negocio')}>
+            <button className={`mn-sub ${reporteFausto === 'negocio' ? 'on' : ''}`} onClick={() => irFausto('reportes', 'negocio')}>
               Cómo va el negocio
             </button>
-            <button className={`mn-sub ${reporteFausto === 'fechas' ? 'on' : ''}`} onClick={() => setReporteFausto('fechas')}>
+            <button className={`mn-sub ${reporteFausto === 'fechas' ? 'on' : ''}`} onClick={() => irFausto('reportes', 'fechas')}>
               Fechas especiales
             </button>
           </nav>
@@ -190,7 +223,7 @@ export default function App() {
         <MenuNelson
           usuario={usuario}
           vista={vista}
-          setVista={setVista}
+          setVista={irA}
           panicoActivo={panicoActivo}
           onCambiarTurno={cambiarDeTurno}
           onBloquear={bloquearTienda}
@@ -213,28 +246,28 @@ export default function App() {
           </div>
 
           <nav className="tabs">
-            <button className={vista === 'vender' ? 'on' : ''} onClick={() => setVista('vender')}>
+            <button className={vista === 'vender' ? 'on' : ''} onClick={() => irA('vender')}>
               Vender
             </button>
-            <button className={vista === 'cambios' ? 'on' : ''} onClick={() => setVista('cambios')}>
+            <button className={vista === 'cambios' ? 'on' : ''} onClick={() => irA('cambios')}>
               Cambios
             </button>
-            <button className={vista === 'gastos' ? 'on' : ''} onClick={() => setVista('gastos')}>
+            <button className={vista === 'gastos' ? 'on' : ''} onClick={() => irA('gastos')}>
               Gastos
             </button>
-            <button className={vista === 'cierre' ? 'on' : ''} onClick={() => setVista('cierre')}>
+            <button className={vista === 'cierre' ? 'on' : ''} onClick={() => irA('cierre')}>
               Cierre del día
             </button>
-            <button className={vista === 'sobres' ? 'on' : ''} onClick={() => setVista('sobres')}>
+            <button className={vista === 'sobres' ? 'on' : ''} onClick={() => irA('sobres')}>
               Entrega de dinero
             </button>
-            <button className={vista === 'recibir' ? 'on' : ''} onClick={() => setVista('recibir')}>
+            <button className={vista === 'recibir' ? 'on' : ''} onClick={() => irA('recibir')}>
               Recibir mercancía
             </button>
-            <button className={vista === 'entradasSalidas' ? 'on' : ''} onClick={() => setVista('entradasSalidas')}>
+            <button className={vista === 'entradasSalidas' ? 'on' : ''} onClick={() => irA('entradasSalidas')}>
               Entradas y salidas
             </button>
-            <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => setVista('movimientos')}>
+            <button className={vista === 'movimientos' ? 'on' : ''} onClick={() => irA('movimientos')}>
               Historial
             </button>
           </nav>

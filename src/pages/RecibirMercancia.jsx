@@ -237,14 +237,21 @@ function TarjetaFactura({ pedido, color, porId, usuario, onEmpezar, onFallo }) {
   return (
     <section className={`rc-factura c${color}`} aria-label={`${titulo} del ${fechaCorta(pedido.fecha)}`}>
       <header className="rc-factura-top">
-        <span className="rc-chip">{titulo}</span>
-        <span className="rc-factura-info">
-          {fechaCorta(pedido.fecha)} · {pedido.hora}
-          {pedido.usuarioNombre ? ` · la registró ${pedido.usuarioNombre}` : ''}
-          {pedido.proveedor ? ` · ${pedido.proveedor}` : ''}
+        <span className="rc-factura-izq">
+          <span className="rc-chip">{titulo}</span>
+          <span className="rc-factura-info">
+            {fechaCorta(pedido.fecha)} · {pedido.hora}
+            {pedido.usuarioNombre ? ` · la registró ${pedido.usuarioNombre}` : ''}
+            {pedido.proveedor ? ` · ${pedido.proveedor}` : ''}
+          </span>
         </span>
+        {/* El valor de la factura bien grande: es lo que está escrito en el papel
+            y sirve para saber de un vistazo cuál es la que se va a recibir. */}
         <span className="rc-factura-total">
-          {prendas} {prendas === 1 ? 'prenda' : 'prendas'} · {fmt(pedido.totalGeneral)}
+          <b>{fmt(pedido.totalGeneral)}</b>
+          <small>
+            {prendas} {prendas === 1 ? 'prenda' : 'prendas'}
+          </small>
         </span>
       </header>
 

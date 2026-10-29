@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { suscribirInventario } from '../lib/inventario';
+import { usarAtras } from '../lib/atras';
 import {
   crearPedidoCompra,
   suscribirComprasDelDia,
@@ -481,6 +482,31 @@ export default function FacturasCompra({ usuario, modo }) {
     setHoja(null);
     setVista('hoy');
   }
+
+  // Botón atrás del celular: primero cierra lo que esté abierto encima (el
+  // paso anterior del asistente, una hoja, la confirmación de eliminar), y
+  // desde una factura abierta vuelve a la lista (la factura queda guardada
+  // como borrador, igual que con el botón de la pantalla).
+  usarAtras(() => {
+    if (confirmarEliminar) {
+      setConfirmarEliminar(null);
+      return true;
+    }
+    if (hoja) {
+      if (hoja.tipo === 'flujo' && flujo) atras();
+      else setHoja(null);
+      return true;
+    }
+    if (vista === 'factura') {
+      irAHoy();
+      return true;
+    }
+    if (expandida) {
+      setExpandida(null);
+      return true;
+    }
+    return false;
+  });
 
   if (errorCarga) {
     return (
