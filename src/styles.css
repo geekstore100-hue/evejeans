@@ -648,11 +648,6 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
 .ff-flujo-pasos { display: flex; gap: 5px; margin-left: auto; }
 .ff-flujo-pasos i { width: 22px; height: 6px; border-radius: 3px; background: var(--line); }
 .ff-flujo-pasos i.hecho { background: var(--rosa); }
-.ff-armando {
-  font-family: var(--ff-mono); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 700;
-  background: var(--ff-recibo); border: 1px dashed var(--line); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px;
-}
-.ff-armando span { font-family: var(--sans); color: var(--ink-soft); font-weight: 600; }
 .ff-display {
   font-family: var(--ff-mono); font-weight: 800; font-size: 38px; text-align: right; font-variant-numeric: tabular-nums;
   background: var(--paper); border: 2px solid var(--line); border-radius: 14px; padding: 10px 14px; margin-bottom: 8px; min-height: 64px;
@@ -663,6 +658,8 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
 .ff-cuenta b { color: var(--ink); }
 .ff-aviso { font-size: 14px; font-weight: 700; color: var(--danger); background: var(--danger-soft); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
 .ff-teclado { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+/* El botón de seguir/agregar va bien separado del teclado, para no tocarlo sin querer al buscar el 0. */
+.ff-teclado + .ff-btn-main { margin-top: 30px; }
 .ff-tecla { border: 1px solid var(--line); background: var(--paper); border-radius: 12px; padding: 13px 0; font-family: var(--ff-mono); font-size: 24px; font-weight: 800; color: var(--ink); }
 .ff-tecla:active { background: var(--rosa-suave); }
 .ff-tecla.mil { color: var(--rosa-fuerte); font-size: 20px; }

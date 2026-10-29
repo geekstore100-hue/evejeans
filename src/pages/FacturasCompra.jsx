@@ -801,17 +801,12 @@ export default function FacturasCompra({ usuario, modo }) {
     const ps = pasosDe(d);
     const i = ps.indexOf(flujo.paso);
     const it = d.refId != null ? porId[d.refId] : null;
-    const llevas = [];
-    if (it && flujo.paso !== 'ref') llevas.push(it.tipo === 'precio' ? `ref ${it.name}` : it.name);
-    if (d.prenda && flujo.paso !== 'prenda' && flujo.paso !== 'ref') llevas.push(d.prenda);
-    if (d.cant != null && flujo.paso === 'costo') llevas.push(`${d.cant} unidades`);
 
     let cuerpo = null;
     if (flujo.paso === 'ref') {
       cuerpo = (
         <>
-          <h3 className="ff-sheet-title">¿Qué referencia es?</h3>
-          <p className="ff-sheet-sub">La ref decide cómo entra al inventario.</p>
+          <h3 className="ff-sheet-title">¿A cómo se vende?</h3>
           {itemsPrecio.length > 0 && (
             <>
               <div className="ff-grupo">Por precio</div>
@@ -892,7 +887,7 @@ export default function FacturasCompra({ usuario, modo }) {
       const c = parseInt(kp || '0', 10);
       cuerpo = (
         <>
-          <h3 className="ff-sheet-title">¿Cuántas?</h3>
+          <h3 className="ff-sheet-title">¿Cuántas compro?</h3>
           <p className="ff-sheet-sub">La cantidad de ese renglón de la factura.</p>
           <div className={`ff-display ${kp ? '' : 'vacio'}`}>{kp ? c : '0'}</div>
           {teclado(false)}
@@ -905,8 +900,8 @@ export default function FacturasCompra({ usuario, modo }) {
       const v = parseInt(kp || '0', 10);
       cuerpo = (
         <>
-          <h3 className="ff-sheet-title">¿A cuánto cada una?</h3>
-          <p className="ff-sheet-sub">El precio de compra de UNA prenda, no el total del renglón.</p>
+          <h3 className="ff-sheet-title">¿A cómo las compro?</h3>
+          <p className="ff-sheet-sub">Cada una.</p>
           <div className={`ff-display ${kp ? '' : 'vacio'}`}>{kp ? fmt(v) : '$0'}</div>
           <div className="ff-cuenta">
             {d.cant} × {fmt(v)} = <b>{fmt(d.cant * v)}</b>
@@ -953,11 +948,6 @@ export default function FacturasCompra({ usuario, modo }) {
             ))}
           </div>
         </div>
-        {llevas.length > 0 && (
-          <div className="ff-armando">
-            <span>Llevas:</span> {llevas.join(' · ')}
-          </div>
-        )}
         {cuerpo}
       </>
     );
