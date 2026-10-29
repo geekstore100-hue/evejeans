@@ -24,7 +24,9 @@ function ordenFacturas(a, b) {
 function nombreFactura(p) {
   return p.facturaNum ? `Factura ${p.facturaNum}` : 'Factura';
 }
-// Seis colores bien distintos; facturas seguidas nunca quedan del mismo color.
+// Seis colores bien distintos, según el número de la factura: cada factura
+// conserva su color aunque se confirme la de al lado, y facturas seguidas
+// nunca quedan del mismo color.
 const COLORES = 6;
 
 export default function RecibirMercancia({ usuario }) {
@@ -114,7 +116,7 @@ export default function RecibirMercancia({ usuario }) {
               <TarjetaFactura
                 key={p.id}
                 pedido={p}
-                color={idx % COLORES}
+                color={((p.facturaNum || idx + 1) - 1) % COLORES}
                 porId={porId}
                 usuario={usuario}
                 onEmpezar={() => confirmandoRef.current.add(p.id)}
@@ -318,10 +320,13 @@ function Confirmada({ compra }) {
         </span>
         <b>{nombreFactura(compra)}</b>
         <span className="rc-hecha-de">del {fechaCorta(compra.fecha)}</span>
-        <span className="rc-hecha-prendas">{prendas} prendas</span>
+        <span className="rc-hecha-valor">{fmt(compra.totalGeneral)}</span>
       </div>
       <div className="rc-hecha-items">{grupos.map((g) => `${g.name}${g.nota ? ` (${g.nota})` : ''} ×${g.cantidadPedida}`).join(' · ')}</div>
-      {compra.confirmadoPor && <div className="rc-hecha-quien">Confirmó {compra.confirmadoPor}</div>}
+      <div className="rc-hecha-quien">
+        {prendas} {prendas === 1 ? 'prenda' : 'prendas'}
+        {compra.confirmadoPor ? ` · confirmó ${compra.confirmadoPor}` : ''}
+      </div>
     </div>
   );
 }
