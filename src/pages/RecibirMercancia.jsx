@@ -195,7 +195,6 @@ function TarjetaFactura({ pedido, color, porId, usuario, onEmpezar, onFallo }) {
   const hayDiferencias = conEstado.some((g) => g.distinto);
   const todoCoincide = !faltan && !hayDiferencias;
   const algoEscrito = conEstado.some((g) => !g.vacio);
-  const prendas = grupos.reduce((s, g) => s + g.cantidadPedida, 0);
 
   async function confirmar() {
     if (!todoCoincide || guardando) return;
@@ -248,12 +247,11 @@ function TarjetaFactura({ pedido, color, porId, usuario, onEmpezar, onFallo }) {
           </span>
         </span>
         {/* El valor de la factura bien grande: es lo que está escrito en el papel
-            y sirve para saber de un vistazo cuál es la que se va a recibir. */}
+            y sirve para saber de un vistazo cuál es la que se va a recibir. La
+            cantidad de prendas NO se muestra a propósito: quien recibe tiene que
+            contar sin saber cuántas pidió Fausto (si no, solo copiaría el número). */}
         <span className="rc-factura-total">
           <b>{fmt(pedido.totalGeneral)}</b>
-          <small>
-            {prendas} {prendas === 1 ? 'prenda' : 'prendas'}
-          </small>
         </span>
       </header>
 
