@@ -9,6 +9,7 @@ import {
   calcularEfectivoHoy,
   habilitarTodoPendiente,
   hoyStr,
+  etiquetaPlanilla,
 } from '../lib/planillas';
 import { imprimirComprobanteEntregaGlobal } from '../lib/imprimir';
 
@@ -126,9 +127,9 @@ export default function Sobres({ usuario }) {
             )}
             {msgAviso && <div className="msg bad">{msgAviso}</div>}
             {pendientes.map((p) =>
-              abierto === p.fecha ? (
+              abierto === p.id ? (
                 <FormularioRecibir
-                  key={p.fecha}
+                  key={p.id}
                   planilla={p}
                   usuario={usuario}
                   onCancelar={() => setAbierto(null)}
@@ -139,9 +140,9 @@ export default function Sobres({ usuario }) {
                   }}
                 />
               ) : (
-                <div className="gasto-item" key={p.fecha}>
+                <div className="gasto-item" key={p.id}>
                   <div>
-                    <div className="gasto-nombre">{p.fecha}</div>
+                    <div className="gasto-nombre">{etiquetaPlanilla(p)}</div>
                     <div className="gasto-sub">
                       {p.habilitada
                         ? `Avisado por ${p.habilitadaPorNombre} a las ${p.habilitadaHora}`
@@ -152,7 +153,7 @@ export default function Sobres({ usuario }) {
                     <span className="gasto-monto">{fmt(p.efectivoAEntregar)}</span>
                     {usuario.id === 'nelson' &&
                       (p.habilitada ? (
-                        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.fecha)}>
+                        <button className="btn ghost sm" style={{ width: 'auto' }} onClick={() => setAbierto(p.id)}>
                           Recibir
                         </button>
                       ) : (
@@ -182,7 +183,7 @@ export default function Sobres({ usuario }) {
                   hora: horaAhora(),
                   recibioNombre: recibioNombreHoy || '—',
                   dias: entregasHoyMias.map((p) => ({
-                    fecha: p.fecha,
+                    fecha: etiquetaPlanilla(p),
                     monto: p.recibido ?? p.efectivoAEntregar,
                     entregoNombre: p.entregoNombre,
                   })),
@@ -254,13 +255,14 @@ export default function Sobres({ usuario }) {
             <div className="empty-lines">Todavía ninguno.</div>
           ) : (
             recibidas.map((p) => (
-              <div className="kv" key={p.fecha}>
+              <div className="kv" key={p.id}>
                 <span>
-                  {p.fecha}
-                  {p.fecha === hoyStr() ? ' (mismo día)' : ''}
+                  {etiquetaPlanilla(p)}
+                  {!p.esSaldo && p.recibidoFecha === p.fecha ? ' (recogido el mismo día)' : ''}
                   <br />
                   <span style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
                     entregó {p.entregoNombre || '—'} · recibió {p.recibidoPorNombre || '—'}
+                    {p.recibidoFecha ? ` · el ${p.recibidoFecha}` : ''}
                   </span>
                 </span>
                 <span className="v" style={{ color: p.difEntrega ? 'var(--danger)' : 'var(--ok)' }}>
@@ -318,12 +320,12 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
       const res = await confirmarPlanilla(planilla, { recibido: monto, entregoNombre: quien.nombreDefault, nota }, usuario);
       if (res.difEntrega !== 0) {
         alert(
-          `El dinero no cuadró.\n\nCalculado el ${planilla.fecha}: ${fmt(planilla.efectivoAEntregar)}\nContado ahora: ${fmt(monto)}\nDiferencia: ${
+          `El dinero no cuadró.\n\nCalculado el ${etiquetaPlanilla(planilla)}: ${fmt(planilla.efectivoAEntregar)}\nContado ahora: ${fmt(monto)}\nDiferencia: ${
             res.difEntrega > 0 ? 'sobró' : 'faltó'
           } ${fmt(Math.abs(res.difEntrega))}`
         );
       }
-      onListo({ monto, fecha: planilla.fecha, entregoNombre: quien.nombreDefault });
+      onListo({ monto, fecha: etiquetaPlanilla(planilla), entregoNombre: quien.nombreDefault });
     } catch (e) {
       setMsg('No se pudo registrar: ' + e.message);
     } finally {
@@ -333,7 +335,7 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
 
   return (
     <div className="card modo-prueba" style={{ marginBottom: 10 }}>
-      <div style={{ fontWeight: 800, marginBottom: 6 }}>Recibir el efectivo del {planilla.fecha}</div>
+      <div style={{ fontWeight: 800, marginBottom: 6 }}>Recibir el efectivo del {etiquetaPlanilla(planilla)}</div>
       <div className="kv" style={{ borderBottom: 'none', marginBottom: 8 }}>
         <span>Calculado ese día</span>
         <span className="v">{fmt(planilla.efectivoAEntregar)}</span>
@@ -408,7 +410,8 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
       <div style={{ fontWeight: 800, marginBottom: 6 }}>Recibir el efectivo de hoy mismo</div>
       <p style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 0 }}>
         Poco común — normalmente el efectivo se recoge días después. Este número es lo calculado
-        HASTA AHORA MISMO; si todavía falta venta por cerrar, va a seguir cambiando.
+        HASTA AHORA MISMO. Lo que se venda después queda como "saldo" de hoy, pendiente para
+        recoger otro día.
       </p>
       <div className="kv" style={{ borderBottom: 'none', marginBottom: 8 }}>
         <span>Calculado hasta ahora</span>

@@ -108,7 +108,7 @@ function armarFilas({ ventas, gastos, compras, movimientos, entregas }) {
       hora: '',
       tipo: 'Entrega de dinero',
       det:
-        `Efectivo del ${fechaLarga(e.fecha || e.id)} · ${e.entregoNombre || '—'} → ${e.recibidoPorNombre || '—'}` +
+        `${e.esSaldo ? 'Saldo del' : 'Efectivo del'} ${fechaLarga(e.fecha || e.id)}${!e.esSaldo && e.recibidoFecha === e.fecha ? ' (recogido el mismo día)' : ''} · ${e.entregoNombre || '—'} → ${e.recibidoPorNombre || '—'}` +
         (dif < 0 ? ` · faltaron ${fmt(-dif)}` : dif > 0 ? ` · sobraron ${fmt(dif)}` : ' · cuadró') +
         (e.notaRecibo ? ` · ${e.notaRecibo}` : ''),
       quien: e.recibidoPorNombre,

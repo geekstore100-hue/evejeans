@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { suscribirPedidosPendientes } from '../lib/compras';
-import { suscribirPlanillasPendientes } from '../lib/planillas';
+import { suscribirPlanillasPendientes, suscribirSolicitudesPedidas } from '../lib/planillas';
 
 // Menú de Nelson: en vez de todas las pestañas en una sola fila, 5 grupos con su
 // submenú. En el computador los grupos van arriba; en el celular van abajo,
@@ -138,6 +138,7 @@ export default function MenuNelson({ usuario, vista, setVista, panicoActivo, onC
   // efectivo que la vendedora ya avisó que están listos para recoger.
   const [porRecibir, setPorRecibir] = useState(0);
   const [porRecoger, setPorRecoger] = useState(0);
+  const [porAprobar, setPorAprobar] = useState(0); // Fausto pide recoger el efectivo de hoy
 
   useEffect(() => {
     const quitarCompras = suscribirPedidosPendientes((lista) => setPorRecibir(lista.length), () => {});
@@ -145,9 +146,11 @@ export default function MenuNelson({ usuario, vista, setVista, panicoActivo, onC
       (lista) => setPorRecoger(lista.filter((p) => p.habilitada).length),
       () => {}
     );
+    const quitarSolicitudes = suscribirSolicitudesPedidas((l) => setPorAprobar(l.length), () => {});
     return () => {
       quitarCompras();
       quitarPlanillas();
+      quitarSolicitudes();
     };
   }, []);
 
@@ -158,7 +161,7 @@ export default function MenuNelson({ usuario, vista, setVista, panicoActivo, onC
     return () => window.removeEventListener('click', cerrar);
   }, [menuAbierto]);
 
-  const avisos = { recibir: porRecibir, sobres: porRecoger };
+  const avisos = { recibir: porRecibir, sobres: porRecoger + porAprobar };
   const grupoActual = GRUPOS.find((g) => g.subs.some((s) => s.id === vista)) || GRUPOS[0];
   const avisosDe = (g) => g.subs.reduce((n, s) => n + (avisos[s.id] || 0), 0);
 

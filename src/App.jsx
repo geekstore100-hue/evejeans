@@ -25,6 +25,7 @@ import LibroDiario from './pages/LibroDiario';
 import FechasEspeciales from './pages/FechasEspeciales';
 import MenuNelson from './components/MenuNelson';
 import AvisoRefuerzo from './components/AvisoRefuerzo';
+import AvisoEntregaHoy from './components/AvisoEntregaHoy';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -274,6 +275,7 @@ export default function App() {
         </>
       )}
 
+      {esNelson && <AvisoEntregaHoy usuario={usuario} />}
       {esNelson && <AvisoRefuerzo usuario={usuario} />}
 
       <main>

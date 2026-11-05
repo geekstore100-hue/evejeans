@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  addDoc,
   setDoc,
   getDoc,
   updateDoc,
@@ -31,7 +32,41 @@ import { resumenDia } from './cierre';
 // cada venta). Solo en diciembre, cuando sí se recoge la misma noche, se usa
 // confirmarPlanillaHoy() para calcularla en el momento justo de recibirla.
 
-const DIAS_HACIA_ATRAS = 90; // suficiente para cualquier atraso normal, sin revisar meses y meses cada vez
+const DIAS_HACIA_ATRAS = 90;
+
+export function idSaldo(fecha) {
+  return `${fecha}_saldo`;
+}
+
+// Cómo se nombra una planilla en pantalla: "2026-10-29", o "2026-10-29
+// (saldo)" para lo que se vendió después de haberla recogido el mismo día.
+export function etiquetaPlanilla(p) {
+  return p.esSaldo ? `${p.fecha} (saldo)` : p.fecha;
+}
+
+function planillaNueva(fecha, efectivoAEntregar) {
+  return {
+    fecha,
+    efectivoAEntregar,
+    estado: 'pendiente', // pendiente | recibido
+    // "Habilitada": la vendedora avisó que ya tiene ese efectivo listo para
+    // entregar (ver habilitarTodoPendiente). No es lo mismo que "recibido" —
+    // solo dice que está lista para que la recojan.
+    habilitada: false,
+    habilitadaPorId: null,
+    habilitadaPorNombre: null,
+    habilitadaFecha: null,
+    habilitadaHora: null,
+    recibido: null,
+    difEntrega: null,
+    entregoNombre: null,
+    recibidoPorId: null,
+    recibidoPorNombre: null,
+    recibidoFecha: null,
+    notaRecibo: null,
+    creadoEn: serverTimestamp(),
+  };
+} // suficiente para cualquier atraso normal, sin revisar meses y meses cada vez
 
 function fechaAStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -62,13 +97,49 @@ export async function asegurarPlanillasPendientes() {
 
   // Una sola consulta para saber cuáles de esos días ya tienen planilla,
   // en vez de revisar día por día.
+  // ("\uf8ff" al final: así también entran los "saldos" de esos días, cuyo
+  // id es "AAAA-MM-DD_saldo" — ver más abajo.)
   const q = query(
     collection(db, 'planillas'),
     where(documentId(), '>=', desdeStr),
-    where(documentId(), '<=', ayerStr)
+    where(documentId(), '<=', ayerStr + '\uf8ff')
   );
   const snap = await getDocs(q);
   const yaExisten = new Set(snap.docs.map((d) => d.id));
+
+  // Días que se recogieron EL MISMO DÍA (botón "efectivo de HOY mismo"): se
+  // recogió lo vendido hasta ese momento, pero la tienda siguió vendiendo. Lo
+  // que entró después quedaba sin registrar en ningún lado — por eso ahora,
+  // ya terminado ese día, se calcula el día completo y, si hay más efectivo
+  // del que se recogió, se crea una planilla aparte "saldo" por la
+  // diferencia, pendiente de recoger como cualquier otro día. Solo se revisan
+  // las últimas 2 semanas (el saldo aparece desde el día siguiente).
+  const hace14 = new Date(hoy);
+  hace14.setDate(hace14.getDate() - 14);
+  const desdeSaldos = fechaAStr(hace14);
+  const recogidosMismoDia = snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter(
+      (p) =>
+        p.id === p.fecha &&
+        p.estado === 'recibido' &&
+        p.recibidoFecha === p.fecha &&
+        p.fecha >= desdeSaldos &&
+        !yaExisten.has(idSaldo(p.fecha))
+    );
+  await Promise.all(
+    recogidosMismoDia.map(async (p) => {
+      const resumen = await resumenDia(p.fecha);
+      const saldo = (resumen.efectivoAEntregar || 0) - (p.efectivoAEntregar || 0);
+      if (saldo > 0) {
+        await setDoc(doc(db, 'planillas', idSaldo(p.fecha)), {
+          ...planillaNueva(p.fecha, saldo),
+          esSaldo: true,
+          recogidoAntes: p.efectivoAEntregar || 0,
+        });
+      }
+    })
+  );
 
   const faltantes = [];
   for (let d = new Date(desde); d <= ayer; d.setDate(d.getDate() + 1)) {
@@ -88,27 +159,7 @@ export async function asegurarPlanillasPendientes() {
       // crea planilla — no hay nada que recoger. Vuelve a revisarse la próxima
       // vez, pero eso no cuesta nada (una consulta vacía).
       if (efectivoAEntregar > 0) {
-        await setDoc(doc(db, 'planillas', fecha), {
-          fecha,
-          efectivoAEntregar,
-          estado: 'pendiente', // pendiente | recibido
-          // "Habilitada": la vendedora avisó que ya tiene ese efectivo listo
-          // para entregar (ver habilitarTodoPendiente). No es lo mismo que
-          // "recibido" — solo dice que está lista para que la recojan.
-          habilitada: false,
-          habilitadaPorId: null,
-          habilitadaPorNombre: null,
-          habilitadaFecha: null,
-          habilitadaHora: null,
-          recibido: null,
-          difEntrega: null,
-          entregoNombre: null,
-          recibidoPorId: null,
-          recibidoPorNombre: null,
-          recibidoFecha: null,
-          notaRecibo: null,
-          creadoEn: serverTimestamp(),
-        });
+        await setDoc(doc(db, 'planillas', fecha), planillaNueva(fecha, efectivoAEntregar));
       }
     })
   );
@@ -134,7 +185,7 @@ export async function habilitarTodoPendiente(usuario) {
   const hora = ahoraStr();
   const batch = writeBatch(db);
   faltantes.forEach((p) => {
-    batch.update(doc(db, 'planillas', p.fecha), {
+    batch.update(doc(db, 'planillas', p.id || p.fecha), {
       habilitada: true,
       habilitadaPorId: usuario.id,
       habilitadaPorNombre: usuario.nombreDefault,
@@ -181,7 +232,7 @@ export async function planillasRecibidas(limite = 20) {
 // Recibir un día que ya estaba pendiente (el caso normal).
 export async function confirmarPlanilla(planilla, { recibido, entregoNombre, nota }, usuario) {
   const difEntrega = recibido - planilla.efectivoAEntregar;
-  await updateDoc(doc(db, 'planillas', planilla.fecha), {
+  await updateDoc(doc(db, 'planillas', planilla.id || planilla.fecha), {
     estado: 'recibido',
     recibido,
     difEntrega,
@@ -209,24 +260,7 @@ export async function confirmarPlanillaHoy({ recibido, entregoNombre, nota }, us
   } else {
     const resumen = await resumenDia(fecha);
     efectivoAEntregar = resumen.efectivoAEntregar || 0;
-    await setDoc(ref, {
-      fecha,
-      efectivoAEntregar,
-      estado: 'pendiente',
-      habilitada: false,
-      habilitadaPorId: null,
-      habilitadaPorNombre: null,
-      habilitadaFecha: null,
-      habilitadaHora: null,
-      recibido: null,
-      difEntrega: null,
-      entregoNombre: null,
-      recibidoPorId: null,
-      recibidoPorNombre: null,
-      recibidoFecha: null,
-      notaRecibo: null,
-      creadoEn: serverTimestamp(),
-    });
+    await setDoc(ref, planillaNueva(fecha, efectivoAEntregar));
   }
   const difEntrega = recibido - efectivoAEntregar;
   await updateDoc(ref, {
@@ -240,6 +274,109 @@ export async function confirmarPlanillaHoy({ recibido, entregoNombre, nota }, us
     notaRecibo: nota || null,
   });
   return { difEntrega, efectivoAEntregar };
+}
+
+// ---------- Recoger el efectivo del MISMO día: lo aprueba Nelson ----------
+// Fausto ya no puede recoger el efectivo de hoy por su cuenta (así fue como el
+// 29 de octubre quedó recogido a mitad del día). Él cuenta y PIDE; a Nelson le
+// sale el aviso en su app y lo aprueba o lo rechaza. Solo al aprobar queda
+// registrado como recibido. La solicitud queda guardada en
+// "entregasMismoDia" como constancia.
+export async function pedirEntregaHoy({ recibido, entregoNombre, nota }, usuario) {
+  const fecha = hoyStr();
+  const actual = await getDoc(doc(db, 'planillas', fecha));
+  if (actual.exists() && actual.data().estado === 'recibido') {
+    throw new Error('El efectivo de hoy ya quedó registrado como recibido.');
+  }
+  const resumen = await resumenDia(fecha);
+  const efectivoCalculado = resumen.efectivoAEntregar || 0;
+  if (efectivoCalculado <= 0) throw new Error('Hoy todavía no hay efectivo para entregar.');
+  await addDoc(collection(db, 'entregasMismoDia'), {
+    fecha,
+    efectivoCalculado,
+    recibido,
+    entregoNombre: entregoNombre || null,
+    nota: nota || null,
+    pedidoPorId: usuario.id,
+    pedidoPorNombre: usuario.nombreDefault,
+    pedidoHora: ahoraStr(),
+    estado: 'pedida', // pedida | aprobada | rechazada | cancelada
+    resueltaPorNombre: null,
+    resueltaHora: null,
+    motivo: null,
+    creadoEn: serverTimestamp(),
+  });
+  return { efectivoCalculado };
+}
+
+export async function aprobarEntregaHoy(sol, usuario) {
+  const ref = doc(db, 'planillas', sol.fecha);
+  const snap = await getDoc(ref);
+  let efectivoAEntregar = sol.efectivoCalculado;
+  if (snap.exists()) {
+    if (snap.data().estado === 'recibido') throw new Error('Ese día ya quedó registrado como recibido.');
+    efectivoAEntregar = snap.data().efectivoAEntregar;
+  } else {
+    await setDoc(ref, planillaNueva(sol.fecha, efectivoAEntregar));
+  }
+  const difEntrega = sol.recibido - efectivoAEntregar;
+  await updateDoc(ref, {
+    estado: 'recibido',
+    recibido: sol.recibido,
+    difEntrega,
+    entregoNombre: sol.entregoNombre || null,
+    recibidoPorId: sol.pedidoPorId,
+    recibidoPorNombre: sol.pedidoPorNombre,
+    recibidoFecha: sol.fecha,
+    notaRecibo: [sol.nota, `recogido el mismo día, aprobado por ${usuario.nombreDefault}`].filter(Boolean).join(' · '),
+  });
+  await updateDoc(doc(db, 'entregasMismoDia', sol.id), {
+    estado: 'aprobada',
+    resueltaPorNombre: usuario.nombreDefault,
+    resueltaHora: ahoraStr(),
+  });
+  return { difEntrega };
+}
+
+export async function rechazarEntregaHoy(sol, motivo, usuario) {
+  await updateDoc(doc(db, 'entregasMismoDia', sol.id), {
+    estado: 'rechazada',
+    resueltaPorNombre: usuario.nombreDefault,
+    resueltaHora: ahoraStr(),
+    motivo: motivo || null,
+  });
+}
+
+export async function cancelarSolicitudHoy(sol) {
+  await updateDoc(doc(db, 'entregasMismoDia', sol.id), { estado: 'cancelada' });
+}
+
+function solicitudesDe(snap) {
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }))
+    .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
+}
+// Las que esperan a Nelson (para su aviso).
+export function suscribirSolicitudesPedidas(callback, onError) {
+  return onSnapshot(
+    query(collection(db, 'entregasMismoDia'), where('estado', '==', 'pedida')),
+    (snap) => callback(solicitudesDe(snap)),
+    (err) => {
+      console.error('Error escuchando solicitudes de entrega:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+// Las de un día (para que Fausto vea cómo va la suya).
+export function suscribirSolicitudesDelDia(fecha, callback, onError) {
+  return onSnapshot(
+    query(collection(db, 'entregasMismoDia'), where('fecha', '==', fecha)),
+    (snap) => callback(solicitudesDe(snap)),
+    (err) => {
+      console.error('Error escuchando solicitudes del día:', err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 export async function calcularEfectivoHoy() {

@@ -5,9 +5,12 @@ import {
   suscribirPlanillasPendientes,
   suscribirPlanillasRecibidas,
   confirmarPlanilla,
-  confirmarPlanillaHoy,
+  pedirEntregaHoy,
+  cancelarSolicitudHoy,
+  suscribirSolicitudesDelDia,
   calcularEfectivoHoy,
   hoyStr,
+  etiquetaPlanilla,
 } from '../lib/planillas';
 import { imprimirComprobanteEntregaGlobal } from '../lib/imprimir';
 
@@ -34,6 +37,9 @@ export default function EntregaEfectivoFausto({ usuario }) {
   // datos, solo mientras esté abierta la pantalla) — para poder imprimir UN
   // comprobante global al final, en vez de uno por cada día.
   const [sesionConfirmadas, setSesionConfirmadas] = useState([]);
+  // Si pidió recoger el efectivo de HOY, cómo va esa solicitud (la aprueba Nelson).
+  const [solicitudesHoy, setSolicitudesHoy] = useState([]);
+  useEffect(() => suscribirSolicitudesDelDia(hoyStr(), setSolicitudesHoy, () => setSolicitudesHoy([])), []);
 
   // En vivo: en cuanto la vendedora avisa que tiene el efectivo listo, le
   // aparece a Fausto sin tener que recargar la página.
@@ -111,9 +117,9 @@ export default function EntregaEfectivoFausto({ usuario }) {
           <div className="empty-lines">No hay ningún efectivo pendiente ahora mismo.</div>
         ) : (
           pendientes.map((p) =>
-            abierto === p.fecha ? (
+            abierto === p.id ? (
               <FormularioRecibir
-                key={p.fecha}
+                key={p.id}
                 planilla={p}
                 usuario={usuario}
                 onCancelar={() => setAbierto(null)}
@@ -125,9 +131,9 @@ export default function EntregaEfectivoFausto({ usuario }) {
                 }}
               />
             ) : (
-              <div key={p.fecha} className="cf-pedido-row">
+              <div key={p.id} className="cf-pedido-row">
                 <div className="cf-pedido-top">
-                  <span>{p.fecha}</span>
+                  <span>{etiquetaPlanilla(p)}</span>
                 </div>
                 {p.habilitada ? (
                   <div style={{ fontSize: 12, color: 'var(--danger)', marginBottom: 4 }}>
@@ -140,7 +146,7 @@ export default function EntregaEfectivoFausto({ usuario }) {
                 )}
                 <div className="cf-pedido-total">{fmt(p.efectivoAEntregar)}</div>
                 {p.habilitada ? (
-                  <button className="cf-btn-corregir" onClick={() => setAbierto(p.fecha)}>
+                  <button className="cf-btn-corregir" onClick={() => setAbierto(p.id)}>
                     Recibir este efectivo
                   </button>
                 ) : (
@@ -155,21 +161,13 @@ export default function EntregaEfectivoFausto({ usuario }) {
       </div>
 
       <div className="cf-card">
-        {!hoyAbierto ? (
+        <EstadoSolicitudHoy solicitudes={solicitudesHoy} />
+        {solicitudesHoy.some((x) => x.estado === 'pedida' || x.estado === 'aprobada') ? null : !hoyAbierto ? (
           <button className="cf-btn-secundario" style={{ width: '100%' }} onClick={() => setHoyAbierto(true)}>
             ¿Vas a recoger el efectivo de HOY mismo?
           </button>
         ) : (
-          <FormularioHoy
-            usuario={usuario}
-            onCancelar={() => setHoyAbierto(false)}
-            onListo={async (info) => {
-              setHoyAbierto(false);
-              setExito(info);
-              setSesionConfirmadas((s) => [...s, info]);
-              await cargar();
-            }}
-          />
+          <FormularioHoy usuario={usuario} onCancelar={() => setHoyAbierto(false)} onListo={() => setHoyAbierto(false)} />
         )}
       </div>
 
@@ -207,9 +205,9 @@ export default function EntregaEfectivoFausto({ usuario }) {
         <div className="cf-card">
           <div className="cf-paso">Lo último que recibiste</div>
           {recibidas.map((p) => (
-            <div key={p.fecha} className="cf-pedido-row">
+            <div key={p.id} className="cf-pedido-row">
               <div className="cf-pedido-top">
-                <span>{p.fecha}</span>
+                <span>{etiquetaPlanilla(p)}</span>
               </div>
               <div className="cf-pedido-total">{fmt(p.recibido)}</div>
             </div>
@@ -259,12 +257,12 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
       const res = await confirmarPlanilla(planilla, { recibido: monto, entregoNombre: quien.nombreDefault, nota }, usuario);
       if (res.difEntrega !== 0) {
         alert(
-          `Ojo: el dinero no cuadró.\n\nCalculado el ${planilla.fecha}: ${fmt(planilla.efectivoAEntregar)}\nTú contaste: ${fmt(monto)}\nDiferencia: ${
+          `Ojo: el dinero no cuadró.\n\nCalculado el ${etiquetaPlanilla(planilla)}: ${fmt(planilla.efectivoAEntregar)}\nTú contaste: ${fmt(monto)}\nDiferencia: ${
             res.difEntrega > 0 ? 'sobró' : 'faltó'
           } ${fmt(Math.abs(res.difEntrega))}`
         );
       }
-      onListo({ monto, fecha: planilla.fecha, entregoNombre: quien.nombreDefault });
+      onListo({ monto, fecha: etiquetaPlanilla(planilla), entregoNombre: quien.nombreDefault });
     } catch (e) {
       setMsg('No se pudo registrar: ' + e.message);
     } finally {
@@ -274,7 +272,7 @@ function FormularioRecibir({ planilla, usuario, onCancelar, onListo }) {
 
   return (
     <div className="cf-correccion">
-      <div className="cf-paso">Recibiendo el {planilla.fecha}</div>
+      <div className="cf-paso">Recibiendo el {etiquetaPlanilla(planilla)}</div>
       <div className="cf-linea-campo">
         <label>Calculado ese día</label>
         <div style={{ fontSize: 20, fontWeight: 800 }}>{fmt(planilla.efectivoAEntregar)}</div>
@@ -340,17 +338,10 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
     }
     setGuardando(true);
     try {
-      const res = await confirmarPlanillaHoy({ recibido: monto, entregoNombre: quien.nombreDefault, nota }, usuario);
-      if (res.difEntrega !== 0) {
-        alert(
-          `Ojo: el dinero no cuadró.\n\nCalculado hasta ahora: ${fmt(res.efectivoAEntregar)}\nTú contaste: ${fmt(monto)}\nDiferencia: ${
-            res.difEntrega > 0 ? 'sobró' : 'faltó'
-          } ${fmt(Math.abs(res.difEntrega))}`
-        );
-      }
-      onListo({ monto, fecha: hoyStr(), entregoNombre: quien.nombreDefault });
+      await pedirEntregaHoy({ recibido: monto, entregoNombre: quien.nombreDefault, nota }, usuario);
+      onListo();
     } catch (e) {
-      setMsg('No se pudo registrar: ' + e.message);
+      setMsg('No se pudo enviar: ' + e.message);
     } finally {
       setGuardando(false);
     }
@@ -359,9 +350,14 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
   return (
     <div className="cf-correccion">
       <div className="cf-paso">Recibiendo el efectivo de hoy mismo</div>
+      <p style={{ fontSize: 14, color: 'var(--danger)', fontWeight: 700, marginTop: 0 }}>
+        Solo si te estás llevando AHORA la plata de HOY ({hoyStr()}). Para los días anteriores usa
+        "Recibir este efectivo" arriba.
+      </p>
       <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 0 }}>
-        Poco común — este número es lo calculado hasta ahora mismo, si todavía falta venta va a
-        seguir cambiando.
+        Recoger el efectivo del mismo día lo tiene que aprobar Nelson: cuenta, y a él le llega el
+        aviso en su app. Lo que se venda después de recogerlo queda como "saldo" de hoy, pendiente
+        para recoger otro día.
       </p>
       <div className="cf-linea-campo">
         <label>Calculado hasta ahora</label>
@@ -391,10 +387,48 @@ function FormularioHoy({ usuario, onCancelar, onListo }) {
           Cancelar
         </button>
         <button className="cf-btn-registrar" style={{ marginBottom: 0 }} disabled={guardando} onClick={confirmar}>
-          {guardando ? 'Guardando…' : 'Confirmar que la recibí'}
+          {guardando ? 'Enviando…' : 'Pedirle a Nelson que lo apruebe'}
         </button>
       </div>
       {msg && <div className="msg bad">{msg}</div>}
+    </div>
+  );
+}
+
+// Cómo va la solicitud de recoger el efectivo de hoy (en vivo).
+function EstadoSolicitudHoy({ solicitudes }) {
+  const sol = solicitudes.find((x) => x.estado !== 'cancelada');
+  if (!sol) return null;
+  if (sol.estado === 'pedida') {
+    return (
+      <div className="cf-solicitud espera">
+        <b>⏳ Esperando que Nelson apruebe</b>
+        <span>
+          Pediste recoger {fmt(sol.recibido)} del efectivo de hoy (lo entrega {sol.entregoNombre || '—'}). Todavía no te lleves la plata.
+        </span>
+        <button className="cf-btn-secundario" onClick={() => cancelarSolicitudHoy(sol).catch(() => {})}>
+          Cancelar la solicitud
+        </button>
+      </div>
+    );
+  }
+  if (sol.estado === 'aprobada') {
+    return (
+      <div className="cf-solicitud ok">
+        <b>✅ Nelson lo aprobó</b>
+        <span>
+          Ya quedó registrado que recibiste {fmt(sol.recibido)} del efectivo de hoy. Lo que se venda de aquí en adelante queda como saldo
+          para recoger otro día.
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="cf-solicitud no">
+      <b>✋ Nelson no lo aprobó</b>
+      <span>
+        {sol.motivo ? `Motivo: ${sol.motivo}. ` : ''}No te lleves el efectivo de hoy; se recoge otro día como siempre.
+      </span>
     </div>
   );
 }
