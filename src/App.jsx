@@ -26,6 +26,9 @@ import FechasEspeciales from './pages/FechasEspeciales';
 import MenuNelson from './components/MenuNelson';
 import AvisoRefuerzo from './components/AvisoRefuerzo';
 import AvisoEntregaHoy from './components/AvisoEntregaHoy';
+import AvisoPorSubir from './components/AvisoPorSubir';
+import AvisoStockNegativo from './components/AvisoStockNegativo';
+import { leerPorSubir } from './lib/porSubir';
 
 export default function App() {
   const [cargando, setCargando] = useState(true);
@@ -111,6 +114,16 @@ export default function App() {
 
   async function cambiarDeTurno() {
     if (authId === 'nelson' || authId === 'fausto') {
+      // Si hay algo guardado sin internet que todavía no sube, cerrar sesión lo
+      // deja atascado en este computador hasta que esa persona vuelva a entrar.
+      const esperando = leerPorSubir().filter((x) => x.estado === 'esperando').length;
+      if (
+        esperando &&
+        !window.confirm(
+          `Hay ${esperando} ${esperando === 1 ? 'registro guardado' : 'registros guardados'} sin internet que todavía no ${esperando === 1 ? 'sube' : 'suben'}. Si cierras sesión, se queda esperando en este computador hasta que vuelvas a entrar. ¿Cerrar sesión igual?`
+        )
+      )
+        return;
       // Nelson y Fausto sí cierran sesión de verdad: cada uno tiene su propia
       // cuenta real, no una etiqueta elegida sobre la cuenta compartida.
       await salir();
@@ -181,6 +194,7 @@ export default function App() {
             </button>
           </nav>
         )}
+        <AvisoPorSubir />
         <main>
           {vistaFausto === 'pedido' && <ComprasFausto usuario={usuario} />}
           {vistaFausto === 'efectivo' && <EntregaEfectivoFausto usuario={usuario} />}
@@ -275,6 +289,8 @@ export default function App() {
         </>
       )}
 
+      <AvisoPorSubir />
+      {esNelson && <AvisoStockNegativo />}
       {esNelson && <AvisoEntregaHoy usuario={usuario} />}
       {esNelson && <AvisoRefuerzo usuario={usuario} />}
 

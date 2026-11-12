@@ -1,3 +1,5 @@
+import { anotarPorSubir, quitarPorSubir, marcarRechazada, explicarRechazo } from './porSubir';
+
 // Guarda (un writeBatch, un setDoc, un updateDoc — cualquier cosa que devuelva una
 // promesa) sin dejar la pantalla "pegada" si no hay internet.
 //
@@ -21,7 +23,11 @@
 //   se relanza el error para que la pantalla que llamó a esto se entere (todas ya
 //   tienen su propio "no se pudo guardar" preparado) y avise de verdad, en vez de
 //   mostrar una confirmación falsa.
-export async function guardarSinBloquear(promesa, { limiteMs = 4000, contexto = '' } = {}) {
+//
+// vigilar (opcional): { coleccion, id, que, detalle, fecha, hora } — si quedó
+// pendiente de subir, se anota en lib/porSubir.js hasta que el servidor la
+// confirme, y si la rechaza se marca para avisar en grande en la pantalla.
+export async function guardarSinBloquear(promesa, { limiteMs = 4000, contexto = '', vigilar = null } = {}) {
   const resultado = await Promise.race([
     promesa.then(() => ({ estado: 'confirmado' })).catch((err) => ({ estado: 'error', err })),
     new Promise((resolve) => setTimeout(() => resolve({ estado: 'pendiente' }), limiteMs)),
@@ -36,9 +42,16 @@ export async function guardarSinBloquear(promesa, { limiteMs = 4000, contexto = 
     // Sigue subiendo por detrás (offline o muy lento) — si de aquí a que suba
     // de verdad llega a fallar, ya no hay ninguna pantalla esperando para
     // avisar, así que por lo menos queda registrado en la consola.
-    promesa.catch((err) => {
-      console.error(`No se pudo sincronizar con Firebase${contexto ? ' (' + contexto + ')' : ''}:`, err);
-    });
+    const clave = vigilar ? `${vigilar.coleccion}/${vigilar.id}` : null;
+    if (vigilar) anotarPorSubir({ ...vigilar, clave });
+    promesa
+      .then(() => {
+        if (clave) quitarPorSubir(clave);
+      })
+      .catch((err) => {
+        console.error(`No se pudo sincronizar con Firebase${contexto ? ' (' + contexto + ')' : ''}:`, err);
+        if (clave) marcarRechazada(clave, explicarRechazo(err));
+      });
     return 'pendiente';
   }
 

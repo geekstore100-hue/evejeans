@@ -84,7 +84,17 @@ export async function registrarMovimiento({ usuario, tipo, itemId, itemNombre, c
     anulada: false,
     creadoEn: serverTimestamp(),
   });
-  await guardarSinBloquear(batch.commit(), { contexto: `${tipo} de mercancía #${num}` });
+  await guardarSinBloquear(batch.commit(), {
+    contexto: `${tipo} de mercancía #${num}`,
+    vigilar: {
+      coleccion: 'entradasSalidas',
+      id: movRef.id,
+      que: `${tipo === 'salida' ? 'Salida' : 'Entrada'} de mercancía N.º ${num}`,
+      detalle: `${itemNombre} ×${cantidad} · ${categoria}`,
+      fecha,
+      hora,
+    },
+  });
 
   return { num, fecha, hora };
 }

@@ -1090,3 +1090,29 @@ button.ff-renglon:hover { background: var(--rosa-suave); }
 .cf-solicitud.ok { background: #e3f3ea; color: #2f7d55; }
 .cf-solicitud.no { background: var(--danger-soft); color: var(--danger); }
 .cf-solicitud .cf-btn-secundario { justify-self: start; }
+
+/* ---------- Lo guardado sin internet (components/AvisoPorSubir.jsx) ---------- */
+.ps { max-width: 1180px; margin: 10px auto 0; display: grid; gap: 8px; }
+.con-panel-fijo .ps { margin-right: 410px; }
+.ps-rechazo { background: var(--danger-soft); border: 2px solid var(--danger); border-radius: 12px; padding: 12px 14px; color: var(--ink); display: grid; gap: 8px; }
+.ps-rechazo > b { color: var(--danger); font-size: 17px; text-transform: uppercase; }
+.ps-rechazo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ps-rechazo li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--panel); border-radius: 10px; padding: 9px 12px; }
+.ps-rechazo li > div { flex: 1 1 260px; min-width: 0; font-size: 15px; }
+.ps-rechazo small { display: block; font-size: 13px; color: var(--ink-soft); }
+.ps-rechazo .ps-motivo { color: var(--danger); }
+.ps-rechazo button { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 13px; color: var(--ink); }
+.ps-nota { font-size: 13px; color: var(--danger); }
+.ps-espera { background: #fbf0dc; border: 1px solid #ecd6ad; border-left: 5px solid #9a6b2c; border-radius: 12px; padding: 10px 14px; display: grid; gap: 3px; font-size: 14px; color: var(--ink); }
+.ps-espera b { font-size: 15px; }
+/* Stock en negativo (components/AvisoStockNegativo.jsx) */
+.sn { max-width: 1180px; margin: 10px auto 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; background: var(--danger-soft); border-left: 5px solid var(--danger); border-radius: 12px; padding: 10px 14px; }
+.con-panel-fijo .sn { margin-right: 410px; }
+.sn > div { flex: 1 1 300px; min-width: 0; display: grid; gap: 3px; }
+.sn b { color: var(--danger); font-size: 15px; }
+.sn small { font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
+.sn button { border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 8px 12px; font-weight: 800; font-size: 13px; color: var(--ink); }
+@media (max-width: 640px) {
+  .ps, .sn { margin: 8px 8px 0; }
+  .con-panel-fijo .ps, .con-panel-fijo .sn { margin-right: 8px; }
+}

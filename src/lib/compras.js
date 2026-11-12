@@ -111,7 +111,17 @@ export async function crearPedidoCompra({ items, proveedor, origen, nota, usuari
     creadoEn: serverTimestamp(),
   });
 
-  await guardarSinBloquear(batch.commit(), { contexto: 'pedido de compra' });
+  await guardarSinBloquear(batch.commit(), {
+    contexto: 'pedido de compra',
+    vigilar: {
+      coleccion: 'compras',
+      id: compraRef.id,
+      que: `Factura de compra${facturaNum ? ` ${facturaNum}` : ''}`,
+      detalle: `${itemsConTotal.map((i) => `${i.cantidadPedida} ref ${i.name}`).join(', ')} · $${totalGeneral.toLocaleString('es-CO')}`,
+      fecha: hoyStr(),
+      hora: ahoraStr(),
+    },
+  });
   return { id: compraRef.id, totalGeneral };
 }
 
@@ -153,7 +163,19 @@ export async function confirmarRecepcion(compraId, compra, itemsConfirmados, usu
     confirmadoFecha: hoyStr(),
   });
 
-  await guardarSinBloquear(batch.commit(), { contexto: `recepción compra ${compraId}` });
+  await guardarSinBloquear(batch.commit(), {
+    contexto: `recepción compra ${compraId}`,
+    vigilar: {
+      coleccion: 'compras',
+      id: compraId,
+      que: `Recepción de la factura${compra.facturaNum ? ` ${compra.facturaNum}` : ''} del ${compra.fecha}`,
+      detalle: itemsFinal.map((i) => `${i.cantidadRecibida} ref ${i.name}`).join(', '),
+      fecha: hoyStr(),
+      hora: ahoraStr(),
+      // Ya existía antes: lo que confirma que subió es que quedó "confirmada".
+      verificar: { campo: 'estado', valor: 'confirmada' },
+    },
+  });
 
   const conDiferencia = itemsFinal.filter((i) => i.cantidadRecibida !== i.cantidadPedida);
   return { conDiferencia };

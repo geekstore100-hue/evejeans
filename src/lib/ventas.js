@@ -101,7 +101,17 @@ export async function registrarVenta({ usuario, items, descuento, motivoDescuent
     anulada: false,
     creadoEn: serverTimestamp(),
   });
-  await guardarSinBloquear(batch.commit(), { contexto: `venta #${num}` });
+  await guardarSinBloquear(batch.commit(), {
+    contexto: `venta #${num}`,
+    vigilar: {
+      coleccion: 'ventas',
+      id: ventaRef.id,
+      que: `Venta N.º ${num}`,
+      detalle: `${items.map((i) => `${i.name} ×${i.qty}`).join(', ')} · $${total.toLocaleString('es-CO')} (${pagoLabel})`,
+      fecha,
+      hora,
+    },
+  });
 
   return { num, total, fecha, hora };
 }

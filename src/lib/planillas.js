@@ -107,39 +107,55 @@ export async function asegurarPlanillasPendientes() {
   const snap = await getDocs(q);
   const yaExisten = new Set(snap.docs.map((d) => d.id));
 
-  // Días que se recogieron EL MISMO DÍA (botón "efectivo de HOY mismo"): se
-  // recogió lo vendido hasta ese momento, pero la tienda siguió vendiendo. Lo
-  // que entró después quedaba sin registrar en ningún lado — por eso ahora,
-  // ya terminado ese día, se calcula el día completo y, si hay más efectivo
-  // del que se recogió, se crea una planilla aparte "saldo" por la
-  // diferencia, pendiente de recoger como cualquier otro día. Solo se revisan
-  // las últimas 2 semanas (el saldo aparece desde el día siguiente).
-  const hace14 = new Date(hoy);
-  hace14.setDate(hace14.getDate() - 14);
-  const desdeSaldos = fechaAStr(hace14);
-  const recogidosMismoDia = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .filter(
-      (p) =>
-        p.id === p.fecha &&
-        p.estado === 'recibido' &&
-        p.recibidoFecha === p.fecha &&
-        p.fecha >= desdeSaldos &&
-        !yaExisten.has(idSaldo(p.fecha))
+  // ---- Planillas que se calcularon antes de que subiera todo ----
+  // Una planilla se calcula una sola vez con lo que haya en el servidor en ese
+  // momento. Si la tienda vendió SIN INTERNET y esas ventas subieron después
+  // (o si se recogió el efectivo el mismo día con el botón "HOY mismo" y la
+  // tienda siguió vendiendo), el monto quedaba corto y nadie se enteraba —
+  // así pasó el 29 de octubre. Ahora, cada vez que se abre la pantalla (y hay
+  // internet), se revisan las de las últimas 2 semanas:
+  //  - Pendientes: si el día ya suma otra cosa, se corrige el monto.
+  //  - Ya recibidas: si el día suma MÁS de lo que se recogió, se crea una
+  //    planilla aparte "saldo" por la diferencia, pendiente de recoger.
+  const enLinea = typeof navigator === 'undefined' || navigator.onLine !== false;
+  if (enLinea) {
+    const hace14 = new Date(hoy);
+    hace14.setDate(hace14.getDate() - 14);
+    const desdeRevision = fechaAStr(hace14);
+    const planillas = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((p) => p.fecha >= desdeRevision);
+    const porId = new Map(planillas.map((p) => [p.id, p]));
+    const resumenes = new Map();
+    const efectivoDelDia = async (fecha) => {
+      if (!resumenes.has(fecha)) resumenes.set(fecha, resumenDia(fecha).then((r) => r.efectivoAEntregar || 0));
+      return resumenes.get(fecha);
+    };
+    await Promise.all(
+      planillas.map(async (p) => {
+        try {
+          const delDia = await efectivoDelDia(p.fecha);
+          if (p.estado === 'pendiente') {
+            const deberia = p.esSaldo ? delDia - (p.recogidoAntes || 0) : delDia;
+            if (deberia > 0 && Math.round(deberia) !== Math.round(p.efectivoAEntregar || 0)) {
+              await updateDoc(doc(db, 'planillas', p.id), { efectivoAEntregar: deberia, recalculadoEn: serverTimestamp() });
+            }
+          } else if (p.estado === 'recibido' && !p.esSaldo && !porId.has(idSaldo(p.fecha))) {
+            const saldo = delDia - (p.efectivoAEntregar || 0);
+            if (saldo > 0) {
+              await setDoc(doc(db, 'planillas', idSaldo(p.fecha)), {
+                ...planillaNueva(p.fecha, saldo),
+                esSaldo: true,
+                recogidoAntes: p.efectivoAEntregar || 0,
+              });
+            }
+          }
+        } catch (e) {
+          // Que una revisión falle (por ejemplo, porque todavía no se publicaron
+          // las reglas nuevas) no impide crear las planillas que faltan.
+          console.error(`Revisión de la planilla ${p.id}:`, e);
+        }
+      })
     );
-  await Promise.all(
-    recogidosMismoDia.map(async (p) => {
-      const resumen = await resumenDia(p.fecha);
-      const saldo = (resumen.efectivoAEntregar || 0) - (p.efectivoAEntregar || 0);
-      if (saldo > 0) {
-        await setDoc(doc(db, 'planillas', idSaldo(p.fecha)), {
-          ...planillaNueva(p.fecha, saldo),
-          esSaldo: true,
-          recogidoAntes: p.efectivoAEntregar || 0,
-        });
-      }
-    })
-  );
+  }
 
   const faltantes = [];
   for (let d = new Date(desde); d <= ayer; d.setDate(d.getDate() + 1)) {

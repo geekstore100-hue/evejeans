@@ -78,7 +78,19 @@ export async function registrarCambio({ usuario, devuelve, lleva, pagoDif }) {
     anulada: false,
     creadoEn: serverTimestamp(),
   });
-  await guardarSinBloquear(batch.commit(), { contexto: `cambio #${num}` });
+  await guardarSinBloquear(batch.commit(), {
+    contexto: `cambio #${num}`,
+    vigilar: {
+      coleccion: 'ventas',
+      id: cambioRef.id,
+      que: `Cambio N.º ${num}`,
+      detalle: `devuelve ${devuelve.map((i) => `${i.name} ×${i.qty}`).join(', ')} · se lleva ${lleva
+        .map((i) => `${i.name} ×${i.qty}`)
+        .join(', ')}${diferencia > 0 ? ` · pagó $${diferencia.toLocaleString('es-CO')} (${pagoDif})` : ''}`,
+      fecha,
+      hora,
+    },
+  });
 
   return { num, valDev, valLlv, diferencia };
 }

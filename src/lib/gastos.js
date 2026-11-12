@@ -59,6 +59,7 @@ export async function registrarGasto({ usuario, categoria, quien, periodo, monto
   if (!nomina) {
     await guardarSinBloquear(setDoc(gastoRef, { ...base, consecutivoPago: null }), {
       contexto: 'gasto',
+      vigilar: { coleccion: 'gastos', id: gastoRef.id, que: `Gasto: ${categoria}`, detalle: `$${(monto || 0).toLocaleString('es-CO')} · ${origen}`, fecha, hora },
     });
     return { id: gastoRef.id, consecutivoPago: null, fecha, hora };
   }
@@ -75,7 +76,17 @@ export async function registrarGasto({ usuario, categoria, quien, periodo, monto
   if (snap.exists()) batch.update(contadorRef, { ultimo: increment(1) });
   else batch.set(contadorRef, { ultimo: num });
   batch.set(gastoRef, { ...base, consecutivoPago: num });
-  await guardarSinBloquear(batch.commit(), { contexto: `pago #${num}` });
+  await guardarSinBloquear(batch.commit(), {
+    contexto: `pago #${num}`,
+    vigilar: {
+      coleccion: 'gastos',
+      id: gastoRef.id,
+      que: `Pago N.º ${num}: ${categoria}${quien ? ` a ${quien}` : ''}`,
+      detalle: `$${(monto || 0).toLocaleString('es-CO')} · ${origen}`,
+      fecha,
+      hora,
+    },
+  });
 
   return { id: gastoRef.id, consecutivoPago: num, fecha, hora, ...base };
 }
