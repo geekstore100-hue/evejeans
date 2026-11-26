@@ -15,6 +15,7 @@ import EntregaEfectivoFausto from './pages/EntregaEfectivoFausto';
 import RecibirMercancia from './pages/RecibirMercancia';
 import EntradasSalidas from './pages/EntradasSalidas';
 import Inventario from './pages/Inventario';
+import InventarioGeneral from './pages/InventarioGeneral';
 import Ganancia from './pages/Ganancia';
 import Movimientos from './pages/Movimientos';
 import Conciliacion from './pages/Conciliacion';
@@ -305,6 +306,7 @@ export default function App() {
         {vista === 'movimientos' && <Movimientos usuario={usuario} />}
         {vista === 'compras' && usuario.id === 'nelson' && <Compras usuario={usuario} />}
         {vista === 'inventario' && usuario.id === 'nelson' && <Inventario />}
+        {vista === 'inventarioGeneral' && usuario.id === 'nelson' && <InventarioGeneral usuario={usuario} />}
         {vista === 'ganancia' && usuario.id === 'nelson' && <Ganancia />}
         {vista === 'conciliacion' && usuario.id === 'nelson' && <Conciliacion usuario={usuario} />}
         {vista === 'capital' && usuario.id === 'nelson' && <Capital usuario={usuario} />}

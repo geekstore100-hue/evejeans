@@ -35,6 +35,7 @@ const GRUPOS = [
       { id: 'compras', nombre: 'Compras' },
       { id: 'recibir', nombre: 'Recibir mercancía' },
       { id: 'inventario', nombre: 'Inventario' },
+      { id: 'inventarioGeneral', nombre: 'Inventario general' },
       { id: 'entradasSalidas', nombre: 'Entradas y salidas' },
     ],
   },
